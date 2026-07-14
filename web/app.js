@@ -1,6 +1,7 @@
 import * as store from './src/store.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
+import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -148,11 +149,68 @@ function renderDashboard() {
       <p class="field-hint" style="margin-top:8px">P/L de hoje: ${formatSignedBRL(sl.plToday)}</p>
     </div>
     ${s.count === 0 ? `<div class="notice"><strong>Banca configurada ✅</strong><p>Registre seus trades na aba <strong>Registrar</strong> para acompanhar ROI, CLV e disciplina.</p></div>` : ''}
+    <button class="btn" id="btn-calc" style="margin-bottom:14px">🧮 Calculadora de stake (Kelly)</button>
     <div class="section-title">Configuração</div>
     <div class="card"><p class="card-lead">Stop-loss: <strong>${formatPctFrac(cfg.dailyStopLossPct, 0)}</strong> · Máx/operação: <strong>${formatPctFrac(cfg.maxStakePct, 0)}</strong> · Kelly: <strong>${cfg.kellyFraction}×</strong></p></div>
     <button class="btn" id="btn-adjust">Ajustar configuração</button>`;
 
   bancaEl.querySelector('#btn-adjust').addEventListener('click', () => { draft = { ...cfg }; renderBanca(); });
+  bancaEl.querySelector('#btn-calc').addEventListener('click', openCalculator);
+}
+
+/* ================= Calculadora de stake (modal) ================= */
+function openCalculator() {
+  const root = document.getElementById('modal-root');
+  const cfg = store.getConfig();
+  const banca = store.currentBankroll();
+  const st = { odd: 2.0, p: 0.5 };
+
+  function draw() {
+    const evPct = evFraction(st.p, st.odd) * 100;
+    const fairOdd = 1 / st.p;
+    const stake = stakeKelly({ bankroll: banca, p: st.p, odds: st.odd, fraction: cfg.kellyFraction, capFraction: cfg.maxStakePct });
+    const hasValue = evPct > 0;
+    const verdict = hasValue
+      ? `<div class="calc-verdict pos">✅ Tem valor · stake sugerido <strong>${formatBRL(stake)}</strong> <span class="field-hint">(Kelly ${cfg.kellyFraction}×, com teto)</span></div>`
+      : `<div class="calc-verdict neg">❌ Sem valor nessa odd. A odd justa seria <strong>${fairOdd.toFixed(2)}</strong> ou mais. Não entrar.</div>`;
+
+    root.innerHTML = `
+      <div class="modal-overlay" id="calc-overlay">
+        <div class="modal-sheet">
+          <div class="modal-title">Calculadora de stake (Kelly)</div>
+          <div class="field">
+            <div class="field-label"><span>Odd da entrada</span></div>
+            ${oddStepper('odd', st.odd)}
+          </div>
+          <div class="field">
+            <div class="field-label"><span>Sua probabilidade estimada</span><span class="field-hint">sua leitura da chance real</span></div>
+            <div class="stepper">
+              <button class="step" data-pstep="-0.05">−5%</button>
+              <button class="step" data-pstep="-0.01">−1%</button>
+              <span class="step-value">${Math.round(st.p * 100)}%</span>
+              <button class="step" data-pstep="0.01">+1%</button>
+              <button class="step" data-pstep="0.05">+5%</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="stat-card"><span class="stat-label">EV</span><span class="stat-value ${evPct > 0 ? 'pos' : 'neg'}">${formatSignedPct(evPct)}</span></div>
+            <div class="stat-card"><span class="stat-label">Odd justa</span><span class="stat-value">${fairOdd.toFixed(2)}</span></div>
+          </div>
+          ${verdict}
+          <div class="modal-actions"><button class="btn btn-ghost" id="calc-close">Fechar</button></div>
+        </div>
+      </div>`;
+
+    root.querySelectorAll('.step[data-step]').forEach((b) =>
+      b.addEventListener('click', () => { st.odd = clampOdd(st.odd + Number(b.dataset.delta)); draw(); })
+    );
+    root.querySelectorAll('.step[data-pstep]').forEach((b) =>
+      b.addEventListener('click', () => { st.p = Math.min(0.99, Math.max(0.01, Math.round((st.p + Number(b.dataset.pstep)) * 100) / 100)); draw(); })
+    );
+    root.querySelector('#calc-close').addEventListener('click', () => (root.innerHTML = ''));
+    root.querySelector('#calc-overlay').addEventListener('click', (e) => { if (e.target.id === 'calc-overlay') root.innerHTML = ''; });
+  }
+  draw();
 }
 
 /* ================= Tela: Registrar ================= */
