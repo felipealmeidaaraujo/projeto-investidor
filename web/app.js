@@ -312,7 +312,7 @@ const EMOTION_OPTS = [{ v: 'calmo', l: '😌 Calmo' }, { v: 'confiante', l: '�
 
 function defaultReg() {
   return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null, tour: 'ATP', players: null,
-    entryType: null, side: null, dir: null, liveState: { setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 }, preProbA: null,
+    entryType: null, side: null, dir: null, liveState: { setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 }, preProbA: null, preProbKey: null,
     showMore: false, editingScore: false };
 }
 async function ensureModel(tour) {
@@ -341,6 +341,31 @@ function regValid() {
   if ((reg.result === 'green' || reg.result === 'red') && reg.plAmount <= 0) return false;
   if (reg.market === 'Match Odds' && (!reg.entryType || !reg.side || !reg.dir)) return false;
   return true;
+}
+let _probLoadingKey = null;
+function probKeyFor() {
+  return `${reg.tour}|${reg.players?.a}|${reg.players?.b}|${reg.surface || 'hard'}`;
+}
+// (Re)calcula a prob pré-jogo do confronto sempre que tour/jogadores/superfície mudam.
+async function ensurePreProb() {
+  if (reg.market !== 'Match Odds' || reg.entryType !== 'live' || !reg.players?.a || !reg.players?.b) return;
+  const key = probKeyFor();
+  if (reg.preProbKey === key || _probLoadingKey === key) return;
+  _probLoadingKey = key;
+  try {
+    const m = await ensureModel(reg.tour);
+    if (m.error) return;
+    const pa = matchPlayer(reg.players.a, m.players);
+    const pb = matchPlayer(reg.players.b, m.players);
+    const prob = pa && pb ? analyzeMatch(pa, pb, reg.surface || 'hard', m).probA : null;
+    if (probKeyFor() === key && reg.entryType === 'live') {
+      reg.preProbA = prob;
+      reg.preProbKey = key;
+      renderRegistrar();
+    }
+  } finally {
+    if (_probLoadingKey === key) _probLoadingKey = null;
+  }
 }
 function renderRegistrar() {
   if (!store.isConfigured()) {
@@ -461,16 +486,16 @@ function renderRegistrar() {
 
   wireChips(regEl, reg, renderRegistrar);
   regEl.querySelectorAll('[data-regtour]').forEach((b) =>
-    b.addEventListener('click', () => { reg.tour = b.dataset.regtour; reg.players = null; reg.side = null; reg.preProbA = null; renderRegistrar(); })
+    b.addEventListener('click', () => { reg.tour = b.dataset.regtour; reg.players = null; reg.side = null; reg.preProbA = null; reg.preProbKey = null; renderRegistrar(); })
   );
   const pickReg = (side) => async () => {
     const m = await ensureModel(reg.tour);
     if (m.error) { toast('Não consegui carregar os jogadores.'); return; }
-    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; reg.preProbA = null; renderRegistrar(); }, { allowCustom: true });
+    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; reg.preProbA = null; reg.preProbKey = null; renderRegistrar(); }, { allowCustom: true });
   };
   regEl.querySelector('#reg-slot-a')?.addEventListener('click', pickReg('a'));
   regEl.querySelector('#reg-slot-b')?.addEventListener('click', pickReg('b'));
-  regEl.querySelector('#reg-clearconf')?.addEventListener('click', () => { reg.players = null; reg.side = null; reg.preProbA = null; renderRegistrar(); });
+  regEl.querySelector('#reg-clearconf')?.addEventListener('click', () => { reg.players = null; reg.side = null; reg.preProbA = null; reg.preProbKey = null; renderRegistrar(); });
   regEl.querySelector('#btn-oddentry').addEventListener('click', () =>
     openKeypad({ title: 'Odd que peguei', value: reg.oddEntry, mode: 'odd', onConfirm: (v) => { reg.oddEntry = v; renderRegistrar(); } })
   );
@@ -488,19 +513,9 @@ function renderRegistrar() {
   );
   regEl.querySelector('#btn-editscore')?.addEventListener('click', () => { reg.editingScore = !reg.editingScore; renderRegistrar(); });
   regEl.querySelectorAll('[data-entrytype]').forEach((b) =>
-    b.addEventListener('click', async () => {
+    b.addEventListener('click', () => {
       reg.entryType = b.dataset.entrytype;
-      if (reg.entryType === 'live') {
-        reg.editingScore = true;
-        if (reg.preProbA == null && reg.players?.a && reg.players?.b) {
-          const m = await ensureModel(reg.tour);
-          if (!m.error) {
-            const pa = matchPlayer(reg.players.a, m.players);
-            const pb = matchPlayer(reg.players.b, m.players);
-            if (pa && pb) reg.preProbA = analyzeMatch(pa, pb, reg.surface || 'hard', m).probA;
-          }
-        }
-      }
+      if (reg.entryType === 'live') reg.editingScore = true;
       renderRegistrar();
     })
   );
@@ -513,6 +528,7 @@ function renderRegistrar() {
   regEl.querySelectorAll('[data-regserver]').forEach((b) => b.addEventListener('click', () => { reg.liveState.serverIsA = b.dataset.regserver === 'A'; renderRegistrar(); }));
   regEl.querySelectorAll('[data-regbestof]').forEach((b) => b.addEventListener('click', () => { reg.liveState.bestOf = Number(b.dataset.regbestof); renderRegistrar(); }));
   regEl.querySelector('#btn-savetrade').addEventListener('click', saveTrade);
+  ensurePreProb();
 }
 async function saveTrade() {
   if (!regValid()) return;
@@ -892,6 +908,7 @@ function renderAnalise() {
       reg.entryType = 'live';
       reg.liveState = { setsA: anal.live.setsA, setsB: anal.live.setsB, gamesA: anal.live.gamesA, gamesB: anal.live.gamesB, serverIsA: anal.live.serverIsA, bestOf: anal.live.bestOf };
       reg.preProbA = r.probA;
+      reg.preProbKey = probKeyFor();
     }
     showScreen('registrar');
   });
