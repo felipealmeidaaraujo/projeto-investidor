@@ -12,7 +12,7 @@ export class EloEngine {
 
   _get(name) {
     if (!this.players.has(name)) {
-      this.players.set(name, { overall: INITIAL, matches: 0, surfaces: {}, surfaceMatches: {} });
+      this.players.set(name, { overall: INITIAL, matches: 0, surfaces: {}, surfaceMatches: {}, lastDate: null });
     }
     return this.players.get(name);
   }
@@ -33,9 +33,10 @@ export class EloEngine {
   }
 
   /** Atualiza os ratings a partir de um resultado (vencedor conhecido). */
-  processMatch({ winner, loser, surface }) {
+  processMatch({ winner, loser, surface, dateInt }) {
     const w = this._get(winner);
     const l = this._get(loser);
+    if (dateInt) { w.lastDate = dateInt; l.lastDate = dateInt; }
 
     // Elo geral
     const expW = expectedScore(w.overall, l.overall);
@@ -63,6 +64,6 @@ export class EloEngine {
   /** Snapshot do estado de um jogador (para inspeção, dossiês e testes). */
   getState(name) {
     const p = this._get(name);
-    return { overall: p.overall, surfaces: { ...p.surfaces }, matches: p.matches };
+    return { overall: p.overall, surfaces: { ...p.surfaces }, matches: p.matches, lastDate: p.lastDate };
   }
 }

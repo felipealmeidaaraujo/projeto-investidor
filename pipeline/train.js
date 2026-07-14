@@ -1,19 +1,21 @@
-// Treina o modelo Elo em todo o histórico e salva web/model.json (o "cérebro" que o app usa).
+// Treina o modelo Elo com dados ATUAIS (tennis-data.co.uk, 2013–2026) e salva web/model.json.
+// Marca quem está ATIVO (jogou recentemente) para o app focar em quem joga hoje.
 // Uso: node pipeline/train.js [anoInicio] [anoFim]
 import { writeFile } from 'node:fs/promises';
 import { EloEngine } from './elo-engine.js';
-import { loadYears } from './ingest.js';
+import { loadTennisData } from './ingest-tennisdata.js';
 import { fitTemperature } from './calibrate.js';
 
-const FROM = Number(process.argv[2]) || 2010;
-const TO = Number(process.argv[3]) || 2024;
+const FROM = Number(process.argv[2]) || 2013;
+const TO = Number(process.argv[3]) || 2026;
 const MIN_MATCHES = 20;
-const warmupInt = (FROM + 3) * 10000;
+const warmupInt = (FROM + 2) * 10000;
 const splitInt = (TO - 3) * 10000;
 
-console.log(`Baixando ATP ${FROM}–${TO}...`);
-const matches = await loadYears(FROM, TO);
-console.log(`${matches.length} partidas. Treinando...`);
+console.log(`Baixando ATP ${FROM}–${TO} (tennis-data.co.uk, atual)...`);
+const matches = await loadTennisData(FROM, TO, 'ATP');
+const maxDate = matches[matches.length - 1].dateInt;
+console.log(`${matches.length} partidas (até ${maxDate}). Treinando...`);
 
 const engine = new EloEngine();
 const fitPreds = [];
@@ -27,11 +29,13 @@ for (const m of matches) {
   else if (m.winner < m.loser) { favP = engine.predict(m.winner, m.loser, m.surface); favOut = 1; }
   else { favP = engine.predict(m.loser, m.winner, m.surface); favOut = 0; }
   if (m.dateInt >= warmupInt && m.dateInt < splitInt) fitPreds.push({ p: favP, outcome: favOut });
-  engine.processMatch({ winner: m.winner, loser: m.loser, surface: m.surface });
+  engine.processMatch({ winner: m.winner, loser: m.loser, surface: m.surface, dateInt: m.dateInt });
 }
 
 const T = fitTemperature(fitPreds);
 const r = (x) => (x == null ? null : Math.round(x));
+// Ativo = jogou no último ~ano e meio (do ano anterior ao mais recente em diante)
+const activeCutoff = (Math.floor(maxDate / 10000) - 1) * 10000;
 
 const players = [...engine.players.entries()]
   .map(([name, p]) => ({
@@ -46,6 +50,8 @@ const players = [...engine.players.entries()]
       clay: p.surfaceMatches.clay ?? 0,
       grass: p.surfaceMatches.grass ?? 0,
     },
+    lastDate: p.lastDate,
+    active: p.lastDate >= activeCutoff,
   }))
   .filter((p) => p.matches >= MIN_MATCHES)
   .sort((a, b) => b.elo - a.elo);
@@ -53,17 +59,21 @@ const players = [...engine.players.entries()]
 const model = {
   generatedAt: new Date().toISOString(),
   tour: 'ATP',
+  source: 'tennis-data.co.uk',
   yearsFrom: FROM,
   yearsTo: TO,
+  dataThrough: maxDate,
   calibrationT: T,
+  activeCutoff,
   playerCount: players.length,
+  activeCount: players.filter((p) => p.active).length,
   players,
 };
 
 await writeFile(new URL('../web/model.json', import.meta.url), JSON.stringify(model));
-console.log(`\nmodel.json salvo: ${players.length} jogadores, T=${T}\n`);
+console.log(`\nmodel.json salvo: ${players.length} jogadores (${model.activeCount} ativos), T=${T}, dados até ${maxDate}\n`);
 
-console.log('=== TOP 15 POR ELO (teste de sanidade) ===');
-players.slice(0, 15).forEach((p, i) =>
-  console.log(`${String(i + 1).padStart(2)}. ${p.name.padEnd(22)} Elo ${p.elo}  (hard ${p.hard ?? '—'} / clay ${p.clay ?? '—'} / grass ${p.grass ?? '—'})`)
+console.log('=== TOP 15 ATIVOS POR ELO (quem joga hoje) ===');
+players.filter((p) => p.active).slice(0, 15).forEach((p, i) =>
+  console.log(`${String(i + 1).padStart(2)}. ${p.name.padEnd(18)} Elo ${p.elo}  (hard ${p.hard ?? '—'} / clay ${p.clay ?? '—'} / grass ${p.grass ?? '—'})  último: ${p.lastDate}`)
 );

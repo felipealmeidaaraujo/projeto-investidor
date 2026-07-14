@@ -461,7 +461,6 @@ const anal = { model: null, loading: false, a: null, b: null, surface: 'hard' };
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
-const surname = (name) => name.trim().split(' ').slice(-1)[0];
 const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
 
 async function loadModel() {
@@ -552,30 +551,38 @@ function renderReading() {
 
 function openPlayerPicker(onPick) {
   const root = document.getElementById('modal-root');
-  const players = anal.model.players;
-  const letters = [...new Set(players.map((p) => surname(p.name)[0].toUpperCase()))].sort();
+  let showAll = false; // por padrão, só quem está ativo (joga hoje)
   let letter = null;
 
   function draw() {
+    const players = showAll ? anal.model.players : anal.model.players.filter((p) => p.active);
+    const letters = [...new Set(players.map((p) => p.name[0].toUpperCase()))].sort();
     const list = !letter
       ? players.slice(0, 40)
-      : players.filter((p) => surname(p.name)[0].toUpperCase() === letter).sort((a, b) => surname(a.name).localeCompare(surname(b.name)));
+      : players.filter((p) => p.name[0].toUpperCase() === letter).sort((a, b) => a.name.localeCompare(b.name));
     root.innerHTML = `
       <div class="modal-overlay" id="pp-overlay">
         <div class="modal-sheet picker-sheet">
           <div class="modal-title">Escolha o jogador</div>
+          <div class="chips" style="margin-bottom:8px">
+            <button class="chip${showAll ? '' : ' selected'}" data-mode="ativos">Ativos</button>
+            <button class="chip${showAll ? ' selected' : ''}" data-mode="todos">Todos (histórico)</button>
+          </div>
           <div class="az-strip">${letters.map((L) => `<button class="az${letter === L ? ' sel' : ''}" data-l="${L}">${L}</button>`).join('')}</div>
-          <div class="field-hint" style="padding:6px 2px">${letter ? `Sobrenome com "${letter}"` : 'Mais fortes (por Elo)'}</div>
+          <div class="field-hint" style="padding:6px 2px">${letter ? `Nomes com "${letter}"` : 'Mais fortes (por Elo)'}</div>
           <div class="picker-list">
             ${list.map((p) => `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span>${p.name}</span><span class="field-hint">Elo ${p.elo}</span></button>`).join('')}
           </div>
           <div class="modal-actions"><button class="btn btn-ghost" id="pp-cancel">Cancelar</button></div>
         </div>
       </div>`;
+    root.querySelectorAll('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => { showAll = b.dataset.mode === 'todos'; letter = null; draw(); })
+    );
     root.querySelectorAll('.az').forEach((b) => b.addEventListener('click', () => { letter = b.dataset.l; draw(); }));
     root.querySelectorAll('.picker-row').forEach((b) =>
       b.addEventListener('click', () => {
-        const p = players.find((x) => x.name === decodeURIComponent(b.dataset.name));
+        const p = anal.model.players.find((x) => x.name === decodeURIComponent(b.dataset.name));
         root.innerHTML = '';
         onPick(p);
       })
