@@ -228,6 +228,56 @@ body {
 .tr-review { color: var(--amber); }
 .tr-expand { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
 
+/* Análise: seleção de confronto */
+.matchup-slots { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.slot {
+  flex: 1; min-height: 60px; padding: 12px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+  color: var(--muted); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.slot.filled { color: var(--text); border-color: var(--green); }
+.slot:active { transform: scale(.98); }
+.vs { color: var(--muted); font-size: 13px; }
+
+/* Análise: card de leitura */
+.reading-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.reading-fav {
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  padding: 18px; text-align: center; border-bottom: 1px solid var(--border);
+}
+.reading-fav-name { font-size: 20px; font-weight: 700; margin-top: 2px; }
+.reading-fav-prob { font-size: 40px; font-weight: 800; color: var(--green); letter-spacing: -1px; }
+.reading-pills { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+.reading-players { padding: 6px 14px; }
+.pl-row { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+.pl-row:last-child { border-bottom: none; }
+.pl-row.fav .pl-name { color: var(--green); }
+.pl-top { display: flex; justify-content: space-between; align-items: baseline; }
+.pl-name { font-size: 16px; font-weight: 600; }
+.pl-prob { font-size: 18px; font-weight: 700; }
+.pl-sub { font-size: 13px; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.reading-note { padding: 16px; font-size: 14px; line-height: 1.6; border-top: 1px solid var(--border); color: var(--text); }
+
+/* Análise: seletor de jogador (A–Z) */
+.picker-sheet { max-height: 82vh; display: flex; flex-direction: column; }
+.az-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.az {
+  min-width: 30px; min-height: 34px; padding: 4px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--muted); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.az.sel { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.picker-list { overflow-y: auto; flex: 1; }
+.picker-row {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 10px; min-height: 48px;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text); font-size: 15px; font-family: inherit; cursor: pointer; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.picker-row:active { background: var(--surface-2); }
+
 /* Tab bar */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0;

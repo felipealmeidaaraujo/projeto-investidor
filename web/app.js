@@ -2,6 +2,7 @@ import * as store from './src/store.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
+import { analyzeMatch } from './src/analysis.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -13,6 +14,7 @@ function renderScreen(target) {
   if (target === 'banca') renderBanca();
   else if (target === 'registrar') renderRegistrar();
   else if (target === 'historico') renderHistorico();
+  else if (target === 'analise') renderAnalise();
 }
 function showScreen(target) {
   currentScreen = target;
@@ -451,6 +453,137 @@ function openReview(tradeId) {
   );
   root.querySelector('#rv-skip').addEventListener('click', close);
   root.querySelector('#rv-overlay').addEventListener('click', (e) => { if (e.target.id === 'rv-overlay') close(); });
+}
+
+/* ================= Tela: Análise ================= */
+const analiseEl = document.getElementById('screen-analise');
+const anal = { model: null, loading: false, a: null, b: null, surface: 'hard' };
+const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
+const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
+
+const surname = (name) => name.trim().split(' ').slice(-1)[0];
+const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
+
+async function loadModel() {
+  if (anal.model || anal.loading) return;
+  anal.loading = true;
+  try {
+    const res = await fetch('model.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    anal.model = await res.json();
+  } catch (e) {
+    anal.model = { error: e.message };
+  }
+  anal.loading = false;
+  if (currentScreen === 'analise') renderAnalise();
+}
+
+function renderAnalise() {
+  if (!anal.model) {
+    analiseEl.innerHTML = `<h1 class="screen-title">Análise do confronto</h1><div class="card"><p class="card-lead">Carregando o modelo…</p></div>`;
+    loadModel();
+    return;
+  }
+  if (anal.model.error) {
+    analiseEl.innerHTML = `<h1 class="screen-title">Análise do confronto</h1><div class="notice"><p>Não consegui carregar o modelo (${anal.model.error}).</p></div>`;
+    return;
+  }
+  const canRead = anal.a && anal.b;
+  analiseEl.innerHTML = `
+    <h1 class="screen-title">Análise do confronto</h1>
+    <div class="matchup-slots">
+      <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? anal.a.name : '➕ Jogador A'}</button>
+      <span class="vs">vs</span>
+      <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? anal.b.name : '➕ Jogador B'}</button>
+    </div>
+    <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(anal, 'surface', SURF_OPTS)}</div>
+    <div id="reading">${canRead ? renderReading() : `<div class="notice"><p>Escolha os <strong>dois jogadores</strong> e a superfície para ver a leitura do confronto.</p></div>`}</div>
+    <p class="field-hint" style="margin-top:14px">⚠️ Leitura do modelo pra você <strong>entender</strong> o jogo — não é recomendação de aposta. O modelo não bate o mercado; use como preparação.</p>`;
+
+  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker((p) => { anal.a = p; renderAnalise(); }));
+  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
+  wireChips(analiseEl, anal, renderAnalise);
+}
+
+function tagPill(tag) {
+  const map = { forte: 'pill-green', fraco: 'pill-red', neutro: 'pill-muted', 'poucos dados': 'pill-amber' };
+  return `<span class="pill ${map[tag] || 'pill-muted'}">${tag}</span>`;
+}
+
+function playerRow(side, prob, fairOdd, isFav) {
+  return `<div class="pl-row ${isFav ? 'fav' : ''}">
+    <div class="pl-top"><span class="pl-name">${side.name}${isFav ? ' 👑' : ''}</span><span class="pl-prob">${pct(prob)}</span></div>
+    <div class="pl-sub">Elo ${side.elo} · piso ${side.surfaceElo ?? '—'} · força ${side.blended} ${tagPill(side.surfaceRead.tag)}${side.surfaceRead.delta ? ` <span class="field-hint">(${side.surfaceRead.delta > 0 ? '+' : ''}${side.surfaceRead.delta})</span>` : ''}</div>
+    <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong></div>
+  </div>`;
+}
+
+function narrative(r) {
+  const s = SURFACE_PT[r.surface];
+  const phrase = (side) => {
+    const sr = side.surfaceRead;
+    if (sr.tag === 'forte') return `${side.name} rende <strong>acima</strong> do seu nível no ${s} (${sr.delta > 0 ? '+' : ''}${sr.delta})`;
+    if (sr.tag === 'fraco') return `${side.name} rende <strong>abaixo</strong> do seu nível no ${s} (${sr.delta})`;
+    if (sr.tag === 'poucos dados') return `${side.name} tem <strong>poucos jogos</strong> no ${s} (cautela)`;
+    return `${side.name} joga em linha com seu nível no ${s}`;
+  };
+  return `No ${s}: ${phrase(r.a)}; ${phrase(r.b)}. O modelo vê <strong>${r.favorite}</strong> como <strong>${r.marginLabel}</strong> (${pct(r.favoriteProb)}). Confiança <strong>${r.confidence.level}</strong> — ${r.confidence.reason}.`;
+}
+
+function renderReading() {
+  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
+  const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
+  const favIsA = r.favorite === anal.a.name;
+  return `
+    <div class="reading-card">
+      <div class="reading-fav">
+        <span class="field-hint">Favorito no ${SURFACE_PT[anal.surface]}</span>
+        <div class="reading-fav-name">${r.favorite}</div>
+        <div class="reading-fav-prob">${pct(r.favoriteProb)}</div>
+        <div class="reading-pills"><span class="pill pill-green">${r.marginLabel}</span><span class="pill ${confPill}">confiança ${r.confidence.level}</span></div>
+      </div>
+      <div class="reading-players">
+        ${playerRow(r.a, r.probA, r.fairOddA, favIsA)}
+        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA)}
+      </div>
+      <div class="reading-note">${narrative(r)}</div>
+    </div>`;
+}
+
+function openPlayerPicker(onPick) {
+  const root = document.getElementById('modal-root');
+  const players = anal.model.players;
+  const letters = [...new Set(players.map((p) => surname(p.name)[0].toUpperCase()))].sort();
+  let letter = null;
+
+  function draw() {
+    const list = !letter
+      ? players.slice(0, 40)
+      : players.filter((p) => surname(p.name)[0].toUpperCase() === letter).sort((a, b) => surname(a.name).localeCompare(surname(b.name)));
+    root.innerHTML = `
+      <div class="modal-overlay" id="pp-overlay">
+        <div class="modal-sheet picker-sheet">
+          <div class="modal-title">Escolha o jogador</div>
+          <div class="az-strip">${letters.map((L) => `<button class="az${letter === L ? ' sel' : ''}" data-l="${L}">${L}</button>`).join('')}</div>
+          <div class="field-hint" style="padding:6px 2px">${letter ? `Sobrenome com "${letter}"` : 'Mais fortes (por Elo)'}</div>
+          <div class="picker-list">
+            ${list.map((p) => `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span>${p.name}</span><span class="field-hint">Elo ${p.elo}</span></button>`).join('')}
+          </div>
+          <div class="modal-actions"><button class="btn btn-ghost" id="pp-cancel">Cancelar</button></div>
+        </div>
+      </div>`;
+    root.querySelectorAll('.az').forEach((b) => b.addEventListener('click', () => { letter = b.dataset.l; draw(); }));
+    root.querySelectorAll('.picker-row').forEach((b) =>
+      b.addEventListener('click', () => {
+        const p = players.find((x) => x.name === decodeURIComponent(b.dataset.name));
+        root.innerHTML = '';
+        onPick(p);
+      })
+    );
+    root.querySelector('#pp-cancel').addEventListener('click', () => (root.innerHTML = ''));
+    root.querySelector('#pp-overlay').addEventListener('click', (e) => { if (e.target.id === 'pp-overlay') root.innerHTML = ''; });
+  }
+  draw();
 }
 
 /* ================= Chips (wiring compartilhado) ================= */
