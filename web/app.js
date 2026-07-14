@@ -304,7 +304,7 @@ function openCalculator() {
 const regEl = document.getElementById('screen-registrar');
 let reg = null;
 
-const MARKET_OPTS = ['Match Odds', 'Vencedor Set', 'Games', 'Outro'];
+const MARKET_OPTS = ['Match Odds', 'Handicap', 'Over/Under Games'];
 const SURFACE_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }, { v: 'indoor', l: 'Indoor' }];
 const RESULT_OPTS = [{ v: 'green', l: '🟢 Green' }, { v: 'red', l: '🔴 Red' }, { v: 'zero', l: '⚪ Zerei' }];
 const EMOTION_OPTS = [{ v: 'calmo', l: '😌 Calmo' }, { v: 'confiante', l: '💪 Confiante' }, { v: 'ansioso', l: '😬 Ansioso' }, { v: 'tilt', l: '🎢 Tilt' }];

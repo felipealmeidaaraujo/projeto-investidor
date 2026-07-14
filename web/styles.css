@@ -207,6 +207,17 @@ body {
 .v-red { background: linear-gradient(155deg, #FF6178, #E23F58); }
 .v-blue { background: linear-gradient(155deg, #4E9BFF, #2E6BF0); }
 .v-indigo { background: linear-gradient(155deg, var(--accent-2), var(--accent)); }
+.clv-hero { border-radius: var(--r-lg); padding: 20px 22px; color: #fff; margin-bottom: 14px;
+  background: linear-gradient(155deg, #1CC98A, #12A56C); box-shadow: var(--shadow); }
+.clv-hero.neg { background: linear-gradient(155deg, #FF6178, #E23F58); }
+.clv-hero .clv-hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+.clv-hero .clv-lab { font-size: 13.5px; font-weight: 700; opacity: .95; }
+.clv-hero .clv-val { font-size: 42px; font-weight: 800; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; margin-top: 4px; line-height: 1.05; }
+.clv-hero .clv-spark { width: 130px; flex-shrink: 0; opacity: .9; margin-top: 8px; }
+.clv-hero .clv-pills { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.clv-hero .clv-pill { background: rgba(255,255,255,.22); border-radius: 999px;
+  padding: 5px 11px; font-size: 12.5px; font-weight: 600; }
 .grid-v { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px; }
 @media (min-width: 640px) { .grid-v { grid-template-columns: repeat(2, 1fr); } }
 .grid-hero { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 16px; }
