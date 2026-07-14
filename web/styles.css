@@ -382,3 +382,25 @@ body {
 .ref-high { color: #7dd3a8; border-color: #2f6b4b; }
 .ref-mid { color: var(--muted); border-color: var(--border); }
 .ref-low { color: var(--amber); border-color: rgba(245, 158, 11, 0.5); }
+
+/* ===== Tela de login (auth) ===== */
+#auth-root:empty { display: none; }
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.auth-card {
+  width: 100%; max-width: 360px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
+}
+.auth-card h1 { font-size: 20px; margin-bottom: 4px; }
+.auth-card p.sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.auth-input {
+  width: 100%; padding: 14px; margin-bottom: 10px; font-size: 16px; font-family: inherit;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; color: var(--text);
+}
+.auth-input:focus { outline: none; border-color: var(--accent); }
+.auth-error { font-size: 13px; margin: 4px 0 10px; min-height: 18px; }
+.auth-switch { text-align: center; margin-top: 14px; font-size: 13px; color: var(--muted); }
+.auth-switch button { background: none; border: none; color: var(--accent); font: inherit; cursor: pointer; }
+.auth-forgot { background: none; border: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }

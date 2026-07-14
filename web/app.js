@@ -1,4 +1,5 @@
 import * as store from './src/store.js';
+import * as auth from './src/supabase.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
@@ -107,8 +108,9 @@ function renderConfigForm() {
   bancaEl.querySelector('#btn-initial').addEventListener('click', () =>
     openKeypad({ title: 'Banca inicial', value: draft.initial, onConfirm: (v) => { draft.initial = v; renderBanca(); } })
   );
-  bancaEl.querySelector('#btn-save').addEventListener('click', () => {
-    store.setConfig({ ...draft });
+  bancaEl.querySelector('#btn-save').addEventListener('click', async () => {
+    try { await store.setConfig({ ...draft }); }
+    catch { toast('Sem conexão — não salvo.'); return; }
     draft = null;
     renderBanca();
     toast('Configuração salva ✅');
@@ -155,10 +157,15 @@ function renderDashboard() {
     <button class="btn" id="btn-calc" style="margin-bottom:14px">🧮 Calculadora de stake (Kelly)</button>
     <div class="section-title">Configuração</div>
     <div class="card"><p class="card-lead">Stop-loss: <strong>${formatPctFrac(cfg.dailyStopLossPct, 0)}</strong> · Máx/operação: <strong>${formatPctFrac(cfg.maxStakePct, 0)}</strong> · Kelly: <strong>${cfg.kellyFraction}×</strong></p></div>
-    <button class="btn" id="btn-adjust">Ajustar configuração</button>`;
+    <button class="btn" id="btn-adjust">Ajustar configuração</button>
+    <button class="btn btn-ghost" id="btn-logout" style="margin-top:8px">Sair da conta</button>`;
 
   bancaEl.querySelector('#btn-adjust').addEventListener('click', () => { draft = { ...cfg }; renderBanca(); });
   bancaEl.querySelector('#btn-calc').addEventListener('click', openCalculator);
+  bancaEl.querySelector('#btn-logout').addEventListener('click', async () => {
+    await auth.signOut();
+    store.clearCache();
+  });
 }
 
 /* ================= Calculadora de stake (modal) ================= */
@@ -311,7 +318,7 @@ function renderRegistrar() {
   );
   regEl.querySelector('#btn-savetrade').addEventListener('click', saveTrade);
 }
-function saveTrade() {
+async function saveTrade() {
   if (!regValid()) return;
   const trade = makeTrade(
     {
@@ -326,7 +333,8 @@ function saveTrade() {
     },
     { id: crypto.randomUUID(), date: nowLocalISO() }
   );
-  store.addTrade(trade);
+  try { await store.addTrade(trade); }
+  catch { toast('Sem conexão — trade não salvo.'); return; }
   reg = defaultReg();
   renderRegistrar();
   toast('Trade registrado ✅');
@@ -417,14 +425,16 @@ function renderHistorico() {
     })
   );
   histEl.querySelectorAll('[data-review]').forEach((chip) =>
-    chip.addEventListener('click', () => {
-      store.updateTrade(chip.dataset.id, { review: chip.dataset.review });
+    chip.addEventListener('click', async () => {
+      try { await store.updateTrade(chip.dataset.id, { review: chip.dataset.review }); }
+      catch { toast('Sem conexão — revisão não salva.'); return; }
       toast('Revisão salva 📝');
     })
   );
   histEl.querySelectorAll('[data-remove]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      store.removeTrade(btn.dataset.remove);
+    btn.addEventListener('click', async () => {
+      try { await store.removeTrade(btn.dataset.remove); }
+      catch { toast('Sem conexão — não removido.'); return; }
       expandedId = null;
       toast('Trade removido');
     })
@@ -446,8 +456,9 @@ function openReview(tradeId) {
     </div>`;
   const close = () => (root.innerHTML = '');
   root.querySelectorAll('[data-rv]').forEach((chip) =>
-    chip.addEventListener('click', () => {
-      store.updateTrade(tradeId, { review: chip.dataset.rv });
+    chip.addEventListener('click', async () => {
+      try { await store.updateTrade(tradeId, { review: chip.dataset.rv }); }
+      catch { toast('Sem conexão — revisão não salva.'); return; }
       close();
       toast('Revisão salva 📝');
     })
@@ -970,9 +981,76 @@ function openKeypad({ title, value = 0, onConfirm }) {
   draw();
 }
 
-/* ================= Boot ================= */
-store.subscribe(() => renderScreen(currentScreen));
-renderScreen('banca');
+/* ================= Auth + Boot ================= */
+const authRoot = document.getElementById('auth-root');
+let booted = false;
+
+function traduzErroAuth(e) {
+  const m = (e?.message || '').toLowerCase();
+  if (m.includes('invalid login')) return 'E-mail ou senha incorretos.';
+  if (m.includes('already registered')) return 'Esse e-mail já tem conta. Tente entrar.';
+  if (m.includes('password')) return 'Senha muito curta (mínimo 6 caracteres).';
+  if (m.includes('email')) return 'E-mail inválido.';
+  return 'Não deu certo. Confira os dados e a conexão.';
+}
+
+function renderAuth() {
+  let mode = 'login'; // 'login' | 'signup'
+  function draw() {
+    authRoot.innerHTML = `
+      <div class="auth-overlay"><div class="auth-card">
+        <h1>${mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
+        <p class="sub">Seu diário fica privado e sincronizado na nuvem.</p>
+        <input class="auth-input" id="auth-email" type="email" inputmode="email" placeholder="E-mail" autocomplete="email">
+        <input class="auth-input" id="auth-pass" type="password" placeholder="Senha" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
+        <div class="auth-error" id="auth-error"></div>
+        <button class="btn btn-primary" id="auth-submit">${mode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+        ${mode === 'login' ? '<div style="text-align:center;margin-top:10px"><button class="auth-forgot" id="auth-forgot">Esqueci a senha</button></div>' : ''}
+        <div class="auth-switch">
+          ${mode === 'login' ? 'Não tem conta?' : 'Já tem conta?'}
+          <button id="auth-switch">${mode === 'login' ? 'Criar conta' : 'Entrar'}</button>
+        </div>
+      </div></div>`;
+    const err = authRoot.querySelector('#auth-error');
+    const email = () => authRoot.querySelector('#auth-email').value.trim();
+    const pass = () => authRoot.querySelector('#auth-pass').value;
+    authRoot.querySelector('#auth-switch').addEventListener('click', () => { mode = mode === 'login' ? 'signup' : 'login'; draw(); });
+    authRoot.querySelector('#auth-submit').addEventListener('click', async () => {
+      err.textContent = '';
+      try {
+        if (mode === 'login') await auth.signIn(email(), pass());
+        else {
+          const { session } = await auth.signUp(email(), pass());
+          err.style.color = 'var(--green)';
+          err.textContent = session ? 'Conta criada! Entrando...' : 'Conta criada! Confirme o e-mail e depois entre.';
+        }
+      } catch (e) { err.style.color = 'var(--red)'; err.textContent = traduzErroAuth(e); }
+    });
+    authRoot.querySelector('#auth-forgot')?.addEventListener('click', async () => {
+      if (!email()) { err.style.color = 'var(--red)'; err.textContent = 'Digite seu e-mail primeiro.'; return; }
+      try { await auth.resetPassword(email()); err.style.color = 'var(--green)'; err.textContent = 'Enviei um link de redefinição pro seu e-mail.'; }
+      catch (e) { err.style.color = 'var(--red)'; err.textContent = traduzErroAuth(e); }
+    });
+  }
+  draw();
+}
+
+async function bootApp() {
+  authRoot.innerHTML = '';
+  try { await store.initStore(); }
+  catch (e) { toast('Erro ao carregar seus dados: ' + (e?.message || 'sem conexão')); }
+  if (!booted) {
+    booted = true;
+    store.subscribe(() => renderScreen(currentScreen));
+  }
+  renderScreen(currentScreen);
+}
+
+// Reage ao estado de login (inclui sessão persistida ao abrir o app)
+auth.onAuthChange((session) => {
+  if (session) bootApp();
+  else { booted = false; renderAuth(); }
+});
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
