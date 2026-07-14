@@ -31,5 +31,8 @@ export function makeTrade(input, meta) {
     trade.oddClose = input.oddClose;
     trade.clv = clvPct(input.oddEntry, input.oddClose);
   }
+  if (input.players && input.players.a && input.players.b) {
+    trade.players = { a: input.players.a, b: input.players.b, tour: input.players.tour };
+  }
   return trade;
 }

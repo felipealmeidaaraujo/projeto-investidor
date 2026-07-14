@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolvePL } from '../web/src/trade.js';
+import { resolvePL, makeTrade } from '../web/src/trade.js';
 
 test('resolvePL: green vira lucro positivo', () => {
   assert.equal(resolvePL('green', 50), 50);
@@ -11,4 +11,14 @@ test('resolvePL: red vira prejuízo negativo (usa o módulo do valor)', () => {
 });
 test('resolvePL: zerei é sempre 0', () => {
   assert.equal(resolvePL('zero', 50), 0);
+});
+
+test('makeTrade: guarda o confronto quando os dois jogadores existem', () => {
+  const base = { market: 'Match Odds', surface: 'clay', oddEntry: 1.9, stake: 50, result: 'green', plAmount: 45, emotion: 'calmo' };
+  const t1 = makeTrade({ ...base, players: { a: 'Carlos Alcaraz', b: 'Jannik Sinner', tour: 'ATP' } }, { id: 'x', date: 'd' });
+  assert.deepEqual(t1.players, { a: 'Carlos Alcaraz', b: 'Jannik Sinner', tour: 'ATP' });
+  const t2 = makeTrade({ ...base, players: { a: 'Só um' } }, { id: 'y', date: 'd' });
+  assert.equal(t2.players, undefined);
+  const t3 = makeTrade(base, { id: 'z', date: 'd' });
+  assert.equal(t3.players, undefined);
 });

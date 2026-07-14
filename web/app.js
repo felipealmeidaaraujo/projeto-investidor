@@ -310,7 +310,18 @@ const RESULT_OPTS = [{ v: 'green', l: '🟢 Green' }, { v: 'red', l: '🔴 Red' 
 const EMOTION_OPTS = [{ v: 'calmo', l: '😌 Calmo' }, { v: 'confiante', l: '💪 Confiante' }, { v: 'ansioso', l: '😬 Ansioso' }, { v: 'tilt', l: '🎢 Tilt' }];
 
 function defaultReg() {
-  return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null };
+  return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null, tour: 'ATP', players: null };
+}
+async function ensureModel(tour) {
+  if (anal.models[tour] && !anal.models[tour].error) return anal.models[tour];
+  try {
+    const res = await fetch(`model-${tour.toLowerCase()}.json`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    anal.models[tour] = await res.json();
+  } catch (e) {
+    anal.models[tour] = { error: e.message };
+  }
+  return anal.models[tour];
 }
 function oddStepper(field, value) {
   return `<div class="stepper">
@@ -349,6 +360,20 @@ function renderRegistrar() {
     <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
 
     <div class="field">
+      <div class="field-label"><span>Confronto</span><span class="field-hint">opcional — quem jogou</span></div>
+      <div class="chips" style="margin-bottom:10px">
+        <button class="chip${reg.tour === 'ATP' ? ' selected' : ''}" data-regtour="ATP">ATP</button>
+        <button class="chip${reg.tour === 'WTA' ? ' selected' : ''}" data-regtour="WTA">WTA</button>
+      </div>
+      <div class="matchup-slots">
+        <button class="slot ${reg.players && reg.players.a ? 'filled' : ''}" id="reg-slot-a">${reg.players && reg.players.a ? reg.players.a : '➕ Jogador A'}</button>
+        <span class="vs">×</span>
+        <button class="slot ${reg.players && reg.players.b ? 'filled' : ''}" id="reg-slot-b">${reg.players && reg.players.b ? reg.players.b : '➕ Jogador B'}</button>
+      </div>
+      ${reg.players && (reg.players.a || reg.players.b) ? `<button class="btn btn-ghost" id="reg-clearconf" style="margin-top:8px">Limpar confronto</button>` : ''}
+    </div>
+
+    <div class="field">
       <div class="field-label"><span>Odd de entrada</span></div>
       ${oddStepper('oddEntry', reg.oddEntry)}
     </div>
@@ -378,6 +403,17 @@ function renderRegistrar() {
     <button class="btn btn-primary" id="btn-savetrade" ${regValid() ? '' : 'disabled'}>Salvar trade</button>`;
 
   wireChips(regEl, reg, renderRegistrar);
+  regEl.querySelectorAll('[data-regtour]').forEach((b) =>
+    b.addEventListener('click', () => { reg.tour = b.dataset.regtour; reg.players = null; renderRegistrar(); })
+  );
+  const pickReg = (side) => async () => {
+    const m = await ensureModel(reg.tour);
+    if (m.error) { toast('Não consegui carregar os jogadores.'); return; }
+    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; renderRegistrar(); });
+  };
+  regEl.querySelector('#reg-slot-a').addEventListener('click', pickReg('a'));
+  regEl.querySelector('#reg-slot-b').addEventListener('click', pickReg('b'));
+  regEl.querySelector('#reg-clearconf')?.addEventListener('click', () => { reg.players = null; renderRegistrar(); });
   regEl.querySelectorAll('.step').forEach((b) =>
     b.addEventListener('click', () => {
       const f = b.dataset.step;
@@ -407,6 +443,7 @@ async function saveTrade() {
       result: reg.result,
       plAmount: reg.plAmount,
       emotion: reg.emotion,
+      players: reg.players && reg.players.a && reg.players.b ? reg.players : undefined,
     },
     { id: crypto.randomUUID(), date: nowLocalISO() }
   );
@@ -463,6 +500,7 @@ function renderHistorico() {
     .map((t) => {
       const plCls = t.pl > 0 ? 'pos' : t.pl < 0 ? 'neg' : '';
       const open = expandedId === t.id;
+      const conf = t.players && t.players.a && t.players.b ? `${t.players.a} × ${t.players.b}` : null;
       const sub = `${resultBadge(t.result)} · odd ${Number(t.oddEntry).toFixed(2)} · ${formatBRL(t.stake)}${t.clv != null ? ' · CLV ' + formatSignedPct(t.clv) : ''}${t.emotion ? ' · ' + (EMO[t.emotion] || '') : ''}`;
       const review = t.review ? `<span class="tr-review">📝 ${t.review}</span>` : '';
       const expand = open
@@ -473,8 +511,8 @@ function renderHistorico() {
            </div>`
         : '';
       return `<div class="trade-row" data-toggle="${t.id}">
-          <div class="tr-main"><span>${t.market}</span><span class="tr-pl ${plCls}">${formatSignedBRL(t.pl)}</span></div>
-          <div class="tr-sub">${sub} ${review}</div>
+          <div class="tr-main"><span>${conf || t.market}</span><span class="tr-pl ${plCls}">${formatSignedBRL(t.pl)}</span></div>
+          <div class="tr-sub">${conf ? `<span class="pill pill-muted">${t.market}</span> ` : ''}${sub} ${review}</div>
           ${expand}
         </div>`;
     })
@@ -688,6 +726,10 @@ function renderAnalise() {
 
   analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
   analiseEl.querySelector('#btn-more')?.addEventListener('click', () => { anal.moreOpen = !anal.moreOpen; renderAnalise(); });
+  analiseEl.querySelector('#btn-reg-conf')?.addEventListener('click', () => {
+    reg = { ...defaultReg(), tour: anal.tour, surface: anal.surface, players: { a: anal.a.fullName || anal.a.name, b: anal.b.fullName || anal.b.name, tour: anal.tour } };
+    showScreen('registrar');
+  });
   analiseEl.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; renderAnalise(); });
   analiseEl.querySelectorAll('[data-live]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -940,6 +982,7 @@ function renderReading() {
       </div>
       <div class="reading-note">${narrative(r)}</div>
     </div>
+    <button class="btn btn-primary" id="btn-reg-conf" style="margin-top:12px">📝 Registrar trade neste confronto</button>
     ${renderExplain(r)}
     <button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>
     ${anal.live.active ? renderLive(r) : ''}`;
