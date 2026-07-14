@@ -68,7 +68,7 @@ export function playerTags(player) {
     if (e == null) continue;
     const d = e - player.elo;
     if (d >= 60) tags.push({ t: `Especialista ${label}`, kind: 'strength' });
-    else if (d <= -60) tags.push({ t: `Rende menos ${label}`, kind: 'weakness' });
+    else if (d <= -60) tags.push({ t: `Rende menos ${label}`, kind: 'relative' });
   }
   return tags;
 }

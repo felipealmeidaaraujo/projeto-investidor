@@ -678,7 +678,7 @@ function openDossier(player) {
           <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
           <div class="dos-name">${player.name}</div>
           <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
-          ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${t.kind === 'strength' ? 'pill-green' : 'pill-red'}">${t.t}</span>`).join('')}</div>` : ''}
+          ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
           <div class="dos-section">Elo por superfície</div>
           <div class="dos-surf">${srow('clay', 'Saibro')}${srow('hard', 'Dura')}${srow('grass', 'Grama')}</div>
           ${s
