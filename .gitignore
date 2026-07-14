@@ -1,0 +1,18 @@
+# Dependências
+node_modules/
+dist/
+.cache/
+
+# Segredos (NUNCA versionar chaves de API)
+.env
+.env.*
+!.env.example
+
+# Dados brutos baixados (grandes / não versionar)
+data/*
+!data/.gitkeep
+
+# Sistema
+*.log
+.DS_Store
+Thumbs.db

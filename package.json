@@ -1,0 +1,11 @@
+{
+  "name": "projeto-investidor",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Sistema de apoio à decisão para trade esportivo de tênis (ATP/WTA) na Betfair.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "test": "node --test"
+  }
+}
