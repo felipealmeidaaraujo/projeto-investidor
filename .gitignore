@@ -19,3 +19,8 @@ Thumbs.db
 
 # Mockups do companion de brainstorming (efêmeros)
 .superpowers/
+
+# Screenshots de auditoria/design (efêmeros)
+audit-*.png
+ds*.png
+.playwright-mcp/
