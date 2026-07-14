@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normName, matchPlayer } from '../web/src/match-names.js';
+import { normName, matchPlayer, matchesModelName } from '../web/src/match-names.js';
 
 const players = [
   { name: 'Sinner J.' },
@@ -31,4 +31,11 @@ test('matchPlayer: sobrenome com hífen (Auger-Aliassime)', () => {
 
 test('matchPlayer: sem correspondência → null', () => {
   assert.equal(matchPlayer('Fulano Desconhecido', players), null);
+});
+
+test('matchesModelName: casa nome completo com formato do modelo', () => {
+  assert.equal(matchesModelName('Carlos Alcaraz', 'Alcaraz C.'), true);
+  assert.equal(matchesModelName('Jannik Sinner', 'Sinner J.'), true);
+  assert.equal(matchesModelName('Carlos Alcaraz', 'Sinner J.'), false);
+  assert.equal(matchesModelName('Félix Auger-Aliassime', 'Auger-Aliassime F.'), true); // acentos/hífen
 });

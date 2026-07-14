@@ -35,3 +35,10 @@ export function matchPlayer(fullName, players) {
   }
   return null;
 }
+
+/** Um nome completo ("Carlos Alcaraz") e um nome de modelo ("Alcaraz C.") são o mesmo jogador? */
+export function matchesModelName(fullName, modelName) {
+  const f = parseFullName(fullName);
+  const m = parseModelName(modelName);
+  return !!m.surname && m.surname === f.surname && (f.initial === '' || m.initial === f.initial);
+}
