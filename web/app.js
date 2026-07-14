@@ -480,11 +480,17 @@ function renderHistorico() {
     })
     .join('');
 
+  const decided = s.greens + s.reds;
   histEl.innerHTML = `
     <h1 class="screen-title">Histórico</h1>
-    <div class="grid-2">
-      <div class="stat-card"><span class="stat-label">P/L total</span><span class="stat-value ${s.totalPL > 0 ? 'pos' : s.totalPL < 0 ? 'neg' : ''}">${formatSignedBRL(s.totalPL)}</span></div>
-      <div class="stat-card"><span class="stat-label">ROI</span><span class="stat-value ${s.roi > 0 ? 'pos' : s.roi < 0 ? 'neg' : ''}">${formatSignedPct(s.roi * 100)}</span></div>
+    <div class="hero-card">
+      <span class="hero-label">P/L total</span>
+      <span class="hero-value ${s.totalPL > 0 ? 'pos' : s.totalPL < 0 ? 'neg' : ''}">${formatSignedBRL(s.totalPL)}</span>
+      <div class="hero-meta">
+        <span class="pill ${s.roi >= 0 ? 'pill-green' : 'pill-red'}">ROI ${formatSignedPct(s.roi * 100)}</span>
+        <span class="pill pill-muted">${s.count} trades</span>
+        <span class="pill pill-muted">acerto ${decided ? formatPctFrac(s.winRate, 0) : '—'}</span>
+      </div>
     </div>
     ${learn}
     <div class="section-title">Onde você ganha × sangra</div>
@@ -1088,6 +1094,7 @@ function renderAuth() {
   function draw() {
     authRoot.innerHTML = `
       <div class="auth-overlay"><div class="auth-card">
+        <div class="auth-brand"><span class="brand-mark"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.4" stroke="#fff" stroke-width="1.7"/><path d="M3.2 5.4c4 2 4 7.2 0 9.2M16.8 5.4c-4 2-4 7.2 0 9.2" stroke="#fff" stroke-width="1.7"/></svg></span><strong style="font-weight:800;letter-spacing:-0.02em">Projeto Investidor</strong></div>
         <h1>${mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
         <p class="sub">Seu diário fica privado e sincronizado na nuvem.</p>
         <input class="auth-input" id="auth-email" type="email" inputmode="email" placeholder="E-mail" autocomplete="email">
