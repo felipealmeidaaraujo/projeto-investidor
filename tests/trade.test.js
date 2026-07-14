@@ -22,3 +22,24 @@ test('makeTrade: guarda o confronto quando os dois jogadores existem', () => {
   const t3 = makeTrade(base, { id: 'z', date: 'd' });
   assert.equal(t3.players, undefined);
 });
+
+test('makeTrade: grava side/dir/entryType e o valor ao vivo', () => {
+  const t = makeTrade({
+    market: 'Match Odds', surface: 'hard', oddEntry: 2.5, stake: 50, result: 'green', plAmount: 40,
+    players: { a: 'A A', b: 'B B', tour: 'ATP' }, side: 'a', dir: 'back',
+    entryType: 'live', liveState: { setsA: 0, setsB: 1, gamesA: 2, gamesB: 3, serverIsA: true, bestOf: 3 }, liveFairOdd: 2.0,
+  }, { id: 'x', date: 'd' });
+  assert.equal(t.side, 'a');
+  assert.equal(t.dir, 'back');
+  assert.equal(t.entryType, 'live');
+  assert.deepEqual(t.liveState, { setsA: 0, setsB: 1, gamesA: 2, gamesB: 3, serverIsA: true, bestOf: 3 });
+  assert.equal(Math.round(t.liveValue), 25); // clvPct(2.5, 2.0, 'back') = +25%
+});
+
+test('makeTrade: CLV pré-jogo manual usa a direção (lay inverte)', () => {
+  const t = makeTrade({
+    market: 'Match Odds', surface: 'clay', oddEntry: 2.0, oddClose: 2.1, stake: 10, result: 'zero', plAmount: 0,
+    side: 'b', dir: 'lay',
+  }, { id: 'y', date: 'd' });
+  assert.equal(Math.round(t.clv), 5); // lay: clvPct(2.0, 2.1, 'lay') = (2.1/2.0-1)*100 = +5%
+});

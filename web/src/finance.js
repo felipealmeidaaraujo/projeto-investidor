@@ -42,12 +42,12 @@ export function deMarginTwoWay(oddsA, oddsB) {
   return [a / s, b / s];
 }
 
-/** Closing Line Value em % (back): quanto melhor foi a odd pega vs. o fechamento. */
-export function clvPct(oddsTaken, oddsClose) {
-  return (oddsTaken / oddsClose - 1) * 100;
+/** Valor (%) da odd pega vs. uma referência (fechamento OU odd justa ao vivo). Back e lay. */
+export function clvPct(oddsTaken, oddsRef, side = 'back') {
+  return side === 'lay' ? (oddsRef / oddsTaken - 1) * 100 : (oddsTaken / oddsRef - 1) * 100;
 }
 
-/** Bateu o fechamento? (back → odd pega maior que a de fechamento) */
-export function beatClose(oddsTaken, oddsClose) {
-  return oddsTaken > oddsClose;
+/** A odd pega superou a referência? (back: maior é melhor; lay: menor é melhor) */
+export function beatClose(oddsTaken, oddsRef, side = 'back') {
+  return side === 'lay' ? oddsTaken < oddsRef : oddsTaken > oddsRef;
 }

@@ -101,7 +101,7 @@ test('clvBySegment: agrupa por chave só trades com CLV', () => {
     { market: 'Match Odds', clv: -2 },
     { market: 'Handicap', clv: 6 },
     { market: 'Handicap' }, // sem clv → ignorado
-  ], 'market');
+  ], 'clv', 'market');
   assert.equal(g['Match Odds'].count, 2);
   approx(g['Match Odds'].avgClv, 1);
   approx(g['Match Odds'].beatRate, 0.5);
@@ -111,7 +111,7 @@ test('clvBySegment: agrupa por chave só trades com CLV', () => {
 });
 
 test('clvBySegment: chave ausente cai em —', () => {
-  const g = clvBySegment([{ clv: 3 }], 'surface');
+  const g = clvBySegment([{ clv: 3 }], 'clv', 'surface');
   assert.equal(g['—'].count, 1);
   approx(g['—'].avgClv, 3);
 });
@@ -126,5 +126,22 @@ test('CLV: ignora clv não-finito (NaN/Infinity de dado corrompido)', () => {
   assert.equal(s.measured, 1);
   approx(s.avgClv, 4);
   assert.equal(clvTrend(bad).length, 1);
-  assert.equal(clvBySegment(bad, 'market')['Match Odds'].count, 1);
+  assert.equal(clvBySegment(bad, 'clv', 'market')['Match Odds'].count, 1);
+});
+
+test('clvStats/clvTrend/clvBySegment: aceitam field liveValue', () => {
+  const lv = [
+    { date: '2026-07-10', surface: 'clay', liveValue: 6 },
+    { date: '2026-07-11', surface: 'hard', liveValue: -2 },
+    { date: '2026-07-12', surface: 'clay', liveValue: 4 },
+    { date: '2026-07-13', surface: 'grass' }, // sem liveValue → ignorado
+  ];
+  const s = clvStats(lv, 'liveValue');
+  assert.equal(s.measured, 3);
+  approx(s.avgClv, (6 - 2 + 4) / 3);
+  approx(s.beatRate, 2 / 3);
+  assert.equal(clvTrend(lv, 'liveValue').length, 3);
+  const seg = clvBySegment(lv, 'liveValue', 'surface');
+  assert.equal(seg.clay.count, 2);
+  approx(seg.clay.avgClv, 5);
 });

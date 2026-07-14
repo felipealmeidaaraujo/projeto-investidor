@@ -27,12 +27,20 @@ export function makeTrade(input, meta) {
     pl,
     emotion: input.emotion,
   };
-  if (typeof input.oddClose === 'number') {
-    trade.oddClose = input.oddClose;
-    trade.clv = clvPct(input.oddEntry, input.oddClose);
-  }
   if (input.players && input.players.a && input.players.b) {
     trade.players = { a: input.players.a, b: input.players.b, tour: input.players.tour };
+  }
+  if (input.side) trade.side = input.side;
+  if (input.dir) trade.dir = input.dir;
+  if (input.entryType) trade.entryType = input.entryType;
+  if (typeof input.oddClose === 'number') {
+    trade.oddClose = input.oddClose;
+    trade.clv = clvPct(input.oddEntry, input.oddClose, input.dir || 'back');
+  }
+  if (input.entryType === 'live' && input.liveState && typeof input.liveFairOdd === 'number') {
+    trade.liveState = input.liveState;
+    trade.liveFairOdd = input.liveFairOdd;
+    trade.liveValue = clvPct(input.oddEntry, input.liveFairOdd, input.dir || 'back');
   }
   return trade;
 }

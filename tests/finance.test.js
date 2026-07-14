@@ -84,3 +84,15 @@ test('beatClose: verdadeiro só quando bateu o fechamento', () => {
   assert.equal(beatClose(1.9, 2.0), false);
   assert.equal(beatClose(2.0, 2.0), false);
 });
+
+test('clvPct: back mede odd maior que a referência; lay inverte', () => {
+  approx(clvPct(2.1, 2.0), 5);            // back (default) retrocompat
+  approx(clvPct(2.1, 2.0, 'back'), 5);
+  approx(clvPct(2.0, 2.1, 'lay'), (2.1 / 2.0 - 1) * 100); // lay: bom pegar odd baixa
+});
+
+test('beatClose: back = pegou maior; lay = pegou menor', () => {
+  assert.equal(beatClose(2.1, 2.0), true);
+  assert.equal(beatClose(2.0, 2.1, 'lay'), true);
+  assert.equal(beatClose(2.2, 2.0, 'lay'), false);
+});

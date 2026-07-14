@@ -105,3 +105,16 @@ export function impliedServeProbs(target, { base = 0.64, bestOf = 3 } = {}) {
   const delta = (lo + hi) / 2;
   return { pA: clamp(base + delta), pB: clamp(base - delta) };
 }
+
+/** Odd justa ao vivo de A e B, dado a prob pré-jogo de A (target) e o placar. */
+export function liveFairOdds(preProbA, state, { base = 0.64, bestOf = 3 } = {}) {
+  const { pA, pB } = impliedServeProbs(preProbA, { base, bestOf });
+  const probA = winProbFromState(state, pA, pB, bestOf);
+  const probB = 1 - probA;
+  return {
+    probA,
+    probB,
+    fairOddA: probA > 0 ? 1 / probA : Infinity,
+    fairOddB: probB > 0 ? 1 / probB : Infinity,
+  };
+}

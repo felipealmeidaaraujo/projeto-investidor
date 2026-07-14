@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdProb, winProbFromState, impliedServeProbs } from '../web/src/inplay.js';
+import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds } from '../web/src/inplay.js';
 
 const approx = (a, b, eps = 1e-3) =>
   assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
@@ -41,4 +41,17 @@ test('winProbFromState: quebrado à frente (1-0 sacando) favorece, mesmo entre i
 test('impliedServeProbs: recupera a probabilidade alvo no início do jogo', () => {
   const { pA, pB } = impliedServeProbs(0.75, { base: 0.64, bestOf: 3 });
   approx(winProbFromState(START, pA, pB, 3), 0.75, 6e-3);
+});
+
+test('liveFairOdds: no início ≈ odd justa pré-jogo', () => {
+  const r = liveFairOdds(0.5, START, { base: 0.64, bestOf: 3 });
+  approx(r.probA, 0.5, 5e-3);
+  approx(r.fairOddA, 2.0, 3e-2);
+  approx(r.probA + r.probB, 1);
+});
+
+test('liveFairOdds: placar favorável baixa a odd do líder', () => {
+  const led = liveFairOdds(0.5, { setsA: 1, setsB: 0, gamesA: 3, gamesB: 0, serverIsA: true }, { base: 0.64, bestOf: 3 });
+  assert.ok(led.probA > 0.5);       // A na frente → mais provável
+  assert.ok(led.fairOddA < 2.0);    // odd justa de A cai
 });
