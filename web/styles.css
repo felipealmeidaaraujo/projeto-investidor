@@ -278,6 +278,20 @@ body {
 }
 .picker-row:active { background: var(--surface-2); }
 
+/* Análise: painel ao vivo */
+.live-panel { margin-top: 14px; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.live-cell { display: flex; flex-direction: column; gap: 6px; }
+.live-lbl { font-size: 12px; color: var(--muted); }
+.livestep { display: flex; align-items: center; gap: 6px; }
+.lstep {
+  width: 42px; min-height: 42px; font-size: 20px; font-weight: 700;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent;
+}
+.lstep:active { background: var(--border); }
+.lstep-v { flex: 1; text-align: center; font-size: 20px; font-weight: 700; }
+
 /* Tab bar */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0;

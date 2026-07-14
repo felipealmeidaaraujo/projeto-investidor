@@ -3,6 +3,7 @@ import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './s
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
 import { analyzeMatch } from './src/analysis.js';
+import { winProbFromState, impliedServeProbs } from './src/inplay.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -457,7 +458,10 @@ function openReview(tradeId) {
 
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
-const anal = { tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard' };
+const anal = {
+  tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard',
+  live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 },
+};
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
@@ -530,6 +534,22 @@ function renderAnalise() {
   analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker((p) => { anal.a = p; renderAnalise(); }));
   analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
+
+  analiseEl.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; renderAnalise(); });
+  analiseEl.querySelectorAll('[data-live]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const f = b.dataset.live;
+      const max = f.startsWith('sets') ? (anal.live.bestOf === 5 ? 3 : 2) : 7;
+      anal.live[f] = Math.min(max, Math.max(0, anal.live[f] + Number(b.dataset.d)));
+      renderAnalise();
+    })
+  );
+  analiseEl.querySelectorAll('[data-server]').forEach((b) =>
+    b.addEventListener('click', () => { anal.live.serverIsA = b.dataset.server === 'A'; renderAnalise(); })
+  );
+  analiseEl.querySelectorAll('[data-bestof]').forEach((b) =>
+    b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); renderAnalise(); })
+  );
 }
 
 function tagPill(tag) {
@@ -574,6 +594,47 @@ function renderReading() {
         ${playerRow(r.b, r.probB, r.fairOddB, !favIsA)}
       </div>
       <div class="reading-note">${narrative(r)}</div>
+    </div>
+    <button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>
+    ${anal.live.active ? renderLive(r) : ''}`;
+}
+
+function renderLive(pre) {
+  const base = anal.tour === 'WTA' ? 0.56 : 0.64;
+  const { pA, pB } = impliedServeProbs(pre.probA, { base, bestOf: anal.live.bestOf });
+  const L = anal.live;
+  const probA = winProbFromState({ setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, pA, pB, L.bestOf);
+  const probB = 1 - probA;
+  const favA = probA >= 0.5;
+  const aN = anal.a.name;
+  const bN = anal.b.name;
+  const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
+  return `
+    <div class="live-panel">
+      <div class="live-grid">
+        <div class="live-cell"><span class="live-lbl">Sets · ${aN}</span>${step('setsA', L.setsA)}</div>
+        <div class="live-cell"><span class="live-lbl">Sets · ${bN}</span>${step('setsB', L.setsB)}</div>
+        <div class="live-cell"><span class="live-lbl">Games · ${aN}</span>${step('gamesA', L.gamesA)}</div>
+        <div class="live-cell"><span class="live-lbl">Games · ${bN}</span>${step('gamesB', L.gamesB)}</div>
+      </div>
+      <div class="field" style="margin-top:12px"><div class="field-label"><span>Quem saca agora</span></div>
+        <div class="chips"><button class="chip${L.serverIsA ? ' selected' : ''}" data-server="A">${aN}</button><button class="chip${!L.serverIsA ? ' selected' : ''}" data-server="B">${bN}</button></div>
+      </div>
+      <div class="field"><div class="field-label"><span>Melhor de</span></div>
+        <div class="chips"><button class="chip${L.bestOf === 3 ? ' selected' : ''}" data-bestof="3">3 sets</button><button class="chip${L.bestOf === 5 ? ' selected' : ''}" data-bestof="5">5 sets</button></div>
+      </div>
+      <div class="reading-card" style="margin-top:6px">
+        <div class="reading-fav">
+          <span class="field-hint">Odd justa AO VIVO</span>
+          <div class="reading-fav-name">${favA ? aN : bN}</div>
+          <div class="reading-fav-prob">${pct(favA ? probA : probB)}</div>
+        </div>
+        <div class="reading-players">
+          <div class="pl-row ${favA ? 'fav' : ''}"><div class="pl-top"><span class="pl-name">${aN}</span><span class="pl-prob">${pct(probA)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probA).toFixed(2)}</strong></div></div>
+          <div class="pl-row ${favA ? '' : 'fav'}"><div class="pl-top"><span class="pl-name">${bN}</span><span class="pl-prob">${pct(probB)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probB).toFixed(2)}</strong></div></div>
+        </div>
+        <div class="reading-note field-hint">No início era ${pct(pre.probA)} pra ${aN}. Se o mercado estiver bem longe da odd justa, pode ser sobre-reação.</div>
+      </div>
     </div>`;
 }
 
