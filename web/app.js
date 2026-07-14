@@ -500,7 +500,11 @@ function renderHistorico() {
     .map((t) => {
       const plCls = t.pl > 0 ? 'pos' : t.pl < 0 ? 'neg' : '';
       const open = expandedId === t.id;
-      const conf = t.players && t.players.a && t.players.b ? `${t.players.a} × ${t.players.b}` : null;
+      const hasConf = t.players && t.players.a && t.players.b;
+      const av = (nm) => `<span class="tr-av" data-pname="${encodeURIComponent(nm)}"><span>${initials(nm)}</span></span>`;
+      const confTitle = hasConf
+        ? `<span class="tr-title"><span class="tr-avs">${av(t.players.a)}${av(t.players.b)}</span>${t.players.a} × ${t.players.b}</span>`
+        : `<span>${t.market}</span>`;
       const sub = `${resultBadge(t.result)} · odd ${Number(t.oddEntry).toFixed(2)} · ${formatBRL(t.stake)}${t.clv != null ? ' · CLV ' + formatSignedPct(t.clv) : ''}${t.emotion ? ' · ' + (EMO[t.emotion] || '') : ''}`;
       const review = t.review ? `<span class="tr-review">📝 ${t.review}</span>` : '';
       const expand = open
@@ -511,8 +515,8 @@ function renderHistorico() {
            </div>`
         : '';
       return `<div class="trade-row" data-toggle="${t.id}">
-          <div class="tr-main"><span>${conf || t.market}</span><span class="tr-pl ${plCls}">${formatSignedBRL(t.pl)}</span></div>
-          <div class="tr-sub">${conf ? `<span class="pill pill-muted">${t.market}</span> ` : ''}${sub} ${review}</div>
+          <div class="tr-main">${confTitle}<span class="tr-pl ${plCls}">${formatSignedBRL(t.pl)}</span></div>
+          <div class="tr-sub">${hasConf ? `<span class="pill pill-muted">${t.market}</span> ` : ''}${sub} ${review}</div>
           ${expand}
         </div>`;
     })
@@ -536,6 +540,11 @@ function renderHistorico() {
     ${segCard('Por emoção', segmentBy(trades, 'emotion'), (k) => `${EMO[k] || ''} ${k}`)}
     <div class="section-title">Trades (${s.count})</div>
     ${rows}`;
+
+  histEl.querySelectorAll('.tr-av[data-pname]').forEach((el) => {
+    const nm = decodeURIComponent(el.dataset.pname);
+    loadPhoto({ name: nm, fullName: nm }, () => el);
+  });
 
   histEl.querySelectorAll('[data-toggle]').forEach((row) =>
     row.addEventListener('click', (e) => {
