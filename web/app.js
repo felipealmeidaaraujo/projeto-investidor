@@ -312,7 +312,8 @@ const EMOTION_OPTS = [{ v: 'calmo', l: '😌 Calmo' }, { v: 'confiante', l: '�
 
 function defaultReg() {
   return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null, tour: 'ATP', players: null,
-    entryType: null, side: null, dir: null, liveState: { setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 }, preProbA: null };
+    entryType: null, side: null, dir: null, liveState: { setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 }, preProbA: null,
+    showMore: false, editingScore: false };
 }
 async function ensureModel(tour) {
   if (anal.models[tour] && !anal.models[tour].error) return anal.models[tour];
@@ -358,48 +359,44 @@ function renderRegistrar() {
   const isMO = reg.market === 'Match Odds';
   const nmA = reg.players?.a || 'Jogador A';
   const nmB = reg.players?.b || 'Jogador B';
+  const hasConf = !!(reg.players?.a && reg.players?.b);
   const liveBase = reg.tour === 'WTA' ? 0.56 : 0.64;
+  const RL = reg.liveState;
+  const surfLabel = reg.surface ? (SURFACE_PT[reg.surface] || reg.surface) : null;
+
   let liveFeedback = '';
   if (isMO && reg.entryType === 'live') {
     if (reg.preProbA != null && reg.side) {
-      const fair = liveFairOdds(reg.preProbA, reg.liveState, { base: liveBase, bestOf: reg.liveState.bestOf });
+      const fair = liveFairOdds(reg.preProbA, RL, { base: liveBase, bestOf: RL.bestOf });
       const sideFair = reg.side === 'a' ? fair.fairOddA : fair.fairOddB;
       const val = clvPct(reg.oddEntry, sideFair, reg.dir || 'back');
       const vCls = val > 0 ? 'pos' : val < 0 ? 'neg' : '';
-      liveFeedback = `<p class="card-lead" style="margin-top:8px">Odd justa ao vivo de <strong>${reg.side === 'a' ? nmA : nmB}</strong>: <strong>${sideFair.toFixed(2)}</strong> · valor da entrada: <strong class="${vCls}">${formatSignedPct(val)}</strong></p>`;
+      liveFeedback = `<div class="live-value">Odd justa ao vivo de <strong>${reg.side === 'a' ? nmA : nmB}</strong>: <strong>${sideFair.toFixed(2)}</strong> · valor da entrada: <strong class="${vCls}">${formatSignedPct(val)}</strong></div>`;
     } else if (reg.preProbA == null) {
       liveFeedback = `<p class="hint-red" style="margin-top:8px">Não consegui identificar os jogadores no modelo — o valor ao vivo não será medido neste confronto.</p>`;
     }
   }
+
   const rstep = (f, v) => `<div class="livestep"><button class="lstep" data-regsc="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-regsc="${f}" data-d="1">+</button></div>`;
-  const RL = reg.liveState;
-  const matchOddsBlock = !isMO ? '' : `
-    <div class="field"><div class="field-label"><span>Tipo de entrada</span></div>
-      <div class="chips"><button class="chip${reg.entryType === 'pre' ? ' selected' : ''}" data-entrytype="pre">Pré-jogo</button><button class="chip${reg.entryType === 'live' ? ' selected' : ''}" data-entrytype="live">Ao vivo</button></div>
+  const scoreResume = `${RL.setsA}-${RL.setsB} sets · ${RL.gamesA}-${RL.gamesB} games · saca ${RL.serverIsA ? nmA : nmB} · ${RL.bestOf} sets`;
+  const scoreEditor = `
+    <div class="live-grid">
+      <div class="live-cell"><span class="live-lbl">Sets · ${nmA}</span>${rstep('setsA', RL.setsA)}</div>
+      <div class="live-cell"><span class="live-lbl">Sets · ${nmB}</span>${rstep('setsB', RL.setsB)}</div>
+      <div class="live-cell"><span class="live-lbl">Games · ${nmA}</span>${rstep('gamesA', RL.gamesA)}</div>
+      <div class="live-cell"><span class="live-lbl">Games · ${nmB}</span>${rstep('gamesB', RL.gamesB)}</div>
     </div>
-    ${reg.players?.a && reg.players?.b ? `<div class="field"><div class="field-label"><span>Entrei em</span></div>
-      <div class="chips"><button class="chip${reg.side === 'a' ? ' selected' : ''}" data-side="a">${nmA}</button><button class="chip${reg.side === 'b' ? ' selected' : ''}" data-side="b">${nmB}</button></div>
-    </div>` : ''}
-    <div class="field"><div class="field-label"><span>Direção</span></div>
-      <div class="chips"><button class="chip${reg.dir === 'back' ? ' selected' : ''}" data-dir="back">Back</button><button class="chip${reg.dir === 'lay' ? ' selected' : ''}" data-dir="lay">Lay</button></div>
-    </div>
-    ${reg.entryType === 'live' ? `<div class="field"><div class="field-label"><span>Placar no momento da entrada</span></div>
-      <div class="live-grid">
-        <div class="live-cell"><span class="live-lbl">Sets · ${nmA}</span>${rstep('setsA', RL.setsA)}</div>
-        <div class="live-cell"><span class="live-lbl">Sets · ${nmB}</span>${rstep('setsB', RL.setsB)}</div>
-        <div class="live-cell"><span class="live-lbl">Games · ${nmA}</span>${rstep('gamesA', RL.gamesA)}</div>
-        <div class="live-cell"><span class="live-lbl">Games · ${nmB}</span>${rstep('gamesB', RL.gamesB)}</div>
+    <div class="chips" style="margin-top:10px"><button class="chip${RL.serverIsA ? ' selected' : ''}" data-regserver="A">saca ${nmA}</button><button class="chip${!RL.serverIsA ? ' selected' : ''}" data-regserver="B">saca ${nmB}</button></div>
+    <div class="chips" style="margin-top:8px"><button class="chip${RL.bestOf === 3 ? ' selected' : ''}" data-regbestof="3">3 sets</button><button class="chip${RL.bestOf === 5 ? ' selected' : ''}" data-regbestof="5">5 sets</button></div>`;
+
+  const confBlock = hasConf ? `
+    <div class="ctx-card">
+      <div class="ctx-info">
+        <div class="ctx-title">${nmA} × ${nmB}</div>
+        <div class="ctx-sub">${reg.tour}${surfLabel ? ' · ' + surfLabel : ''}</div>
       </div>
-      <div class="chips" style="margin-top:10px"><button class="chip${RL.serverIsA ? ' selected' : ''}" data-regserver="A">saca ${nmA}</button><button class="chip${!RL.serverIsA ? ' selected' : ''}" data-regserver="B">saca ${nmB}</button></div>
-      <div class="chips" style="margin-top:8px"><button class="chip${RL.bestOf === 3 ? ' selected' : ''}" data-regbestof="3">3 sets</button><button class="chip${RL.bestOf === 5 ? ' selected' : ''}" data-regbestof="5">5 sets</button></div>
-      ${liveFeedback}
-    </div>` : ''}`;
-
-  regEl.innerHTML = `
-    <h1 class="screen-title">Registrar trade</h1>
-    ${sl.hit ? `<div class="warn-banner">⚠️ Stop-loss diário atingido. O ideal é <strong>parar hoje</strong>.</div>` : ''}
-    ${tilt ? `<div class="warn-banner">🎢 Você aumentou o stake depois de um red. Cuidado com o <strong>tilt</strong> (caçar prejuízo).</div>` : ''}
-
+      <button class="btn btn-ghost" id="reg-clearconf">trocar</button>
+    </div>` : `
     <div class="field">
       <div class="field-label"><span>Confronto</span><span class="field-hint">quem jogou (obrigatório)</span></div>
       <div class="chips" style="margin-bottom:10px">
@@ -407,89 +404,109 @@ function renderRegistrar() {
         <button class="chip${reg.tour === 'WTA' ? ' selected' : ''}" data-regtour="WTA">WTA</button>
       </div>
       <div class="matchup-slots">
-        <button class="slot ${reg.players && reg.players.a ? 'filled' : ''}" id="reg-slot-a">${reg.players && reg.players.a ? reg.players.a : '➕ Jogador A'}</button>
+        <button class="slot ${reg.players?.a ? 'filled' : ''}" id="reg-slot-a">${reg.players?.a || '➕ Jogador A'}</button>
         <span class="vs">×</span>
-        <button class="slot ${reg.players && reg.players.b ? 'filled' : ''}" id="reg-slot-b">${reg.players && reg.players.b ? reg.players.b : '➕ Jogador B'}</button>
+        <button class="slot ${reg.players?.b ? 'filled' : ''}" id="reg-slot-b">${reg.players?.b || '➕ Jogador B'}</button>
       </div>
-      ${reg.players && (reg.players.a || reg.players.b) ? `<button class="btn btn-ghost" id="reg-clearconf" style="margin-top:8px">Limpar confronto</button>` : ''}
-    </div>
+    </div>`;
 
+  const entryChip = (s, d, lbl) => `<button class="chip${reg.side === s && reg.dir === d ? ' selected' : ''}" data-entry="${s}:${d}">${lbl}</button>`;
+  const entryBlock = !isMO ? '' : `
+    <div class="field"><div class="field-label"><span>Tipo de entrada</span></div>
+      <div class="chips"><button class="chip${reg.entryType === 'pre' ? ' selected' : ''}" data-entrytype="pre">Pré-jogo</button><button class="chip${reg.entryType === 'live' ? ' selected' : ''}" data-entrytype="live">Ao vivo</button></div>
+    </div>
+    ${hasConf ? `<div class="field"><div class="field-label"><span>Entrei em</span></div>
+      <div class="entry-row"><span class="entry-name">${nmA}</span>${entryChip('a', 'back', 'Back')}${entryChip('a', 'lay', 'Lay')}</div>
+      <div class="entry-row" style="margin-top:8px"><span class="entry-name">${nmB}</span>${entryChip('b', 'back', 'Back')}${entryChip('b', 'lay', 'Lay')}</div>
+    </div>` : ''}
+    ${reg.entryType === 'live' ? `<div class="field">
+      <div class="field-label"><span>Placar da entrada</span><span class="field-hint" id="btn-editscore" style="cursor:pointer;color:var(--accent)">${reg.editingScore ? 'pronto' : 'editar'}</span></div>
+      ${reg.editingScore ? scoreEditor : `<div class="score-summary">${scoreResume}</div>`}
+    </div>` : ''}
+    ${liveFeedback}`;
+
+  regEl.innerHTML = `
+    <h1 class="screen-title">Registrar trade</h1>
+    ${sl.hit ? `<div class="warn-banner">⚠️ Stop-loss diário atingido. O ideal é <strong>parar hoje</strong>.</div>` : ''}
+    ${tilt ? `<div class="warn-banner">🎢 Você aumentou o stake depois de um red. Cuidado com o <strong>tilt</strong> (caçar prejuízo).</div>` : ''}
+
+    ${confBlock}
     <div class="field"><div class="field-label"><span>Mercado</span></div>${chipsHTML(reg, 'market', MARKET_OPTS)}</div>
-    <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
-    ${matchOddsBlock}
+    ${entryBlock}
 
     <div class="field">
-      <div class="field-label"><span>Odd de entrada</span></div>
-      ${oddStepper('oddEntry', reg.oddEntry)}
-    </div>
-
-    <div class="field">
-      <div class="field-label"><span>Odd de fechamento</span><span class="field-hint">opcional — mede o CLV</span></div>
-      ${reg.showClose
-        ? oddStepper('oddClose', reg.oddClose) + `<button class="btn btn-ghost" id="btn-noclose" style="margin-top:8px">Remover</button>`
-        : `<button class="btn" id="btn-addclose">+ Adicionar odd de fechamento</button>`}
-    </div>
-
-    <div class="field">
-      <div class="field-label"><span>Stake</span><span class="field-hint ${overCap ? 'hint-red' : ''}">teto ${formatBRL(cap)}</span></div>
-      <button class="value-input" id="btn-stake">${formatBRL(reg.stake)}</button>
-      ${overCap ? `<p class="hint-red" style="margin-top:6px;font-size:12px">Acima do seu teto por operação (${formatPctFrac(cfg.maxStakePct, 0)} da banca).</p>` : ''}
+      <div class="grid-2col">
+        <div><div class="field-label"><span>Odd que peguei</span></div><button class="value-input" id="btn-oddentry">${reg.oddEntry != null ? reg.oddEntry.toFixed(2) : '—'}</button></div>
+        <div><div class="field-label"><span>Stake</span><span class="field-hint ${overCap ? 'hint-red' : ''}">teto ${formatBRL(cap)}</span></div><button class="value-input" id="btn-stake">${formatBRL(reg.stake)}</button></div>
+      </div>
+      ${overCap ? `<p class="hint-red" style="margin-top:6px;font-size:12px">Stake acima do seu teto por operação (${formatPctFrac(cfg.maxStakePct, 0)} da banca).</p>` : ''}
     </div>
 
     <div class="field"><div class="field-label"><span>Resultado</span></div>${chipsHTML(reg, 'result', RESULT_OPTS)}</div>
+    ${showPL ? `<div class="field"><div class="field-label"><span>${plLabel}</span></div><button class="value-input" id="btn-pl">${formatBRL(reg.plAmount)}</button></div>` : ''}
 
-    ${showPL ? `<div class="field">
-      <div class="field-label"><span>${plLabel}</span></div>
-      <button class="value-input" id="btn-pl">${formatBRL(reg.plAmount)}</button>
-    </div>` : ''}
-
-    <div class="field"><div class="field-label"><span>Estado emocional</span></div>${chipsHTML(reg, 'emotion', EMOTION_OPTS)}</div>
+    <button class="btn btn-ghost" id="btn-more" style="margin-bottom:8px">${reg.showMore ? '▴ Menos detalhes' : '▾ Mais detalhes'}<span class="field-hint" style="margin-left:6px">superfície, odd de fechamento, emoção</span></button>
+    ${reg.showMore ? `
+      <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
+      <div class="field">
+        <div class="field-label"><span>Odd de fechamento</span><span class="field-hint">opcional — CLV pré-jogo</span></div>
+        ${reg.showClose
+          ? `<button class="value-input" id="btn-oddclose">${reg.oddClose != null ? reg.oddClose.toFixed(2) : '—'}</button><button class="btn btn-ghost" id="btn-noclose" style="margin-top:8px">Remover</button>`
+          : `<button class="btn" id="btn-addclose">+ Adicionar odd de fechamento</button>`}
+      </div>
+      <div class="field"><div class="field-label"><span>Estado emocional</span></div>${chipsHTML(reg, 'emotion', EMOTION_OPTS)}</div>
+    ` : ''}
 
     <button class="btn btn-primary" id="btn-savetrade" ${regValid() ? '' : 'disabled'}>Salvar trade</button>`;
 
   wireChips(regEl, reg, renderRegistrar);
   regEl.querySelectorAll('[data-regtour]').forEach((b) =>
-    b.addEventListener('click', () => { reg.tour = b.dataset.regtour; reg.players = null; renderRegistrar(); })
+    b.addEventListener('click', () => { reg.tour = b.dataset.regtour; reg.players = null; reg.side = null; reg.preProbA = null; renderRegistrar(); })
   );
   const pickReg = (side) => async () => {
     const m = await ensureModel(reg.tour);
     if (m.error) { toast('Não consegui carregar os jogadores.'); return; }
-    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; renderRegistrar(); }, { allowCustom: true });
+    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; reg.preProbA = null; renderRegistrar(); }, { allowCustom: true });
   };
-  regEl.querySelector('#reg-slot-a').addEventListener('click', pickReg('a'));
-  regEl.querySelector('#reg-slot-b').addEventListener('click', pickReg('b'));
-  regEl.querySelector('#reg-clearconf')?.addEventListener('click', () => { reg.players = null; renderRegistrar(); });
-  regEl.querySelectorAll('.step').forEach((b) =>
-    b.addEventListener('click', () => {
-      const f = b.dataset.step;
-      reg[f] = clampOdd((reg[f] ?? 2.0) + Number(b.dataset.delta));
-      renderRegistrar();
-    })
+  regEl.querySelector('#reg-slot-a')?.addEventListener('click', pickReg('a'));
+  regEl.querySelector('#reg-slot-b')?.addEventListener('click', pickReg('b'));
+  regEl.querySelector('#reg-clearconf')?.addEventListener('click', () => { reg.players = null; reg.side = null; reg.preProbA = null; renderRegistrar(); });
+  regEl.querySelector('#btn-oddentry').addEventListener('click', () =>
+    openKeypad({ title: 'Odd que peguei', value: reg.oddEntry, mode: 'odd', onConfirm: (v) => { reg.oddEntry = v; renderRegistrar(); } })
   );
-  regEl.querySelector('#btn-addclose')?.addEventListener('click', () => { reg.showClose = true; reg.oddClose = reg.oddEntry; renderRegistrar(); });
-  regEl.querySelector('#btn-noclose')?.addEventListener('click', () => { reg.showClose = false; reg.oddClose = null; renderRegistrar(); });
   regEl.querySelector('#btn-stake').addEventListener('click', () =>
     openKeypad({ title: 'Stake (R$)', value: reg.stake, onConfirm: (v) => { reg.stake = v; renderRegistrar(); } })
   );
   regEl.querySelector('#btn-pl')?.addEventListener('click', () =>
     openKeypad({ title: plLabel, value: reg.plAmount, onConfirm: (v) => { reg.plAmount = v; renderRegistrar(); } })
   );
+  regEl.querySelector('#btn-more').addEventListener('click', () => { reg.showMore = !reg.showMore; renderRegistrar(); });
+  regEl.querySelector('#btn-addclose')?.addEventListener('click', () => { reg.showClose = true; reg.oddClose = reg.oddEntry; renderRegistrar(); });
+  regEl.querySelector('#btn-noclose')?.addEventListener('click', () => { reg.showClose = false; reg.oddClose = null; renderRegistrar(); });
+  regEl.querySelector('#btn-oddclose')?.addEventListener('click', () =>
+    openKeypad({ title: 'Odd de fechamento', value: reg.oddClose, mode: 'odd', onConfirm: (v) => { reg.oddClose = v; renderRegistrar(); } })
+  );
+  regEl.querySelector('#btn-editscore')?.addEventListener('click', () => { reg.editingScore = !reg.editingScore; renderRegistrar(); });
   regEl.querySelectorAll('[data-entrytype]').forEach((b) =>
     b.addEventListener('click', async () => {
       reg.entryType = b.dataset.entrytype;
-      if (reg.entryType === 'live' && reg.preProbA == null && reg.players?.a && reg.players?.b) {
-        const m = await ensureModel(reg.tour);
-        if (!m.error) {
-          const pa = matchPlayer(reg.players.a, m.players);
-          const pb = matchPlayer(reg.players.b, m.players);
-          if (pa && pb) reg.preProbA = analyzeMatch(pa, pb, reg.surface || 'hard', m).probA;
+      if (reg.entryType === 'live') {
+        reg.editingScore = true;
+        if (reg.preProbA == null && reg.players?.a && reg.players?.b) {
+          const m = await ensureModel(reg.tour);
+          if (!m.error) {
+            const pa = matchPlayer(reg.players.a, m.players);
+            const pb = matchPlayer(reg.players.b, m.players);
+            if (pa && pb) reg.preProbA = analyzeMatch(pa, pb, reg.surface || 'hard', m).probA;
+          }
         }
       }
       renderRegistrar();
     })
   );
-  regEl.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => { reg.side = b.dataset.side; renderRegistrar(); }));
-  regEl.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click', () => { reg.dir = b.dataset.dir; renderRegistrar(); }));
+  regEl.querySelectorAll('[data-entry]').forEach((b) =>
+    b.addEventListener('click', () => { const [s, d] = b.dataset.entry.split(':'); reg.side = s; reg.dir = d; renderRegistrar(); })
+  );
   regEl.querySelectorAll('[data-regsc]').forEach((b) =>
     b.addEventListener('click', () => { const f = b.dataset.regsc; reg.liveState[f] = Math.max(0, reg.liveState[f] + Number(b.dataset.d)); renderRegistrar(); })
   );
@@ -1273,20 +1290,23 @@ function wireChips(container, obj, rerender) {
 }
 
 /* ================= Teclado numérico ================= */
-function openKeypad({ title, value = 0, onConfirm }) {
+function openKeypad({ title, value = 0, onConfirm, mode = 'money' }) {
   const root = document.getElementById('modal-root');
-  let buf = value ? String(Math.round(value)) : '';
+  const isOdd = mode === 'odd';
+  let buf = value ? (isOdd ? String(value) : String(Math.round(value))) : '';
 
   function draw() {
-    const shown = buf ? Number(buf) : 0;
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
+    const display = isOdd ? (buf || '—') : formatBRL(buf ? Number(buf) : 0);
+    const keys = isOdd
+      ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫']
+      : ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
     root.innerHTML = `
       <div class="modal-overlay" id="kp-overlay">
         <div class="modal-sheet" id="kp-sheet">
           <div class="modal-title">${title}</div>
-          <div class="keypad-display">${formatBRL(shown)}</div>
+          <div class="keypad-display">${display}</div>
           <div class="keypad">${keys.map((k) => `<button class="key" data-k="${k}">${k}</button>`).join('')}</div>
-          <div class="modal-actions"><button class="btn btn-ghost" id="kp-cancel">Cancelar</button></div>
+          <div class="modal-actions">${isOdd ? `<button class="btn btn-primary" id="kp-ok">OK</button>` : ''}<button class="btn btn-ghost" id="kp-cancel">Cancelar</button></div>
         </div>
       </div>`;
     root.querySelectorAll('.key').forEach((btn) =>
@@ -1294,10 +1314,12 @@ function openKeypad({ title, value = 0, onConfirm }) {
         const k = btn.dataset.k;
         if (k === '⌫') buf = buf.slice(0, -1);
         else if (k === 'OK') return close(Number(buf || 0));
+        else if (k === '.') { if (!buf.includes('.')) buf += buf ? '.' : '0.'; }
         else if (buf.length < 9) buf += k;
         draw();
       })
     );
+    root.querySelector('#kp-ok')?.addEventListener('click', () => close(clampOdd(Number(buf || 0))));
     root.querySelector('#kp-cancel').addEventListener('click', () => close(null));
     root.querySelector('#kp-overlay').addEventListener('click', (e) => { if (e.target.id === 'kp-overlay') close(null); });
   }
