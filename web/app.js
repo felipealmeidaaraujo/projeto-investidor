@@ -465,6 +465,21 @@ const anal = {
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
+let todayData = null;
+let todayLoading = false;
+async function loadToday() {
+  if (todayData || todayLoading) return;
+  todayLoading = true;
+  try {
+    const res = await fetch('today.json');
+    todayData = res.ok ? await res.json() : { count: 0, matches: [] };
+  } catch {
+    todayData = { count: 0, matches: [] };
+  }
+  todayLoading = false;
+  if (currentScreen === 'analise') renderAnalise();
+}
+
 const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
 
 async function loadModel() {
@@ -495,9 +510,47 @@ function switchTour(t) {
   renderAnalise();
 }
 
+function renderFixtures() {
+  if (!todayData) {
+    loadToday();
+    return '';
+  }
+  const list = todayData.matches || [];
+  if (!list.length) {
+    return `<div class="section-title">Jogos de hoje</div>
+      <div class="notice" style="margin-bottom:18px"><p>Sem jogos cobertos hoje. O feed automático cobre os <strong>torneios grandes</strong> (Grand Slams, Masters) enquanto ativos — hoje não há nenhum. Use a busca manual abaixo. 👇</p></div>`;
+  }
+  const rows = list
+    .map((g, i) => {
+      const favPct = (g.favoriteProb * 100).toFixed(0);
+      return `<button class="fixture" data-fx="${i}">
+        <div class="fx-top"><span class="fx-players">${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
+        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}</div>
+      </button>`;
+    })
+    .join('');
+  return `<div class="section-title">Jogos de hoje (${list.length})</div><div class="fixtures">${rows}</div>`;
+}
+
+async function pickFixture(game) {
+  if (anal.tour !== game.tour) {
+    anal.tour = game.tour;
+    anal.model = anal.models[game.tour] || null;
+  }
+  if (!anal.model) await loadModel();
+  const m = anal.models[game.tour];
+  if (m && !m.error) {
+    anal.a = m.players.find((p) => p.name === game.a) || null;
+    anal.b = m.players.find((p) => p.name === game.b) || null;
+    anal.surface = game.surface;
+  }
+  renderAnalise();
+  document.querySelector('.app-main')?.scrollTo({ top: 220, behavior: 'smooth' });
+}
+
 function tourHeader() {
   return `
-    <h1 class="screen-title">Análise do confronto</h1>
+    <h1 class="screen-title">Analisar um confronto</h1>
     <div class="chips" style="margin-bottom:14px">
       <button class="chip${anal.tour === 'ATP' ? ' selected' : ''}" data-tour="ATP">ATP</button>
       <button class="chip${anal.tour === 'WTA' ? ' selected' : ''}" data-tour="WTA">WTA</button>
@@ -520,7 +573,7 @@ function renderAnalise() {
     return;
   }
   const canRead = anal.a && anal.b;
-  analiseEl.innerHTML = tourHeader() + `
+  analiseEl.innerHTML = renderFixtures() + tourHeader() + `
     <div class="matchup-slots">
       <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? anal.a.name : '➕ Jogador A'}</button>
       <span class="vs">vs</span>
@@ -531,6 +584,9 @@ function renderAnalise() {
     <p class="field-hint" style="margin-top:14px">⚠️ Leitura do modelo pra você <strong>entender</strong> o jogo — não é recomendação de aposta. O modelo não bate o mercado; use como preparação.</p>`;
 
   wireTour();
+  analiseEl.querySelectorAll('[data-fx]').forEach((b) =>
+    b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
+  );
   analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker((p) => { anal.a = p; renderAnalise(); }));
   analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
