@@ -171,3 +171,30 @@ export function buildReadingExplanation(r) {
 
   return { elo, piso, forca, delta, flipped };
 }
+
+/** Faixas de referência de saque/devolução por circuito (frações 0–1), dos dados reais. */
+const SERVE_BANDS = {
+  ATP: {
+    servePtsWonPct: { lo: 0.610, mid: 0.634, hi: 0.680 },
+    firstInPct: { lo: 0.590, mid: 0.626, hi: 0.670 },
+    acePct: { lo: 0.050, mid: 0.073, hi: 0.110 },
+    returnPtsWonPct: { lo: 0.340, mid: 0.357, hi: 0.400 },
+    bpSavedPct: { lo: 0.580, mid: 0.613, hi: 0.660 },
+  },
+  WTA: {
+    servePtsWonPct: { lo: 0.537, mid: 0.558, hi: 0.594 },
+    firstInPct: { lo: 0.585, mid: 0.627, hi: 0.686 },
+    acePct: { lo: 0.020, mid: 0.033, hi: 0.064 },
+    returnPtsWonPct: { lo: 0.413, mid: 0.431, hi: 0.454 },
+    bpSavedPct: { lo: 0.506, mid: 0.542, hi: 0.583 },
+  },
+};
+const BAND_LABEL = { elite: 'elite', high: 'acima da média', mid: 'na média', low: 'abaixo da média' };
+
+/** Classifica um stat de saque na sua banda, conforme o circuito. */
+export function serveBand(tour, key, value) {
+  const b = SERVE_BANDS[tour]?.[key];
+  if (!b || !(value > 0)) return null;
+  const band = value >= b.hi ? 'elite' : value >= b.mid ? 'high' : value >= b.lo ? 'mid' : 'low';
+  return { band, label: BAND_LABEL[band] };
+}

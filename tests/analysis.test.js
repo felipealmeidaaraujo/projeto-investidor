@@ -8,6 +8,7 @@ import {
   confidenceLevel,
   analyzeMatch,
   buildReadingExplanation,
+  serveBand,
 } from '../web/src/analysis.js';
 
 const approx = (a, b, eps = 1e-6) =>
@@ -107,4 +108,19 @@ test('buildReadingExplanation: empate no Elo geral', () => {
   const gemeoB = { name: 'GB', elo: 2000, clay: 1980, hard: 2000, grass: 2000, matches: 200, matchesBySurface: { clay: 80, hard: 80, grass: 40 } };
   const ex = buildReadingExplanation(analyzeMatch(gemeoA, gemeoB, 'clay', model));
   assert.ok(ex.elo.includes('empatados no Elo geral (2000)'));
+});
+
+test('serveBand: mesma devolução, banda diferente por circuito', () => {
+  // 0.42 de devolução: no ATP é elite (limiar 0.40); na WTA é só "na média" (mediana 0.431)
+  assert.deepEqual(serveBand('ATP', 'returnPtsWonPct', 0.42), { band: 'elite', label: 'elite' });
+  assert.deepEqual(serveBand('WTA', 'returnPtsWonPct', 0.42), { band: 'mid', label: 'na média' });
+  assert.deepEqual(serveBand('WTA', 'returnPtsWonPct', 0.46), { band: 'elite', label: 'elite' });
+});
+test('serveBand: bandas high/low e casos nulos', () => {
+  assert.deepEqual(serveBand('ATP', 'acePct', 0.12), { band: 'elite', label: 'elite' });
+  assert.deepEqual(serveBand('WTA', 'servePtsWonPct', 0.50), { band: 'low', label: 'abaixo da média' });
+  assert.deepEqual(serveBand('ATP', 'servePtsWonPct', 0.65), { band: 'high', label: 'acima da média' });
+  assert.equal(serveBand('ATP', 'servePtsWonPct', 0), null);
+  assert.equal(serveBand('ATP', 'chaveInexistente', 0.5), null);
+  assert.equal(serveBand('XYZ', 'acePct', 0.1), null);
 });
