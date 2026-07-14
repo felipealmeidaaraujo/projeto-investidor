@@ -7,6 +7,7 @@ import {
   surfaceRead,
   confidenceLevel,
   analyzeMatch,
+  buildReadingExplanation,
 } from '../web/src/analysis.js';
 
 const approx = (a, b, eps = 1e-6) =>
@@ -60,4 +61,41 @@ test('analyzeMatch: compõe a leitura completa do confronto', () => {
   assert.equal(r.b.surfaceRead.tag, 'fraco');
   assert.ok(typeof r.marginLabel === 'string');
   approx(r.fairOddA, 1 / r.probA);
+});
+
+// Fixtures para a explicação da leitura
+const alcaraz = { name: 'Alcaraz', elo: 2085, clay: 2145, hard: 2085, grass: 2085, matches: 300, matchesBySurface: { clay: 120, hard: 120, grass: 60 } };
+const sinner = { name: 'Sinner', elo: 2110, clay: 2065, hard: 2130, grass: 2100, matches: 300, matchesBySurface: { clay: 100, hard: 130, grass: 70 } };
+const clayKing = { name: 'ClayKing', elo: 2100, clay: 2160, hard: 2050, grass: 2040, matches: 300, matchesBySurface: { clay: 150, hard: 100, grass: 50 } };
+const rival = { name: 'Rival', elo: 2000, clay: 1990, hard: 2010, grass: 2005, matches: 300, matchesBySurface: { clay: 90, hard: 120, grass: 60 } };
+const novato = { name: 'Novato', elo: 1900, hard: 1900, grass: 1900, matches: 40, matchesBySurface: { hard: 30, grass: 10 } };
+
+test('buildReadingExplanation: inversão — Sinner tem Elo geral maior mas Alcaraz vence no saibro', () => {
+  const ex = buildReadingExplanation(analyzeMatch(alcaraz, sinner, 'clay', model));
+  assert.equal(ex.flipped, true);
+  assert.ok(ex.elo.includes('Sinner') && ex.elo.includes('2110') && ex.elo.includes('vem à frente'));
+  assert.ok(ex.piso.includes('a mão vira') && ex.piso.includes('Alcaraz 2145'));
+  assert.ok(ex.forca.includes('favorito é Alcaraz') && ex.forca.includes('53%') && ex.forca.includes('mesmo tendo Elo geral menor'));
+  assert.ok(ex.delta.includes('Alcaraz (+60) forte') && ex.delta.includes('Sinner (−45) fraco'));
+});
+
+test('buildReadingExplanation: sem inversão + neutro', () => {
+  const ex = buildReadingExplanation(analyzeMatch(clayKing, rival, 'clay', model));
+  assert.equal(ex.flipped, false);
+  assert.ok(ex.piso.includes('confirma o favorito'));
+  assert.ok(ex.delta.includes('ClayKing (+60) forte'));
+  assert.ok(ex.delta.includes('Rival joga em linha com o próprio nível'));
+});
+
+test('buildReadingExplanation: piso ausente cai no Elo geral', () => {
+  const ex = buildReadingExplanation(analyzeMatch(clayKing, novato, 'clay', model));
+  assert.ok(ex.piso.includes('Novato') && ex.piso.includes('não há um Elo de piso confiável'));
+  assert.ok(ex.delta.includes('Novato tem poucos jogos no saibro'));
+});
+
+test('buildReadingExplanation: empate no Elo geral', () => {
+  const gemeoA = { name: 'GA', elo: 2000, clay: 2050, hard: 2000, grass: 2000, matches: 200, matchesBySurface: { clay: 80, hard: 80, grass: 40 } };
+  const gemeoB = { name: 'GB', elo: 2000, clay: 1980, hard: 2000, grass: 2000, matches: 200, matchesBySurface: { clay: 80, hard: 80, grass: 40 } };
+  const ex = buildReadingExplanation(analyzeMatch(gemeoA, gemeoB, 'clay', model));
+  assert.ok(ex.elo.includes('empatados no Elo geral (2000)'));
 });

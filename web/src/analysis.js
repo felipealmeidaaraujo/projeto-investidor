@@ -107,3 +107,63 @@ export function analyzeMatch(playerA, playerB, surface, model) {
     fairOddB: 1 / probB,
   };
 }
+
+/** Superfície → nome em pt-BR, para as frases da explicação. */
+const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
+
+/**
+ * Frases dinâmicas ("no jogo:") que explicam os números do card de leitura.
+ * Recebe o resultado de analyzeMatch. Puro e testável.
+ */
+export function buildReadingExplanation(r) {
+  const surf = SURFACE_PT[r.surface] ?? r.surface;
+  const a = r.a;
+  const b = r.b;
+
+  // Bloco Elo — quem está à frente no geral
+  let elo;
+  if (a.elo === b.elo) {
+    elo = `${a.name} e ${b.name} estão empatados no Elo geral (${a.elo}).`;
+  } else {
+    const hi = a.elo > b.elo ? a : b;
+    const lo = a.elo > b.elo ? b : a;
+    elo = `${hi.name} ${hi.elo} · ${lo.name} ${lo.elo} — no geral, ${hi.name} vem à frente.`;
+  }
+
+  // Favorito por Elo geral vs. favorito de fato (força) → detecta inversão
+  const favGeneralName = a.elo === b.elo ? null : (a.elo > b.elo ? a.name : b.name);
+  const flipped = favGeneralName != null && favGeneralName !== r.favorite;
+
+  // Bloco Piso — quem rende mais na superfície (trata piso ausente)
+  let piso;
+  if (a.surfaceElo == null || b.surfaceElo == null) {
+    const semPiso = a.surfaceElo == null ? a : b;
+    piso = `${semPiso.name} tem poucos jogos no ${surf}, então não há um Elo de piso confiável pra ele — a força dele usa só o Elo geral.`;
+  } else {
+    const hi = a.surfaceElo > b.surfaceElo ? a : b;
+    const lo = a.surfaceElo > b.surfaceElo ? b : a;
+    const fecho = flipped ? 'a mão vira.' : 'confirma o favorito.';
+    piso = `No ${surf}: ${hi.name} ${hi.surfaceElo} · ${lo.name} ${lo.surfaceElo} — ${fecho}`;
+  }
+
+  // Bloco Força — a nota que decide, + favorito e %
+  const favProbPct = Math.round(r.favoriteProb * 100);
+  const extra = flipped ? ', mesmo tendo Elo geral menor' : '';
+  const forca = `${a.name} ${a.blended} · ${b.name} ${b.blended}. Por isso, no ${surf} o favorito é ${r.favorite} — ${favProbPct}%${extra}.`;
+
+  // Bloco (+/−) — delta e tag de cada um
+  const tagPhrase = (side) => {
+    const sr = side.surfaceRead;
+    if (sr.tag === 'poucos dados') {
+      return `${side.name} tem poucos jogos no ${surf} (piso pouco confiável)`;
+    }
+    if (sr.tag === 'neutro') {
+      return `${side.name} joga em linha com o próprio nível`;
+    }
+    const sign = sr.delta > 0 ? '+' : '−';
+    return `${side.name} (${sign}${Math.abs(sr.delta)}) ${sr.tag}`;
+  };
+  const delta = `${tagPhrase(a)}; ${tagPhrase(b)}.`;
+
+  return { elo, piso, forca, delta, flipped };
+}
