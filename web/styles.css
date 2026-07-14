@@ -209,7 +209,14 @@ body {
 .v-indigo { background: linear-gradient(155deg, var(--accent-2), var(--accent)); }
 .grid-v { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px; }
 @media (min-width: 640px) { .grid-v { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 901px) { .grid-hero { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 16px; align-items: stretch; } .grid-hero .hero-card { margin-bottom: 0; } }
+.grid-hero { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 16px; }
+.grid-hero .hero-card { margin-bottom: 0; }
+.grid-2b { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 16px; }
+.grid-2b .card { margin-bottom: 0; }
+@media (min-width: 901px) {
+  .grid-hero { grid-template-columns: 1.5fr 1fr 1fr; align-items: stretch; }
+  .grid-2b { grid-template-columns: 1.15fr 1fr; align-items: start; }
+}
 
 .donut-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 .seg { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 13px; }

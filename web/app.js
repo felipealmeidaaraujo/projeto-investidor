@@ -117,6 +117,43 @@ function renderConfigForm() {
   });
   bancaEl.querySelector('#btn-cancel')?.addEventListener('click', () => { draft = null; renderBanca(); });
 }
+/* ---- Mini-gráficos (SVG) ---- */
+function pctOf(a, b) { return b ? Math.round((a / b) * 100) : 0; }
+function areaSpark(values, w, h, color) {
+  if (values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values), range = (max - min) || 1;
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - 4 - ((v - min) / range) * (h - 8)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const id = 'sg' + Math.floor(Math.random() * 1e6);
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".26"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${line} L ${w} ${h} L 0 ${h} Z" fill="url(#${id})"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function lineSpark(values, w, h, color) {
+  if (values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values), range = (max - min) || 1;
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - 3 - ((v - min) / range) * (h - 6)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${line}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" opacity=".9"/></svg>`;
+}
+function ring(frac, size, stroke, color, track, label, labelColor) {
+  const r = size / 2 - stroke / 2 - 1, c = 2 * Math.PI * r;
+  const dash = Math.max(0, Math.min(1, frac)) * c;
+  const txt = label != null ? `<text x="${size / 2}" y="${size / 2}" dy="0.34em" text-anchor="middle" fill="${labelColor || color}" font-size="${Math.round(size * 0.26)}" font-weight="800" font-family="inherit">${label}</text>` : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${track || 'var(--hover)'}" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>${txt}</svg>`;
+}
+function donutCard(segments, totalPL) {
+  const size = 150, stroke = 20, r = size / 2 - stroke / 2 - 2, c = 2 * Math.PI * r;
+  const total = segments.reduce((a, s) => a + s.value, 0) || 1;
+  let off = 0;
+  const arcs = segments.map((s) => {
+    const len = (s.value / total) * c;
+    const el = `<circle cx="75" cy="75" r="${r}" fill="none" stroke="${s.color}" stroke-width="${stroke}" stroke-dasharray="${len.toFixed(1)} ${(c - len).toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 75 75)"/>`;
+    off += len; return el;
+  }).join('');
+  const plColor = totalPL > 0 ? 'var(--green)' : totalPL < 0 ? 'var(--red)' : 'var(--text-2)';
+  const plTxt = formatSignedBRL(totalPL).replace('R$ ', '').replace('R$ ', '');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="75" cy="75" r="${r}" fill="none" stroke="var(--hover)" stroke-width="${stroke}"/>${arcs}<text x="75" y="68" text-anchor="middle" fill="var(--text-2)" font-size="11" font-weight="600" font-family="inherit">P/L total</text><text x="75" y="89" text-anchor="middle" fill="${plColor}" font-size="16" font-weight="800" font-family="inherit">${plTxt}</text></svg>`;
+}
+
 function renderDashboard() {
   const cfg = store.getConfig();
   const trades = store.getTrades();
@@ -130,38 +167,78 @@ function renderDashboard() {
   const roiClass = s.roi > 0 ? 'pos' : s.roi < 0 ? 'neg' : '';
   const clvClass = s.avgClvPct > 0 ? 'pos' : s.avgClvPct < 0 ? 'neg' : '';
 
+  const sorted = trades.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  let run = cfg.initial;
+  const bancaSeries = [cfg.initial];
+  for (const t of sorted) { run += t.pl || 0; bancaSeries.push(run); }
+  const clvVals = sorted.filter((t) => t.clv != null).map((t) => t.clv);
+  const zeros = s.count - s.greens - s.reds;
+  const decided = s.greens + s.reds;
+  const stopColor = sl.used >= 1 ? 'var(--red)' : sl.used >= 0.7 ? 'var(--amber)' : 'var(--green)';
+
   bancaEl.innerHTML = `
-    <div class="hero-card">
-      <span class="hero-label">Banca atual</span>
-      <span class="hero-value ${deltaClass}">${formatBRL(banca)}</span>
-      <div class="hero-meta">
-        <span class="pill ${delta >= 0 ? 'pill-green' : 'pill-red'}">${formatSignedBRL(delta)}</span>
-        <span class="pill pill-muted">inicial ${formatBRL(cfg.initial)}</span>
+    <h1 class="screen-title">Sua banca</h1>
+    <div class="grid-hero">
+      <div class="hero-card">
+        <span class="hero-label">Banca atual</span>
+        <span class="hero-value ${deltaClass}">${formatBRL(banca)}</span>
+        <div class="hero-meta">
+          <span class="pill ${delta >= 0 ? 'pill-green' : 'pill-red'}">${delta >= 0 ? '↑' : '↓'} ${formatSignedBRL(delta)}</span>
+          <span class="pill pill-muted">inicial ${formatBRL(cfg.initial)}</span>
+        </div>
+        ${bancaSeries.length > 1 ? `<div style="margin-top:16px">${areaSpark(bancaSeries, 320, 54, delta >= 0 ? 'var(--green)' : 'var(--red)')}</div>` : ''}
+      </div>
+      <div class="vcard v-green">
+        <div class="v-lab">CLV médio</div>
+        ${clvVals.length > 1 ? `<div class="v-chart">${lineSpark(clvVals, 84, 32, '#fff')}</div>` : ''}
+        <div><div class="v-val">${s.avgClvPct ? formatSignedPct(s.avgClvPct) : '—'}</div><div class="v-cap">sua habilidade real ✓</div></div>
+      </div>
+      <div class="vcard v-blue">
+        <div class="v-lab">Acerto</div>
+        <div class="v-ring">${ring(decided ? s.winRate : 0, 66, 7, '#fff', 'rgba(255,255,255,.28)', decided ? formatPctFrac(s.winRate, 0) : '—', '#fff')}</div>
+        <div><div class="v-val">${s.greens}/${decided || 0}</div><div class="v-cap">greens no período</div></div>
       </div>
     </div>
-    <div class="grid-2">
-      <div class="stat-card"><span class="stat-label">ROI</span><span class="stat-value ${roiClass}">${s.count ? formatSignedPct(s.roi * 100) : '—'}</span></div>
-      <div class="stat-card"><span class="stat-label">CLV médio</span><span class="stat-value ${clvClass}">${s.avgClvPct ? formatSignedPct(s.avgClvPct) : '—'}</span></div>
-      <div class="stat-card"><span class="stat-label">Acerto</span><span class="stat-value">${s.greens + s.reds ? formatPctFrac(s.winRate, 0) : '—'}</span></div>
-      <div class="stat-card"><span class="stat-label">Trades</span><span class="stat-value">${s.count}</span></div>
-    </div>
-    <div class="card">
-      <div class="status-head">
-        <strong>Stop-loss diário</strong>
-        <span class="${sl.hit ? 'pill pill-red' : 'field-hint'}">${sl.hit ? 'ATINGIDO — pare hoje' : formatBRL(sl.lossToday) + ' de ' + formatBRL(sl.limit)}</span>
+    ${s.count > 0 ? `
+    <div class="grid-2b">
+      <div class="card">
+        <div class="seg-title">Resultado dos trades</div>
+        <div class="donut-wrap">
+          ${donutCard([{ value: s.greens, color: 'var(--green)' }, { value: s.reds, color: 'var(--red)' }, { value: zeros, color: 'var(--text-3)' }], s.totalPL)}
+          <div class="seg">
+            <div class="seg-line"><span class="nm">Greens</span><span class="vv pos">${s.greens}</span><div class="seg-bar"><i style="width:${pctOf(s.greens, s.count)}%;background:var(--green)"></i></div></div>
+            <div class="seg-line"><span class="nm">Reds</span><span class="vv neg">${s.reds}</span><div class="seg-bar"><i style="width:${pctOf(s.reds, s.count)}%;background:var(--red)"></i></div></div>
+            <div class="seg-line"><span class="nm">Zerou</span><span class="vv" style="color:var(--text-2)">${zeros}</span><div class="seg-bar"><i style="width:${pctOf(zeros, s.count)}%;background:var(--text-3)"></i></div></div>
+            <div class="seg-line" style="border-top:1px solid var(--border-subtle);padding-top:11px"><span class="nm">ROI</span><span class="vv ${roiClass}">${formatSignedPct(s.roi * 100)}</span></div>
+          </div>
+        </div>
       </div>
-      <div class="bar"><span class="${barClass}" style="width:${Math.round(sl.used * 100)}%"></span></div>
-      <p class="field-hint" style="margin-top:8px">P/L de hoje: ${formatSignedBRL(sl.plToday)}</p>
-    </div>
-    ${s.count === 0 ? `<div class="notice"><strong>Banca configurada ✅</strong><p>Registre seus trades na aba <strong>Registrar</strong> para acompanhar ROI, CLV e disciplina.</p></div>` : ''}
-    <button class="btn" id="btn-calc" style="margin-bottom:14px">🧮 Calculadora de stake (Kelly)</button>
+      <div class="card">
+        <div class="seg-title">Stop-loss diário</div>
+        <div style="display:flex;align-items:center;gap:18px">
+          ${ring(Math.min(1, sl.used), 92, 10, stopColor, 'var(--hover)', Math.round(sl.used * 100) + '%', 'var(--text-1)')}
+          <div>
+            <div class="tnum" style="font-size:20px;font-weight:800">${formatBRL(sl.lossToday)} <span style="color:var(--text-3);font-size:14px;font-weight:600">/ ${formatBRL(sl.limit)}</span></div>
+            <p class="field-hint" style="margin-top:6px">${sl.hit ? 'ATINGIDO — o ideal é parar hoje.' : 'P/L de hoje: ' + formatSignedBRL(sl.plToday)}</p>
+            <span class="pill ${sl.hit ? 'pill-red' : sl.used >= 0.7 ? 'pill-amber' : 'pill-green'}" style="margin-top:10px">${sl.hit ? 'pare hoje' : sl.used >= 0.7 ? 'atenção' : 'seguro'}</span>
+          </div>
+        </div>
+      </div>
+    </div>` : `<div class="notice"><strong>Banca configurada ✅</strong><p>Registre seus trades na aba <strong>Registrar</strong> para acompanhar ROI, CLV e disciplina.</p></div>`}
+    <button class="btn" id="btn-calc" style="margin-bottom:16px">🧮 Calculadora de stake (Kelly)</button>
     <div class="section-title">Configuração</div>
     <div class="card"><p class="card-lead">Stop-loss: <strong>${formatPctFrac(cfg.dailyStopLossPct, 0)}</strong> · Máx/operação: <strong>${formatPctFrac(cfg.maxStakePct, 0)}</strong> · Kelly: <strong>${cfg.kellyFraction}×</strong></p></div>
     <button class="btn" id="btn-adjust">Ajustar configuração</button>
-    <button class="btn btn-ghost" id="btn-logout" style="margin-top:8px">Sair da conta</button>`;
+    <button class="btn btn-ghost" id="btn-theme-m" style="margin-top:8px">◐ Alternar tema</button>
+    <button class="btn btn-ghost" id="btn-logout">Sair da conta</button>`;
 
   bancaEl.querySelector('#btn-adjust').addEventListener('click', () => { draft = { ...cfg }; renderBanca(); });
   bancaEl.querySelector('#btn-calc').addEventListener('click', openCalculator);
+  bancaEl.querySelector('#btn-theme-m')?.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('investidor.theme', next); } catch {}
+  });
   bancaEl.querySelector('#btn-logout').addEventListener('click', async () => {
     await auth.signOut();
     store.clearCache();
