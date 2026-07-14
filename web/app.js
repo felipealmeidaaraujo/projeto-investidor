@@ -2,7 +2,7 @@ import * as store from './src/store.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
-import { analyzeMatch, playerTags, buildReadingExplanation } from './src/analysis.js';
+import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
 import { winProbFromState, impliedServeProbs } from './src/inplay.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
@@ -664,43 +664,81 @@ function rankLabel(r) {
   if (r.rank <= 50) return 'top 50';
   return `${r.rank}º de ${r.total}`;
 }
+const DOSSIER_EXPLAIN = [
+  { term: 'Elo — o nível geral', what: 'Nota que resume o jogador: vence sobe, perde desce, e bater um forte vale mais. Quanto maior, melhor. O número de jogos é o tamanho da amostra por trás da nota.' },
+  { term: 'As tags coloridas', what: 'Resumos automáticos do que os números dizem. <b style="color:var(--green)">Verde</b> = força; <b style="color:var(--amber)">âmbar</b> = rende menos numa superfície (relativo a ele); <b style="color:var(--red)">vermelho</b> = fraqueza. Saem do saque/devolução e da diferença de Elo por piso.' },
+  { term: 'Elo por superfície & rank', what: 'O <b>piso</b> é o Elo contando só os jogos naquela superfície. O <b>"top 10 no circuito"</b> é a posição desse piso entre os jogadores ativos.' },
+];
+const DOSSIER_EXPLAIN_SERVE = { term: 'Saque & devolução', what: 'Percentuais tirados do histórico. A etiqueta ao lado (<b>na média / acima / elite</b>) mostra onde ele está no circuito — porque o número sozinho engana: <b>40% de devolução parece pouco, mas no ATP é elite</b> (a média fica bem abaixo).' };
+
+function renderDossierExplain(st, hasServe) {
+  if (!st.explainOpen) {
+    return `<button class="explain-head" id="dos-explain" aria-expanded="false">
+        <span>O que significam esses números?</span><span class="explain-caret">▸</span>
+      </button>`;
+  }
+  const blocks = hasServe ? [...DOSSIER_EXPLAIN, DOSSIER_EXPLAIN_SERVE] : DOSSIER_EXPLAIN;
+  const blk = (b) => `<div class="explain-blk"><div class="explain-term">${b.term}</div><div class="explain-what">${b.what}</div></div>`;
+  return `
+    <div class="explain">
+      <button class="explain-head open" id="dos-explain" aria-expanded="true">
+        <span>O que significam esses números?</span><span class="explain-caret">▾</span>
+      </button>
+      <div class="explain-body">${blocks.map(blk).join('')}</div>
+    </div>`;
+}
+
 function openDossier(player) {
   const root = document.getElementById('modal-root');
-  const tags = playerTags(player);
-  const s = player.serve;
-  const srow = (surf, lbl) => {
-    if (player[surf] == null) return '';
-    const rl = rankLabel(surfaceRank(player, surf));
-    return `<div class="dos-srow"><span>${lbl}${rl ? ` <span class="field-hint">· ${rl} no circuito</span>` : ''}</span><strong>${player[surf]}</strong></div>`;
-  };
-  const p100 = (x) => `${Math.round(x * 100)}%`;
-  root.innerHTML = `
-    <div class="modal-overlay" id="dos-overlay">
-      <div class="modal-sheet">
-        <div class="dossier">
-          <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
-          <div class="dos-name">${player.name}</div>
-          <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
-          ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
-          <div class="dos-section">Elo por superfície</div>
-          <div class="dos-surf">${srow('clay', 'Saibro')}${srow('hard', 'Dura')}${srow('grass', 'Grama')}</div>
-          ${s
-            ? `<div class="dos-section">Saque &amp; devolução</div>
-               <div class="dos-serve">
-                 <div class="dos-srow"><span>Pontos ganhos no saque</span><strong>${p100(s.servePtsWonPct)}</strong></div>
-                 <div class="dos-srow"><span>1º saque dentro</span><strong>${p100(s.firstInPct)}</strong></div>
-                 <div class="dos-srow"><span>Aces (por ponto de saque)</span><strong>${p100(s.acePct)}</strong></div>
-                 <div class="dos-srow"><span>Pontos de devolução ganhos</span><strong>${p100(s.returnPtsWonPct)}</strong></div>
-                 <div class="dos-srow"><span>Break points salvos</span><strong>${p100(s.bpSavedPct)}</strong></div>
-               </div>`
-            : `<p class="field-hint" style="margin-top:10px">Stats detalhados de saque só para ATP por enquanto.</p>`}
+  const st = { explainOpen: false };
+
+  function draw() {
+    const tags = playerTags(player, anal.tour);
+    const s = player.serve;
+    const p100 = (x) => `${Math.round(x * 100)}%`;
+    const srow = (surf, lbl) => {
+      if (player[surf] == null) return '';
+      const rl = rankLabel(surfaceRank(player, surf));
+      return `<div class="dos-srow"><span>${lbl}${rl ? ` <span class="field-hint">· ${rl} no circuito</span>` : ''}</span><strong>${player[surf]}</strong></div>`;
+    };
+    const svRow = (key, lbl) => {
+      const v = s[key];
+      const r = serveBand(anal.tour, key, v);
+      const pill = r ? `<span class="refpill ref-${r.band}">${r.label}</span>` : '';
+      return `<div class="dos-srow"><span>${lbl}</span><span class="dos-srv-val"><strong>${p100(v)}</strong>${pill}</span></div>`;
+    };
+    root.innerHTML = `
+      <div class="modal-overlay" id="dos-overlay">
+        <div class="modal-sheet">
+          <div class="dossier">
+            <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
+            <div class="dos-name">${player.name}</div>
+            <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
+            ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
+            <div class="dos-section">Elo por superfície</div>
+            <div class="dos-surf">${srow('clay', 'Saibro')}${srow('hard', 'Dura')}${srow('grass', 'Grama')}</div>
+            ${s
+              ? `<div class="dos-section">Saque &amp; devolução</div>
+                 <div class="dos-serve">
+                   ${svRow('servePtsWonPct', 'Pontos ganhos no saque')}
+                   ${svRow('firstInPct', '1º saque dentro')}
+                   ${svRow('acePct', 'Aces (por ponto de saque)')}
+                   ${svRow('returnPtsWonPct', 'Pontos de devolução ganhos')}
+                   ${svRow('bpSavedPct', 'Break points salvos')}
+                 </div>`
+              : ''}
+            ${renderDossierExplain(st, !!s)}
+          </div>
+          <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
         </div>
-        <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
-      </div>
-    </div>`;
-  root.querySelector('#dos-close').addEventListener('click', () => (root.innerHTML = ''));
-  root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') root.innerHTML = ''; });
-  loadPhoto(player);
+      </div>`;
+    root.querySelector('#dos-close').addEventListener('click', () => (root.innerHTML = ''));
+    root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') root.innerHTML = ''; });
+    root.querySelector('#dos-explain')?.addEventListener('click', () => { st.explainOpen = !st.explainOpen; draw(); });
+    loadPhoto(player);
+  }
+
+  draw();
 }
 
 function tagPill(tag) {
