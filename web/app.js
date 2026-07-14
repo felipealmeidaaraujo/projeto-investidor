@@ -2,9 +2,10 @@ import * as store from './src/store.js';
 import * as auth from './src/supabase.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy, clvStats, clvTrend, clvBySegment } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
-import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
+import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './src/finance.js';
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
-import { winProbFromState, impliedServeProbs } from './src/inplay.js';
+import { winProbFromState, impliedServeProbs, liveFairOdds } from './src/inplay.js';
+import { matchPlayer } from './src/match-names.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -310,7 +311,8 @@ const RESULT_OPTS = [{ v: 'green', l: '🟢 Green' }, { v: 'red', l: '🔴 Red' 
 const EMOTION_OPTS = [{ v: 'calmo', l: '😌 Calmo' }, { v: 'confiante', l: '💪 Confiante' }, { v: 'ansioso', l: '😬 Ansioso' }, { v: 'tilt', l: '🎢 Tilt' }];
 
 function defaultReg() {
-  return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null, tour: 'ATP', players: null };
+  return { market: null, surface: null, oddEntry: 2.0, oddClose: null, showClose: false, stake: 0, result: null, plAmount: 0, emotion: null, tour: 'ATP', players: null,
+    entryType: null, side: null, dir: null, liveState: { setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 }, preProbA: null };
 }
 async function ensureModel(tour) {
   if (anal.models[tour] && !anal.models[tour].error) return anal.models[tour];
@@ -336,6 +338,7 @@ function regValid() {
   if (!reg.players || !reg.players.a || !reg.players.b) return false;
   if (!reg.market || !reg.result || reg.stake <= 0) return false;
   if ((reg.result === 'green' || reg.result === 'red') && reg.plAmount <= 0) return false;
+  if (reg.market === 'Match Odds' && (!reg.entryType || !reg.side || !reg.dir)) return false;
   return true;
 }
 function renderRegistrar() {
@@ -351,6 +354,46 @@ function renderRegistrar() {
   const overCap = reg.stake > cap && cap > 0;
   const showPL = reg.result === 'green' || reg.result === 'red';
   const plLabel = reg.result === 'red' ? 'Prejuízo (R$)' : 'Lucro (R$)';
+
+  const isMO = reg.market === 'Match Odds';
+  const nmA = reg.players?.a || 'Jogador A';
+  const nmB = reg.players?.b || 'Jogador B';
+  const liveBase = reg.tour === 'WTA' ? 0.56 : 0.64;
+  let liveFeedback = '';
+  if (isMO && reg.entryType === 'live') {
+    if (reg.preProbA != null && reg.side) {
+      const fair = liveFairOdds(reg.preProbA, reg.liveState, { base: liveBase, bestOf: reg.liveState.bestOf });
+      const sideFair = reg.side === 'a' ? fair.fairOddA : fair.fairOddB;
+      const val = clvPct(reg.oddEntry, sideFair, reg.dir || 'back');
+      const vCls = val > 0 ? 'pos' : val < 0 ? 'neg' : '';
+      liveFeedback = `<p class="card-lead" style="margin-top:8px">Odd justa ao vivo de <strong>${reg.side === 'a' ? nmA : nmB}</strong>: <strong>${sideFair.toFixed(2)}</strong> · valor da entrada: <strong class="${vCls}">${formatSignedPct(val)}</strong></p>`;
+    } else if (reg.preProbA == null) {
+      liveFeedback = `<p class="hint-red" style="margin-top:8px">Não consegui identificar os jogadores no modelo — o valor ao vivo não será medido neste confronto.</p>`;
+    }
+  }
+  const rstep = (f, v) => `<div class="livestep"><button class="lstep" data-regsc="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-regsc="${f}" data-d="1">+</button></div>`;
+  const RL = reg.liveState;
+  const matchOddsBlock = !isMO ? '' : `
+    <div class="field"><div class="field-label"><span>Tipo de entrada</span></div>
+      <div class="chips"><button class="chip${reg.entryType === 'pre' ? ' selected' : ''}" data-entrytype="pre">Pré-jogo</button><button class="chip${reg.entryType === 'live' ? ' selected' : ''}" data-entrytype="live">Ao vivo</button></div>
+    </div>
+    ${reg.players?.a && reg.players?.b ? `<div class="field"><div class="field-label"><span>Entrei em</span></div>
+      <div class="chips"><button class="chip${reg.side === 'a' ? ' selected' : ''}" data-side="a">${nmA}</button><button class="chip${reg.side === 'b' ? ' selected' : ''}" data-side="b">${nmB}</button></div>
+    </div>` : ''}
+    <div class="field"><div class="field-label"><span>Direção</span></div>
+      <div class="chips"><button class="chip${reg.dir === 'back' ? ' selected' : ''}" data-dir="back">Back</button><button class="chip${reg.dir === 'lay' ? ' selected' : ''}" data-dir="lay">Lay</button></div>
+    </div>
+    ${reg.entryType === 'live' ? `<div class="field"><div class="field-label"><span>Placar no momento da entrada</span></div>
+      <div class="live-grid">
+        <div class="live-cell"><span class="live-lbl">Sets · ${nmA}</span>${rstep('setsA', RL.setsA)}</div>
+        <div class="live-cell"><span class="live-lbl">Sets · ${nmB}</span>${rstep('setsB', RL.setsB)}</div>
+        <div class="live-cell"><span class="live-lbl">Games · ${nmA}</span>${rstep('gamesA', RL.gamesA)}</div>
+        <div class="live-cell"><span class="live-lbl">Games · ${nmB}</span>${rstep('gamesB', RL.gamesB)}</div>
+      </div>
+      <div class="chips" style="margin-top:10px"><button class="chip${RL.serverIsA ? ' selected' : ''}" data-regserver="A">saca ${nmA}</button><button class="chip${!RL.serverIsA ? ' selected' : ''}" data-regserver="B">saca ${nmB}</button></div>
+      <div class="chips" style="margin-top:8px"><button class="chip${RL.bestOf === 3 ? ' selected' : ''}" data-regbestof="3">3 sets</button><button class="chip${RL.bestOf === 5 ? ' selected' : ''}" data-regbestof="5">5 sets</button></div>
+      ${liveFeedback}
+    </div>` : ''}`;
 
   regEl.innerHTML = `
     <h1 class="screen-title">Registrar trade</h1>
@@ -373,6 +416,7 @@ function renderRegistrar() {
 
     <div class="field"><div class="field-label"><span>Mercado</span></div>${chipsHTML(reg, 'market', MARKET_OPTS)}</div>
     <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
+    ${matchOddsBlock}
 
     <div class="field">
       <div class="field-label"><span>Odd de entrada</span></div>
@@ -430,10 +474,37 @@ function renderRegistrar() {
   regEl.querySelector('#btn-pl')?.addEventListener('click', () =>
     openKeypad({ title: plLabel, value: reg.plAmount, onConfirm: (v) => { reg.plAmount = v; renderRegistrar(); } })
   );
+  regEl.querySelectorAll('[data-entrytype]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      reg.entryType = b.dataset.entrytype;
+      if (reg.entryType === 'live' && reg.preProbA == null && reg.players?.a && reg.players?.b) {
+        const m = await ensureModel(reg.tour);
+        if (!m.error) {
+          const pa = matchPlayer(reg.players.a, m.players);
+          const pb = matchPlayer(reg.players.b, m.players);
+          if (pa && pb) reg.preProbA = analyzeMatch(pa, pb, reg.surface || 'hard', m).probA;
+        }
+      }
+      renderRegistrar();
+    })
+  );
+  regEl.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => { reg.side = b.dataset.side; renderRegistrar(); }));
+  regEl.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click', () => { reg.dir = b.dataset.dir; renderRegistrar(); }));
+  regEl.querySelectorAll('[data-regsc]').forEach((b) =>
+    b.addEventListener('click', () => { const f = b.dataset.regsc; reg.liveState[f] = Math.max(0, reg.liveState[f] + Number(b.dataset.d)); renderRegistrar(); })
+  );
+  regEl.querySelectorAll('[data-regserver]').forEach((b) => b.addEventListener('click', () => { reg.liveState.serverIsA = b.dataset.regserver === 'A'; renderRegistrar(); }));
+  regEl.querySelectorAll('[data-regbestof]').forEach((b) => b.addEventListener('click', () => { reg.liveState.bestOf = Number(b.dataset.regbestof); renderRegistrar(); }));
   regEl.querySelector('#btn-savetrade').addEventListener('click', saveTrade);
 }
 async function saveTrade() {
   if (!regValid()) return;
+  let liveFairOdd;
+  if (reg.market === 'Match Odds' && reg.entryType === 'live' && reg.preProbA != null) {
+    const base = reg.tour === 'WTA' ? 0.56 : 0.64;
+    const fair = liveFairOdds(reg.preProbA, reg.liveState, { base, bestOf: reg.liveState.bestOf });
+    liveFairOdd = reg.side === 'a' ? fair.fairOddA : fair.fairOddB;
+  }
   const trade = makeTrade(
     {
       market: reg.market,
@@ -445,6 +516,11 @@ async function saveTrade() {
       plAmount: reg.plAmount,
       emotion: reg.emotion,
       players: reg.players && reg.players.a && reg.players.b ? reg.players : undefined,
+      side: reg.market === 'Match Odds' ? reg.side : undefined,
+      dir: reg.market === 'Match Odds' ? reg.dir : undefined,
+      entryType: reg.market === 'Match Odds' ? reg.entryType : undefined,
+      liveState: reg.entryType === 'live' ? reg.liveState : undefined,
+      liveFairOdd,
     },
     { id: crypto.randomUUID(), date: nowLocalISO() }
   );
@@ -516,9 +592,28 @@ function renderHistorico() {
         </div>
       </div>
       <div class="grid-v">
-        ${clvSegCard('CLV por mercado', clvBySegment(trades, 'market'))}
-        ${clvSegCard('CLV por superfície', clvBySegment(trades, 'surface'), (k) => SURFACE_PT[k] || k)}
+        ${clvSegCard('CLV por mercado', clvBySegment(trades, 'clv', 'market'))}
+        ${clvSegCard('CLV por superfície', clvBySegment(trades, 'clv', 'surface'), (k) => SURFACE_PT[k] || k)}
       </div>`;
+  const live = clvStats(trades, 'liveValue');
+  const liveTrend = clvTrend(trades, 'liveValue');
+  const liveHero = live.measured === 0
+    ? `<div class="card"><div class="seg-title">Valor ao vivo — sua leitura</div><p class="card-lead">Registre trades <strong>ao vivo</strong> (pela tela Trade ao vivo) para medir o valor das suas entradas — quanto você pega odd melhor que a justa do momento.</p></div>`
+    : `
+      <div class="clv-hero ${live.avgClv < 0 ? 'neg' : ''}">
+        <div class="clv-hero-top">
+          <div>
+            <div class="clv-lab">Valor médio ao vivo — sua leitura</div>
+            <div class="clv-val">${formatSignedPct(live.avgClv)}</div>
+          </div>
+          ${liveTrend.length > 1 ? `<div class="clv-spark">${areaSpark(liveTrend, 130, 48, '#fff')}</div>` : ''}
+        </div>
+        <div class="clv-pills">
+          <span class="clv-pill">${formatPctFrac(live.beatRate, 0)} entrou com valor</span>
+          <span class="clv-pill">${live.measured} ${live.measured === 1 ? 'entrada medida' : 'entradas medidas'}</span>
+        </div>
+      </div>
+      ${clvSegCard('Valor ao vivo por superfície', clvBySegment(trades, 'liveValue', 'surface'), (k) => SURFACE_PT[k] || k)}`;
   const reds = trades.filter((t) => t.result === 'red');
   const redsReviewed = reds.filter((t) => t.review);
   const byReview = segmentBy(redsReviewed, 'review');
@@ -559,6 +654,8 @@ function renderHistorico() {
   const decided = s.greens + s.reds;
   histEl.innerHTML = `
     <h1 class="screen-title">Histórico</h1>
+    ${liveHero}
+    <div class="section-title">CLV pré-jogo</div>
     ${clvBlock}
     <div class="hero-card">
       <span class="hero-label">P/L total</span>
@@ -772,6 +869,13 @@ function renderAnalise() {
   analiseEl.querySelector('#btn-more')?.addEventListener('click', () => { anal.moreOpen = !anal.moreOpen; renderAnalise(); });
   analiseEl.querySelector('#btn-reg-conf')?.addEventListener('click', () => {
     reg = { ...defaultReg(), tour: anal.tour, surface: anal.surface, players: { a: anal.a.fullName || anal.a.name, b: anal.b.fullName || anal.b.name, tour: anal.tour } };
+    if (anal.live.active) {
+      const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
+      reg.market = 'Match Odds';
+      reg.entryType = 'live';
+      reg.liveState = { setsA: anal.live.setsA, setsB: anal.live.setsB, gamesA: anal.live.gamesA, gamesB: anal.live.gamesB, serverIsA: anal.live.serverIsA, bestOf: anal.live.bestOf };
+      reg.preProbA = r.probA;
+    }
     showScreen('registrar');
   });
   analiseEl.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; renderAnalise(); });
@@ -1034,10 +1138,8 @@ function renderReading() {
 
 function renderLive(pre) {
   const base = anal.tour === 'WTA' ? 0.56 : 0.64;
-  const { pA, pB } = impliedServeProbs(pre.probA, { base, bestOf: anal.live.bestOf });
   const L = anal.live;
-  const probA = winProbFromState({ setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, pA, pB, L.bestOf);
-  const probB = 1 - probA;
+  const { probA, probB } = liveFairOdds(pre.probA, { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, { base, bestOf: L.bestOf });
   const favA = probA >= 0.5;
   const aN = anal.a.name;
   const bN = anal.b.name;
