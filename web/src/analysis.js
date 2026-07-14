@@ -142,8 +142,12 @@ export function buildReadingExplanation(r) {
   } else {
     const hi = a.surfaceElo > b.surfaceElo ? a : b;
     const lo = a.surfaceElo > b.surfaceElo ? b : a;
-    const fecho = flipped ? 'a mão vira.' : 'confirma o favorito.';
-    piso = `No ${surf}: ${hi.name} ${hi.surfaceElo} · ${lo.name} ${lo.surfaceElo} — ${fecho}`;
+    // hi = quem tem o piso maior. O fecho relaciona esse piso com o favorito real.
+    let fecho;
+    if (flipped) fecho = 'a mão vira.';
+    else if (hi.name === r.favorite) fecho = 'reforça o favorito.';
+    else fecho = 'o piso favorece o azarão, mas não vira a mão.';
+    piso = `${hi.name} ${hi.surfaceElo} · ${lo.name} ${lo.surfaceElo} no ${surf} — ${fecho}`;
   }
 
   // Bloco Força — a nota que decide, + favorito e %

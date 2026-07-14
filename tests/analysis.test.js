@@ -79,12 +79,21 @@ test('buildReadingExplanation: inversão — Sinner tem Elo geral maior mas Alca
   assert.ok(ex.delta.includes('Alcaraz (+60) forte') && ex.delta.includes('Sinner (−45) fraco'));
 });
 
-test('buildReadingExplanation: sem inversão + neutro', () => {
+test('buildReadingExplanation: sem inversão + neutro — piso reforça o favorito', () => {
   const ex = buildReadingExplanation(analyzeMatch(clayKing, rival, 'clay', model));
   assert.equal(ex.flipped, false);
-  assert.ok(ex.piso.includes('confirma o favorito'));
+  assert.ok(ex.piso.includes('reforça o favorito'));
   assert.ok(ex.delta.includes('ClayKing (+60) forte'));
   assert.ok(ex.delta.includes('Rival joga em linha com o próprio nível'));
+});
+
+test('buildReadingExplanation: azarão tem piso maior mas não vira a mão', () => {
+  const bigElo = { name: 'BigElo', elo: 2300, clay: 2150, hard: 2320, grass: 2300, matches: 400, matchesBySurface: { clay: 100, hard: 200, grass: 100 } };
+  const clayLover = { name: 'ClayLover', elo: 2180, clay: 2185, hard: 2170, grass: 2170, matches: 400, matchesBySurface: { clay: 200, hard: 120, grass: 80 } };
+  const ex = buildReadingExplanation(analyzeMatch(bigElo, clayLover, 'clay', model));
+  assert.equal(ex.flipped, false);
+  assert.ok(ex.forca.includes('favorito é BigElo'));
+  assert.ok(ex.piso.includes('ClayLover 2185') && ex.piso.includes('o piso favorece o azarão, mas não vira a mão'));
 });
 
 test('buildReadingExplanation: piso ausente cai no Elo geral', () => {
