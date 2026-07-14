@@ -6,6 +6,7 @@ import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './sr
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
 import { winProbFromState, impliedServeProbs, liveFairOdds } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
+import { closingPatches } from './src/closings.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -1402,6 +1403,25 @@ function renderAuth() {
   draw();
 }
 
+// Preenche sozinho o CLV pré-jogo dos trades pendentes, cruzando com os fechamentos publicados.
+async function syncClosings() {
+  const pending = store.getTrades().filter(
+    (t) => t.market === 'Match Odds' && t.entryType === 'pre' && t.players?.a && t.players?.b && t.side && typeof t.oddClose !== 'number'
+  );
+  if (!pending.length) return;
+  let matches;
+  try {
+    const res = await fetch('closings.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    matches = (await res.json()).matches || [];
+  } catch { return; }
+  let n = 0;
+  for (const p of closingPatches(pending, matches)) {
+    try { await store.updateTrade(p.id, { oddClose: p.oddClose, clv: p.clv }); n++; } catch { /* ignora falha isolada */ }
+  }
+  if (n) toast(`CLV preenchido em ${n} trade${n > 1 ? 's' : ''} ✅`);
+}
+
 async function bootApp() {
   authRoot.innerHTML = '';
   try { await store.initStore(); }
@@ -1411,6 +1431,7 @@ async function bootApp() {
     store.subscribe(() => renderScreen(currentScreen));
   }
   renderScreen(currentScreen);
+  syncClosings();
 }
 
 // Tema (claro é o padrão; escolha salva)
