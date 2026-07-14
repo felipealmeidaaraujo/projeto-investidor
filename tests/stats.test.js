@@ -115,3 +115,16 @@ test('clvBySegment: chave ausente cai em —', () => {
   assert.equal(g['—'].count, 1);
   approx(g['—'].avgClv, 3);
 });
+
+test('CLV: ignora clv não-finito (NaN/Infinity de dado corrompido)', () => {
+  const bad = [
+    { date: '2026-07-10', market: 'Match Odds', clv: 4 },
+    { date: '2026-07-11', market: 'Match Odds', clv: NaN },
+    { date: '2026-07-12', market: 'Match Odds', clv: Infinity },
+  ];
+  const s = clvStats(bad);
+  assert.equal(s.measured, 1);
+  approx(s.avgClv, 4);
+  assert.equal(clvTrend(bad).length, 1);
+  assert.equal(clvBySegment(bad, 'market')['Match Odds'].count, 1);
+});

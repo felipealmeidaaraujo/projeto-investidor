@@ -65,7 +65,7 @@ export function clvStats(trades) {
   let measured = 0;
   let beatCount = 0;
   for (const t of trades) {
-    if (typeof t.clv !== 'number') continue;
+    if (!Number.isFinite(t.clv)) continue;
     measured++;
     sum += t.clv;
     if (t.clv > 0) beatCount++;
@@ -81,7 +81,7 @@ export function clvStats(trades) {
 /** Série do CLV médio acumulado, em ordem de data — só trades com CLV. */
 export function clvTrend(trades) {
   const measured = trades
-    .filter((t) => typeof t.clv === 'number')
+    .filter((t) => Number.isFinite(t.clv))
     .slice()
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const out = [];
@@ -97,7 +97,7 @@ export function clvTrend(trades) {
 export function clvBySegment(trades, key) {
   const groups = {};
   for (const t of trades) {
-    if (typeof t.clv !== 'number') continue;
+    if (!Number.isFinite(t.clv)) continue;
     const k = t[key] ?? '—';
     const g = (groups[k] ??= { count: 0, sum: 0, beatCount: 0, avgClv: 0, beatRate: 0 });
     g.count++;
