@@ -1,14 +1,13 @@
 // Lê um confronto pelo modelo treinado (ferramenta de linha de comando + demo).
-// Uso: node pipeline/read.js "Nome A" "Nome B" [hard|clay|grass]
+// Uso: node pipeline/read.js "Nome A" "Nome B" [hard|clay|grass] [atp|wta]
 import { readFile } from 'node:fs/promises';
 import { analyzeMatch } from '../web/src/analysis.js';
 
-const model = JSON.parse(await readFile(new URL('../web/model.json', import.meta.url)));
+const [qa, qb, surface = 'hard', tour = 'atp'] = process.argv.slice(2);
+const model = JSON.parse(await readFile(new URL(`../web/model-${tour.toLowerCase()}.json`, import.meta.url)));
 const find = (q) =>
   model.players.find((p) => p.name.toLowerCase() === q.toLowerCase()) ||
   model.players.find((p) => p.name.toLowerCase().includes(q.toLowerCase()));
-
-const [qa, qb, surface = 'hard'] = process.argv.slice(2);
 const a = find(qa);
 const b = find(qb);
 if (!a || !b) {

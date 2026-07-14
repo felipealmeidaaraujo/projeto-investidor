@@ -1,21 +1,22 @@
-// Treina o modelo Elo com dados ATUAIS (tennis-data.co.uk, 2013–2026) e salva web/model.json.
+// Treina o modelo Elo de um circuito (ATP ou WTA) com dados atuais e salva web/model-<tour>.json.
 // Marca quem está ATIVO (jogou recentemente) para o app focar em quem joga hoje.
-// Uso: node pipeline/train.js [anoInicio] [anoFim]
+// Uso: node pipeline/train.js [ATP|WTA] [anoInicio] [anoFim]
 import { writeFile } from 'node:fs/promises';
 import { EloEngine } from './elo-engine.js';
 import { loadTennisData } from './ingest-tennisdata.js';
 import { fitTemperature } from './calibrate.js';
 
-const FROM = Number(process.argv[2]) || 2013;
-const TO = Number(process.argv[3]) || new Date().getFullYear();
+const TOUR = (process.argv[2] || 'ATP').toUpperCase();
+const FROM = Number(process.argv[3]) || 2013;
+const TO = Number(process.argv[4]) || new Date().getFullYear();
 const MIN_MATCHES = 20;
 const warmupInt = (FROM + 2) * 10000;
 const splitInt = (TO - 3) * 10000;
 
-console.log(`Baixando ATP ${FROM}–${TO} (tennis-data.co.uk, atual)...`);
-const matches = await loadTennisData(FROM, TO, 'ATP');
+console.log(`Baixando ${TOUR} ${FROM}–${TO} (tennis-data.co.uk, atual)...`);
+const matches = await loadTennisData(FROM, TO, TOUR);
 const maxDate = matches[matches.length - 1].dateInt;
-console.log(`${matches.length} partidas (até ${maxDate}). Treinando...`);
+console.log(`${matches.length} partidas (até ${maxDate}). Treinando ${TOUR}...`);
 
 const engine = new EloEngine();
 const fitPreds = [];
@@ -34,7 +35,6 @@ for (const m of matches) {
 
 const T = fitTemperature(fitPreds);
 const r = (x) => (x == null ? null : Math.round(x));
-// Ativo = jogou no último ~ano e meio (do ano anterior ao mais recente em diante)
 const activeCutoff = (Math.floor(maxDate / 10000) - 1) * 10000;
 
 const players = [...engine.players.entries()]
@@ -58,7 +58,7 @@ const players = [...engine.players.entries()]
 
 const model = {
   generatedAt: new Date().toISOString(),
-  tour: 'ATP',
+  tour: TOUR,
   source: 'tennis-data.co.uk',
   yearsFrom: FROM,
   yearsTo: TO,
@@ -70,10 +70,10 @@ const model = {
   players,
 };
 
-await writeFile(new URL('../web/model.json', import.meta.url), JSON.stringify(model));
-console.log(`\nmodel.json salvo: ${players.length} jogadores (${model.activeCount} ativos), T=${T}, dados até ${maxDate}\n`);
+await writeFile(new URL(`../web/model-${TOUR.toLowerCase()}.json`, import.meta.url), JSON.stringify(model));
+console.log(`\nmodel-${TOUR.toLowerCase()}.json salvo: ${players.length} jogadores (${model.activeCount} ativos), T=${T}, dados até ${maxDate}\n`);
 
-console.log('=== TOP 15 ATIVOS POR ELO (quem joga hoje) ===');
-players.filter((p) => p.active).slice(0, 15).forEach((p, i) =>
-  console.log(`${String(i + 1).padStart(2)}. ${p.name.padEnd(18)} Elo ${p.elo}  (hard ${p.hard ?? '—'} / clay ${p.clay ?? '—'} / grass ${p.grass ?? '—'})  último: ${p.lastDate}`)
+console.log(`=== TOP 12 ATIVOS ${TOUR} POR ELO ===`);
+players.filter((p) => p.active).slice(0, 12).forEach((p, i) =>
+  console.log(`${String(i + 1).padStart(2)}. ${p.name.padEnd(18)} Elo ${p.elo}  (hard ${p.hard ?? '—'} / clay ${p.clay ?? '—'} / grass ${p.grass ?? '—'})`)
 );

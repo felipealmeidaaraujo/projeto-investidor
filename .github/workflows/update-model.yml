@@ -26,8 +26,10 @@ jobs:
           node-version: 20
       - name: Instalar dependências
         run: npm ci
-      - name: Re-treinar o modelo com os dados de hoje
-        run: node pipeline/train.js
+      - name: Re-treinar os modelos (ATP e WTA) com os dados de hoje
+        run: |
+          node pipeline/train.js ATP
+          node pipeline/train.js WTA
       - name: Rodar os testes (segurança)
         run: npm test
       - uses: actions/configure-pages@v5

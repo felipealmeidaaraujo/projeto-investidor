@@ -457,39 +457,66 @@ function openReview(tradeId) {
 
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
-const anal = { model: null, loading: false, a: null, b: null, surface: 'hard' };
+const anal = { tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard' };
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
 const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
 
 async function loadModel() {
-  if (anal.model || anal.loading) return;
-  anal.loading = true;
+  const tour = anal.tour;
+  if (anal.models[tour]) { anal.model = anal.models[tour]; return; }
+  if (anal.loadingTour === tour) return;
+  anal.loadingTour = tour;
   try {
-    const res = await fetch('model.json');
+    const res = await fetch(`model-${tour.toLowerCase()}.json`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    anal.model = await res.json();
+    anal.models[tour] = await res.json();
   } catch (e) {
-    anal.model = { error: e.message };
+    anal.models[tour] = { error: e.message };
   }
-  anal.loading = false;
-  if (currentScreen === 'analise') renderAnalise();
+  anal.loadingTour = null;
+  if (anal.tour === tour) {
+    anal.model = anal.models[tour];
+    if (currentScreen === 'analise') renderAnalise();
+  }
+}
+
+function switchTour(t) {
+  if (anal.tour === t) return;
+  anal.tour = t;
+  anal.a = null;
+  anal.b = null;
+  anal.model = anal.models[t] || null;
+  renderAnalise();
+}
+
+function tourHeader() {
+  return `
+    <h1 class="screen-title">Análise do confronto</h1>
+    <div class="chips" style="margin-bottom:14px">
+      <button class="chip${anal.tour === 'ATP' ? ' selected' : ''}" data-tour="ATP">ATP</button>
+      <button class="chip${anal.tour === 'WTA' ? ' selected' : ''}" data-tour="WTA">WTA</button>
+    </div>`;
+}
+function wireTour() {
+  analiseEl.querySelectorAll('[data-tour]').forEach((b) => b.addEventListener('click', () => switchTour(b.dataset.tour)));
 }
 
 function renderAnalise() {
   if (!anal.model) {
-    analiseEl.innerHTML = `<h1 class="screen-title">Análise do confronto</h1><div class="card"><p class="card-lead">Carregando o modelo…</p></div>`;
+    analiseEl.innerHTML = tourHeader() + `<div class="card"><p class="card-lead">Carregando o modelo ${anal.tour}…</p></div>`;
+    wireTour();
     loadModel();
     return;
   }
   if (anal.model.error) {
-    analiseEl.innerHTML = `<h1 class="screen-title">Análise do confronto</h1><div class="notice"><p>Não consegui carregar o modelo (${anal.model.error}).</p></div>`;
+    analiseEl.innerHTML = tourHeader() + `<div class="notice"><p>Não consegui carregar o modelo ${anal.tour} (${anal.model.error}).</p></div>`;
+    wireTour();
     return;
   }
   const canRead = anal.a && anal.b;
-  analiseEl.innerHTML = `
-    <h1 class="screen-title">Análise do confronto</h1>
+  analiseEl.innerHTML = tourHeader() + `
     <div class="matchup-slots">
       <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? anal.a.name : '➕ Jogador A'}</button>
       <span class="vs">vs</span>
@@ -499,6 +526,7 @@ function renderAnalise() {
     <div id="reading">${canRead ? renderReading() : `<div class="notice"><p>Escolha os <strong>dois jogadores</strong> e a superfície para ver a leitura do confronto.</p></div>`}</div>
     <p class="field-hint" style="margin-top:14px">⚠️ Leitura do modelo pra você <strong>entender</strong> o jogo — não é recomendação de aposta. O modelo não bate o mercado; use como preparação.</p>`;
 
+  wireTour();
   analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker((p) => { anal.a = p; renderAnalise(); }));
   analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
@@ -595,7 +623,7 @@ function openPlayerPicker(onPick) {
 
 /* ================= Chips (wiring compartilhado) ================= */
 function wireChips(container, obj, rerender) {
-  container.querySelectorAll('.chip').forEach((chip) =>
+  container.querySelectorAll('.chip[data-field]').forEach((chip) =>
     chip.addEventListener('click', () => {
       const raw = chip.dataset.value;
       const num = Number(raw);
