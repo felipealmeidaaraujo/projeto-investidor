@@ -316,10 +316,14 @@ body {
 .az { min-width: 30px; min-height: 34px; padding: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text-2); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
 .az.sel { background: var(--accent-subtle); border-color: transparent; color: var(--accent); }
+.pp-search { margin-bottom: 10px; }
 .picker-list { overflow-y: auto; flex: 1; }
-.picker-row { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 13px 10px; min-height: 48px;
+.picker-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 8px; min-height: 52px;
   background: none; border: none; border-bottom: 1px solid var(--border-subtle); color: var(--text-1); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
 .picker-row:active { background: var(--hover); }
+.pp-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--hover); border: 1px solid var(--border-subtle); display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--text-2); flex: none; overflow: hidden; }
+.pp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pp-name { flex: 1; min-width: 0; }
 
 /* ===================== Jogos de hoje ===================== */
 .fixtures { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; }

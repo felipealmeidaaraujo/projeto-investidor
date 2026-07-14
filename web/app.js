@@ -682,8 +682,8 @@ function renderAnalise() {
   analiseEl.querySelectorAll('[data-fx]').forEach((b) =>
     b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
   );
-  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker((p) => { anal.a = p; renderAnalise(); }));
-  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
+  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; renderAnalise(); }));
+  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
 
   analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
@@ -984,46 +984,78 @@ function renderLive(pre) {
     </div>`;
 }
 
-function openPlayerPicker(onPick) {
+function openPlayerPicker(model, onPick) {
   const root = document.getElementById('modal-root');
   let showAll = false; // por padrão, só quem está ativo (joga hoje)
   let letter = null;
+  let query = '';
+  let observer = null;
 
+  function computeList() {
+    const base = showAll ? model.players : model.players.filter((p) => p.active);
+    const q = query.trim().toLowerCase();
+    if (q) return base.filter((p) => (p.fullName || p.name).toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 60);
+    if (letter) return base.filter((p) => p.name[0].toUpperCase() === letter).sort((a, b) => a.name.localeCompare(b.name));
+    return base.slice(0, 40);
+  }
+  function observePhotos() {
+    if (observer) observer.disconnect();
+    const listEl = root.querySelector('.picker-list');
+    observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const el = e.target;
+        observer.unobserve(el);
+        const p = model.players.find((x) => x.name === decodeURIComponent(el.dataset.pk));
+        if (p) loadPhoto(p, () => el);
+      }
+    }, { root: listEl, rootMargin: '150px' });
+    listEl.querySelectorAll('.pp-avatar[data-pk]').forEach((el) => observer.observe(el));
+  }
+  function renderList() {
+    const list = computeList();
+    const wrap = root.querySelector('.picker-list');
+    wrap.innerHTML = list.length
+      ? list.map((p) => {
+          const nm = p.fullName || p.name;
+          return `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span class="pp-avatar" data-pk="${encodeURIComponent(p.name)}"><span>${initials(nm)}</span></span><span class="pp-name">${nm}</span><span class="field-hint">Elo ${p.elo}</span></button>`;
+        }).join('')
+      : `<div class="field-hint" style="padding:16px 6px">Ninguém com esse nome.</div>`;
+    wrap.querySelectorAll('.picker-row').forEach((b) =>
+      b.addEventListener('click', () => {
+        const p = model.players.find((x) => x.name === decodeURIComponent(b.dataset.name));
+        root.innerHTML = '';
+        onPick(p);
+      })
+    );
+    observePhotos();
+  }
   function draw() {
-    const players = showAll ? anal.model.players : anal.model.players.filter((p) => p.active);
-    const letters = [...new Set(players.map((p) => p.name[0].toUpperCase()))].sort();
-    const list = !letter
-      ? players.slice(0, 40)
-      : players.filter((p) => p.name[0].toUpperCase() === letter).sort((a, b) => a.name.localeCompare(b.name));
+    const base = showAll ? model.players : model.players.filter((p) => p.active);
+    const letters = [...new Set(base.map((p) => p.name[0].toUpperCase()))].sort();
     root.innerHTML = `
       <div class="modal-overlay" id="pp-overlay">
         <div class="modal-sheet picker-sheet">
           <div class="modal-title">Escolha o jogador</div>
+          <input class="auth-input pp-search" id="pp-search" placeholder="Buscar por nome…" value="${query}" autocomplete="off">
           <div class="chips" style="margin-bottom:8px">
             <button class="chip${showAll ? '' : ' selected'}" data-mode="ativos">Ativos</button>
             <button class="chip${showAll ? ' selected' : ''}" data-mode="todos">Todos (histórico)</button>
           </div>
           <div class="az-strip">${letters.map((L) => `<button class="az${letter === L ? ' sel' : ''}" data-l="${L}">${L}</button>`).join('')}</div>
-          <div class="field-hint" style="padding:6px 2px">${letter ? `Nomes com "${letter}"` : 'Mais fortes (por Elo)'}</div>
-          <div class="picker-list">
-            ${list.map((p) => `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span>${p.name}</span><span class="field-hint">Elo ${p.elo}</span></button>`).join('')}
-          </div>
+          <div class="picker-list"></div>
           <div class="modal-actions"><button class="btn btn-ghost" id="pp-cancel">Cancelar</button></div>
         </div>
       </div>`;
+    const search = root.querySelector('#pp-search');
+    search.addEventListener('input', () => { query = search.value; letter = null; renderList(); });
     root.querySelectorAll('[data-mode]').forEach((b) =>
-      b.addEventListener('click', () => { showAll = b.dataset.mode === 'todos'; letter = null; draw(); })
+      b.addEventListener('click', () => { showAll = b.dataset.mode === 'todos'; letter = null; query = ''; draw(); })
     );
-    root.querySelectorAll('.az').forEach((b) => b.addEventListener('click', () => { letter = b.dataset.l; draw(); }));
-    root.querySelectorAll('.picker-row').forEach((b) =>
-      b.addEventListener('click', () => {
-        const p = anal.model.players.find((x) => x.name === decodeURIComponent(b.dataset.name));
-        root.innerHTML = '';
-        onPick(p);
-      })
-    );
+    root.querySelectorAll('.az').forEach((b) => b.addEventListener('click', () => { letter = b.dataset.l; query = ''; draw(); }));
     root.querySelector('#pp-cancel').addEventListener('click', () => (root.innerHTML = ''));
     root.querySelector('#pp-overlay').addEventListener('click', (e) => { if (e.target.id === 'pp-overlay') root.innerHTML = ''; });
+    renderList();
   }
   draw();
 }
