@@ -645,11 +645,31 @@ async function loadPhoto(player) {
     photoCache.set(player.name, null);
   }
 }
+function surfaceRank(player, surf) {
+  const model = anal.model;
+  if (!model?.players || player[surf] == null) return null;
+  const active = model.players.filter((p) => p.active && p[surf] != null);
+  if (!active.length) return null;
+  const higher = active.filter((p) => p.name !== player.name && p[surf] > player[surf]).length;
+  return { rank: higher + 1, total: active.length };
+}
+function rankLabel(r) {
+  if (!r) return '';
+  if (r.rank <= 5) return 'top 5';
+  if (r.rank <= 10) return 'top 10';
+  if (r.rank <= 25) return 'top 25';
+  if (r.rank <= 50) return 'top 50';
+  return `${r.rank}º de ${r.total}`;
+}
 function openDossier(player) {
   const root = document.getElementById('modal-root');
   const tags = playerTags(player);
   const s = player.serve;
-  const srow = (surf, lbl) => (player[surf] != null ? `<div class="dos-srow"><span>${lbl}</span><strong>${player[surf]}</strong></div>` : '');
+  const srow = (surf, lbl) => {
+    if (player[surf] == null) return '';
+    const rl = rankLabel(surfaceRank(player, surf));
+    return `<div class="dos-srow"><span>${lbl}${rl ? ` <span class="field-hint">· ${rl} no circuito</span>` : ''}</span><strong>${player[surf]}</strong></div>`;
+  };
   const p100 = (x) => `${Math.round(x * 100)}%`;
   root.innerHTML = `
     <div class="modal-overlay" id="dos-overlay">

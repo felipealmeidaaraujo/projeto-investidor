@@ -13,11 +13,11 @@ test('playerTags: saque forte + devolvedor forte viram forças', () => {
   assert.ok(tags.every((x) => x.kind));
 });
 
-test('playerTags: especialista de saibro e fraco na grama', () => {
+test('playerTags: especialista de saibro e rende menos na grama (relativo ao próprio nível)', () => {
   const p = { elo: 2000, clay: 2080, hard: 2000, grass: 1900, matchesBySurface: {} };
   const tags = playerTags(p);
-  assert.ok(has(tags, 'Forte no saibro'));
-  assert.ok(has(tags, 'Fraco na grama'));
+  assert.ok(has(tags, 'Especialista no saibro'));
+  assert.ok(has(tags, 'Rende menos na grama'));
 });
 
 test('playerTags: sem dados de saque → só tags de superfície (não quebra)', () => {
