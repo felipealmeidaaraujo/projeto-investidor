@@ -50,18 +50,25 @@ export function confidenceLevel(playerA, playerB, surface) {
   return { level: 'alta', reason: 'amplo histórico para os dois jogadores' };
 }
 
-/** Tags de força/fraqueza do jogador (saque/devolução + superfície) a partir dos dados. */
-export function playerTags(player) {
+/** Limiares de tag de saque por circuito (= cortes das bandas, pra não contradizer). */
+const SERVE_TAG_THRESHOLDS = {
+  ATP: { serveHi: 0.68, serveLo: 0.61, ace: 0.11, retHi: 0.40, retLo: 0.34, bpHi: 0.66, bpLo: 0.58 },
+  WTA: { serveHi: 0.594, serveLo: 0.537, ace: 0.064, retHi: 0.454, retLo: 0.413, bpHi: 0.583, bpLo: 0.506 },
+};
+
+/** Tags de força/fraqueza do jogador (saque/devolução + superfície), com limiares por circuito. */
+export function playerTags(player, tour = 'ATP') {
   const tags = [];
   const s = player.serve;
+  const T = SERVE_TAG_THRESHOLDS[tour] ?? SERVE_TAG_THRESHOLDS.ATP;
   if (s) {
-    if (s.servePtsWonPct >= 0.68) tags.push({ t: 'Saque forte', kind: 'strength' });
-    else if (s.servePtsWonPct > 0 && s.servePtsWonPct < 0.61) tags.push({ t: 'Saque fraco', kind: 'weakness' });
-    if (s.acePct >= 0.11) tags.push({ t: 'Muitos aces', kind: 'strength' });
-    if (s.returnPtsWonPct >= 0.4) tags.push({ t: 'Devolvedor forte', kind: 'strength' });
-    else if (s.returnPtsWonPct > 0 && s.returnPtsWonPct < 0.34) tags.push({ t: 'Devolve pouco', kind: 'weakness' });
-    if (s.bpSavedPct >= 0.66) tags.push({ t: 'Salva break points', kind: 'strength' });
-    else if (s.bpSavedPct > 0 && s.bpSavedPct < 0.58) tags.push({ t: 'Vacila em break point', kind: 'weakness' });
+    if (s.servePtsWonPct >= T.serveHi) tags.push({ t: 'Saque forte', kind: 'strength' });
+    else if (s.servePtsWonPct > 0 && s.servePtsWonPct < T.serveLo) tags.push({ t: 'Saque fraco', kind: 'weakness' });
+    if (s.acePct >= T.ace) tags.push({ t: 'Muitos aces', kind: 'strength' });
+    if (s.returnPtsWonPct >= T.retHi) tags.push({ t: 'Devolvedor forte', kind: 'strength' });
+    else if (s.returnPtsWonPct > 0 && s.returnPtsWonPct < T.retLo) tags.push({ t: 'Devolve pouco', kind: 'weakness' });
+    if (s.bpSavedPct >= T.bpHi) tags.push({ t: 'Salva break points', kind: 'strength' });
+    else if (s.bpSavedPct > 0 && s.bpSavedPct < T.bpLo) tags.push({ t: 'Vacila em break point', kind: 'weakness' });
   }
   for (const [surf, label] of [['clay', 'no saibro'], ['hard', 'na dura'], ['grass', 'na grama']]) {
     const e = player[surf];

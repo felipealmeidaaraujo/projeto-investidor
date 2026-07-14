@@ -24,3 +24,12 @@ test('playerTags: sem dados de saque → só tags de superfície (não quebra)',
   const tags = playerTags({ elo: 1800 });
   assert.ok(Array.isArray(tags));
 });
+
+test('playerTags: limiar de devolução é por circuito', () => {
+  // Devolução 0.45: forte no ATP (limiar 0.40), NÃO forte na WTA (limiar 0.454)
+  const p = { elo: 2000, serve: { servePtsWonPct: 0.56, returnPtsWonPct: 0.45, acePct: 0.03, bpSavedPct: 0.55, firstInPct: 0.62 } };
+  const atp = playerTags(p, 'ATP').map((t) => t.t);
+  const wta = playerTags(p, 'WTA').map((t) => t.t);
+  assert.ok(atp.includes('Devolvedor forte'));
+  assert.ok(!wta.includes('Devolvedor forte'));
+});
