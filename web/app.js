@@ -2,7 +2,7 @@ import * as store from './src/store.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
-import { analyzeMatch } from './src/analysis.js';
+import { analyzeMatch, playerTags } from './src/analysis.js';
 import { winProbFromState, impliedServeProbs } from './src/inplay.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
@@ -606,6 +606,78 @@ function renderAnalise() {
   analiseEl.querySelectorAll('[data-bestof]').forEach((b) =>
     b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); renderAnalise(); })
   );
+  analiseEl.querySelectorAll('[data-dossier]').forEach((el) =>
+    el.addEventListener('click', () => {
+      const p = el.dataset.dossier === 'a' ? anal.a : anal.b;
+      if (p) openDossier(p);
+    })
+  );
+}
+
+/* ================= Dossiê do jogador ================= */
+const photoCache = new Map();
+function initials(name) {
+  const t = name.trim().split(/\s+/);
+  return ((t[0]?.[0] || '') + (t[1]?.[0] || '')).toUpperCase();
+}
+async function loadPhoto(player) {
+  const box = () => document.getElementById('dos-photo');
+  if (photoCache.has(player.name)) {
+    const url = photoCache.get(player.name);
+    if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`;
+    return;
+  }
+  try {
+    let title = player.fullName;
+    if (!title) {
+      const surname = player.name.split(' ')[0];
+      const r = await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(surname + ' tennis player')}&limit=1`);
+      const j = await r.json();
+      title = j.pages?.[0]?.key || j.pages?.[0]?.title;
+    }
+    if (!title) throw new Error('sem título');
+    const sres = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
+    const sj = await sres.json();
+    const url = sj.thumbnail?.source || null;
+    photoCache.set(player.name, url);
+    if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`;
+  } catch {
+    photoCache.set(player.name, null);
+  }
+}
+function openDossier(player) {
+  const root = document.getElementById('modal-root');
+  const tags = playerTags(player);
+  const s = player.serve;
+  const srow = (surf, lbl) => (player[surf] != null ? `<div class="dos-srow"><span>${lbl}</span><strong>${player[surf]}</strong></div>` : '');
+  const p100 = (x) => `${Math.round(x * 100)}%`;
+  root.innerHTML = `
+    <div class="modal-overlay" id="dos-overlay">
+      <div class="modal-sheet">
+        <div class="dossier">
+          <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
+          <div class="dos-name">${player.name}</div>
+          <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
+          ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${t.kind === 'strength' ? 'pill-green' : 'pill-red'}">${t.t}</span>`).join('')}</div>` : ''}
+          <div class="dos-section">Elo por superfície</div>
+          <div class="dos-surf">${srow('clay', 'Saibro')}${srow('hard', 'Dura')}${srow('grass', 'Grama')}</div>
+          ${s
+            ? `<div class="dos-section">Saque &amp; devolução</div>
+               <div class="dos-serve">
+                 <div class="dos-srow"><span>Pontos ganhos no saque</span><strong>${p100(s.servePtsWonPct)}</strong></div>
+                 <div class="dos-srow"><span>1º saque dentro</span><strong>${p100(s.firstInPct)}</strong></div>
+                 <div class="dos-srow"><span>Aces (por ponto de saque)</span><strong>${p100(s.acePct)}</strong></div>
+                 <div class="dos-srow"><span>Pontos de devolução ganhos</span><strong>${p100(s.returnPtsWonPct)}</strong></div>
+                 <div class="dos-srow"><span>Break points salvos</span><strong>${p100(s.bpSavedPct)}</strong></div>
+               </div>`
+            : `<p class="field-hint" style="margin-top:10px">Stats detalhados de saque só para ATP por enquanto.</p>`}
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
+      </div>
+    </div>`;
+  root.querySelector('#dos-close').addEventListener('click', () => (root.innerHTML = ''));
+  root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') root.innerHTML = ''; });
+  loadPhoto(player);
 }
 
 function tagPill(tag) {
@@ -613,11 +685,11 @@ function tagPill(tag) {
   return `<span class="pill ${map[tag] || 'pill-muted'}">${tag}</span>`;
 }
 
-function playerRow(side, prob, fairOdd, isFav) {
-  return `<div class="pl-row ${isFav ? 'fav' : ''}">
+function playerRow(side, prob, fairOdd, isFav, dossierKey) {
+  return `<div class="pl-row ${isFav ? 'fav' : ''}" data-dossier="${dossierKey}" role="button">
     <div class="pl-top"><span class="pl-name">${side.name}${isFav ? ' 👑' : ''}</span><span class="pl-prob">${pct(prob)}</span></div>
     <div class="pl-sub">Elo ${side.elo} · piso ${side.surfaceElo ?? '—'} · força ${side.blended} ${tagPill(side.surfaceRead.tag)}${side.surfaceRead.delta ? ` <span class="field-hint">(${side.surfaceRead.delta > 0 ? '+' : ''}${side.surfaceRead.delta})</span>` : ''}</div>
-    <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong></div>
+    <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong> <span class="field-hint">· toque p/ dossiê 🃏</span></div>
   </div>`;
 }
 
@@ -646,8 +718,8 @@ function renderReading() {
         <div class="reading-pills"><span class="pill pill-green">${r.marginLabel}</span><span class="pill ${confPill}">confiança ${r.confidence.level}</span></div>
       </div>
       <div class="reading-players">
-        ${playerRow(r.a, r.probA, r.fairOddA, favIsA)}
-        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA)}
+        ${playerRow(r.a, r.probA, r.fairOddA, favIsA, 'a')}
+        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b')}
       </div>
       <div class="reading-note">${narrative(r)}</div>
     </div>

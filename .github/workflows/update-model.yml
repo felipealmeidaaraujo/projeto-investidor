@@ -30,6 +30,8 @@ jobs:
         run: |
           node pipeline/train.js ATP
           node pipeline/train.js WTA
+      - name: Enriquecer o ATP com stats de saque (dossiês)
+        run: node pipeline/serve-stats.js
       - name: Buscar os jogos do dia (The Odds API)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}

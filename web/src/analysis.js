@@ -50,6 +50,29 @@ export function confidenceLevel(playerA, playerB, surface) {
   return { level: 'alta', reason: 'amplo histórico para os dois jogadores' };
 }
 
+/** Tags de força/fraqueza do jogador (saque/devolução + superfície) a partir dos dados. */
+export function playerTags(player) {
+  const tags = [];
+  const s = player.serve;
+  if (s) {
+    if (s.servePtsWonPct >= 0.68) tags.push({ t: 'Saque forte', kind: 'strength' });
+    else if (s.servePtsWonPct > 0 && s.servePtsWonPct < 0.61) tags.push({ t: 'Saque fraco', kind: 'weakness' });
+    if (s.acePct >= 0.11) tags.push({ t: 'Muitos aces', kind: 'strength' });
+    if (s.returnPtsWonPct >= 0.4) tags.push({ t: 'Devolvedor forte', kind: 'strength' });
+    else if (s.returnPtsWonPct > 0 && s.returnPtsWonPct < 0.34) tags.push({ t: 'Devolve pouco', kind: 'weakness' });
+    if (s.bpSavedPct >= 0.66) tags.push({ t: 'Salva break points', kind: 'strength' });
+    else if (s.bpSavedPct > 0 && s.bpSavedPct < 0.58) tags.push({ t: 'Vacila em break point', kind: 'weakness' });
+  }
+  for (const [surf, label] of [['clay', 'no saibro'], ['hard', 'na dura'], ['grass', 'na grama']]) {
+    const e = player[surf];
+    if (e == null) continue;
+    const d = e - player.elo;
+    if (d >= 60) tags.push({ t: `Forte ${label}`, kind: 'strength' });
+    else if (d <= -60) tags.push({ t: `Fraco ${label}`, kind: 'weakness' });
+  }
+  return tags;
+}
+
 /** Leitura completa do confronto. */
 export function analyzeMatch(playerA, playerB, surface, model) {
   const T = model.calibrationT ?? 1;
