@@ -507,6 +507,6 @@ renderScreen('banca');
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW não registrado:', err.message));
+    navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW não registrado:', err.message));
   });
 }
