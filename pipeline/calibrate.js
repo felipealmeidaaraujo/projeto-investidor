@@ -1,18 +1,9 @@
 // Calibração por "temperatura" sobre o logit — corrige super/sub-confiança do modelo.
-// p_calibrada = sigmoid(logit(p) / T). T>1 suaviza; T<1 acentua. T=1 é identidade.
+// sigmoid/logit/calibrate vêm do módulo compartilhado; aqui fica só o ajuste (fit).
+import { calibrate } from '../web/src/model-math.js';
 import { logLoss } from './metrics.js';
 
-export const sigmoid = (x) => 1 / (1 + Math.exp(-x));
-
-export function logit(p) {
-  const EPS = 1e-9;
-  const q = Math.min(1 - EPS, Math.max(EPS, p));
-  return Math.log(q / (1 - q));
-}
-
-export function calibrate(p, T) {
-  return sigmoid(logit(p) / T);
-}
+export { sigmoid, logit, calibrate } from '../web/src/model-math.js';
 
 /** Encontra a temperatura T que minimiza o log-loss (busca em grade). */
 export function fitTemperature(preds) {
