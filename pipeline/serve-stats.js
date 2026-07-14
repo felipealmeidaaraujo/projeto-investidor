@@ -3,7 +3,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseCsv } from './ingest.js';
-import { matchPlayer } from './match-names.js';
+import { matchPlayer } from '../web/src/match-names.js';
 
 const TML = 'https://raw.githubusercontent.com/Tennismylife/TML-Database/master';
 const WTA_ARCHIVE = 'https://cdn.jsdelivr.net/gh/Aneeshers/tennis-sackmann-archive@main/wta';

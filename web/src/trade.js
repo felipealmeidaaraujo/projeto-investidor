@@ -37,7 +37,7 @@ export function makeTrade(input, meta) {
     trade.oddClose = input.oddClose;
     trade.clv = clvPct(input.oddEntry, input.oddClose, input.dir || 'back');
   }
-  if (input.entryType === 'live' && input.liveState && typeof input.liveFairOdd === 'number') {
+  if (input.entryType === 'live' && input.liveState && Number.isFinite(input.liveFairOdd)) {
     trade.liveState = input.liveState;
     trade.liveFairOdd = input.liveFairOdd;
     trade.liveValue = clvPct(input.oddEntry, input.liveFairOdd, input.dir || 'back');

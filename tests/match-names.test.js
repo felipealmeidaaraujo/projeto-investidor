@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normName, matchPlayer } from '../pipeline/match-names.js';
+import { normName, matchPlayer } from '../web/src/match-names.js';
 
 const players = [
   { name: 'Sinner J.' },

@@ -2,7 +2,7 @@
 // Chave via process.env.ODDS_API_KEY (rode com: node --env-file=.env pipeline/fixtures.js).
 // The Odds API só cobre torneios grandes e só enquanto ativos — dias sem torneio → lista vazia.
 import { readFile, writeFile } from 'node:fs/promises';
-import { matchPlayer } from './match-names.js';
+import { matchPlayer } from '../web/src/match-names.js';
 import { analyzeMatch } from '../web/src/analysis.js';
 
 const KEY = process.env.ODDS_API_KEY;
