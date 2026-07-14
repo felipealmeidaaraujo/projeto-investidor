@@ -28,6 +28,19 @@ test('matchClosing: fallback para a média quando Betfair Exchange ausente', () 
   approx(matchClosing(t, closings).oddClose, 1.50); // bfew null → avgw
 });
 
+test('matchClosing: odd inválida (0/null) é ignorada; sem nenhuma válida → null', () => {
+  const cs = [
+    { date: 20260712, surface: 'clay', tour: 'ATP', winner: 'Alcaraz C.', loser: 'Sinner J.', bfew: 0, bfel: null, avgw: 1.70, avgl: 2.20, maxw: 1.9, maxl: 2.3 },
+    { date: 20260601, surface: 'hard', tour: 'ATP', winner: 'Zverev A.', loser: 'Ruud C.', bfew: 0, bfel: 0, avgw: null, avgl: null, maxw: null, maxl: null },
+  ];
+  const t = { market: 'Match Odds', entryType: 'pre', date: '2026-07-12', oddEntry: 2.0, dir: 'back',
+    players: { a: 'Carlos Alcaraz', b: 'Jannik Sinner' }, side: 'a' };
+  approx(matchClosing(t, cs).oddClose, 1.70); // BFE=0 → cai para a média
+  const t2 = { market: 'Match Odds', entryType: 'pre', date: '2026-06-01', oddEntry: 1.5, dir: 'back',
+    players: { a: 'Alexander Zverev', b: 'Casper Ruud' }, side: 'a' };
+  assert.equal(matchClosing(t2, cs), null); // nada válido
+});
+
 test('matchClosing: ignora ao vivo, já-com-oddClose, fora da janela e sem casar', () => {
   const base = { market: 'Match Odds', entryType: 'pre', date: '2026-07-12', oddEntry: 2.0, dir: 'back',
     players: { a: 'Carlos Alcaraz', b: 'Jannik Sinner' }, side: 'a' };

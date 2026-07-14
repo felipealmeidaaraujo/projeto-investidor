@@ -15,6 +15,12 @@ function daysBetween(a, b) {
   return Math.abs((ymdToDate(a) - ymdToDate(b)) / 86400000);
 }
 
+/** Primeira odd decimal válida (>1) entre as candidatas, ou null. */
+function pickOdd(...odds) {
+  for (const o of odds) if (o > 1) return o;
+  return null;
+}
+
 /** Acha a odd de fechamento do lado apostado, ou null. */
 export function matchClosing(trade, closings, { windowDays = 4 } = {}) {
   if (trade.market !== 'Match Odds' || trade.entryType !== 'pre') return null;
@@ -36,8 +42,9 @@ export function matchClosing(trade, closings, { windowDays = 4 } = {}) {
     const sideIsLoser = matchesModelName(sidePlayer, c.loser) && matchesModelName(otherPlayer, c.winner);
     if (!sideIsWinner && !sideIsLoser) continue;
     // fechamento do lado apostado: Betfair Exchange → média do mercado → Max
-    const oddClose = sideIsWinner ? (c.bfew ?? c.avgw ?? c.maxw) : (c.bfel ?? c.avgl ?? c.maxl);
-    if (!Number.isFinite(oddClose)) continue;
+    // fechamento: primeira odd VÁLIDA (>1) entre Betfair Exchange → média → Max
+    const oddClose = sideIsWinner ? pickOdd(c.bfew, c.avgw, c.maxw) : pickOdd(c.bfel, c.avgl, c.maxl);
+    if (oddClose == null) continue;
     if (dist < bestDist) { bestDist = dist; best = { oddClose }; }
   }
   return best;
