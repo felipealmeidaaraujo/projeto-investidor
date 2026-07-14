@@ -1,6 +1,6 @@
 import * as store from './src/store.js';
 import * as auth from './src/supabase.js';
-import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
+import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy, clvStats, clvTrend, clvBySegment } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
@@ -479,6 +479,17 @@ function segCard(title, groups, keyFmt = (k) => k) {
   return `<div class="card"><div class="seg-title">${title}</div>${rows}</div>`;
 }
 
+function clvSegCard(title, groups, keyFmt = (k) => k) {
+  const rows = Object.entries(groups)
+    .sort((a, b) => b[1].avgClv - a[1].avgClv)
+    .map(([k, g]) => {
+      const cls = g.avgClv > 0 ? 'pos' : g.avgClv < 0 ? 'neg' : '';
+      return `<div class="seg-row"><span>${keyFmt(k)}</span><span class="${cls}">${formatSignedPct(g.avgClv)} · ${formatPctFrac(g.beatRate, 0)} bateu · ${g.count}x</span></div>`;
+    })
+    .join('');
+  return `<div class="card"><div class="seg-title">${title}</div>${rows}</div>`;
+}
+
 function renderHistorico() {
   const trades = store.getTrades();
   if (!trades.length) {
@@ -486,6 +497,28 @@ function renderHistorico() {
     return;
   }
   const s = summarize(trades);
+  const clv = clvStats(trades);
+  const clvTrendVals = clvTrend(trades);
+  const clvBlock = clv.measured === 0
+    ? `<div class="card"><div class="seg-title">CLV — sua habilidade real</div><p class="card-lead">Ainda não há trades com odd de fechamento. Ao registrar um trade, informe a <strong>odd de fechamento</strong> para medir seu CLV — o placar que mostra se você entrou melhor que o mercado. Em breve a captura será automática.</p></div>`
+    : `
+      <div class="clv-hero ${clv.avgClv < 0 ? 'neg' : ''}">
+        <div class="clv-hero-top">
+          <div>
+            <div class="clv-lab">CLV médio — sua habilidade real</div>
+            <div class="clv-val">${formatSignedPct(clv.avgClv)}</div>
+          </div>
+          ${clvTrendVals.length > 1 ? `<div class="clv-spark">${areaSpark(clvTrendVals, 130, 48, '#fff')}</div>` : ''}
+        </div>
+        <div class="clv-pills">
+          <span class="clv-pill">${formatPctFrac(clv.beatRate, 0)} bateu o fechamento</span>
+          <span class="clv-pill">${clv.measured} ${clv.measured === 1 ? 'trade medido' : 'trades medidos'}</span>
+        </div>
+      </div>
+      <div class="grid-v">
+        ${clvSegCard('CLV por mercado', clvBySegment(trades, 'market'))}
+        ${clvSegCard('CLV por superfície', clvBySegment(trades, 'surface'), (k) => SURFACE_PT[k] || k)}
+      </div>`;
   const reds = trades.filter((t) => t.result === 'red');
   const redsReviewed = reds.filter((t) => t.review);
   const byReview = segmentBy(redsReviewed, 'review');
@@ -526,6 +559,7 @@ function renderHistorico() {
   const decided = s.greens + s.reds;
   histEl.innerHTML = `
     <h1 class="screen-title">Histórico</h1>
+    ${clvBlock}
     <div class="hero-card">
       <span class="hero-label">P/L total</span>
       <span class="hero-value ${s.totalPL > 0 ? 'pos' : s.totalPL < 0 ? 'neg' : ''}">${formatSignedBRL(s.totalPL)}</span>
