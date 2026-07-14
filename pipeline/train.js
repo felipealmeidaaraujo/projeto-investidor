@@ -7,7 +7,7 @@ import { loadTennisData } from './ingest-tennisdata.js';
 import { fitTemperature } from './calibrate.js';
 
 const FROM = Number(process.argv[2]) || 2013;
-const TO = Number(process.argv[3]) || 2026;
+const TO = Number(process.argv[3]) || new Date().getFullYear();
 const MIN_MATCHES = 20;
 const warmupInt = (FROM + 2) * 10000;
 const splitInt = (TO - 3) * 10000;

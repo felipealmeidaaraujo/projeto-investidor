@@ -1,0 +1,38 @@
+name: Atualizar modelo e publicar (diário)
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC (~05:00 Brasília), todo dia
+  workflow_dispatch: # permite rodar manualmente pelo botão "Run workflow"
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependências
+        run: npm ci
+      - name: Re-treinar o modelo com os dados de hoje
+        run: node pipeline/train.js
+      - name: Rodar os testes (segurança)
+        run: npm test
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
