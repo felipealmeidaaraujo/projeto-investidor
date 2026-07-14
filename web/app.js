@@ -2,7 +2,7 @@ import * as store from './src/store.js';
 import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy } from './src/stats.js';
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb } from './src/finance.js';
-import { analyzeMatch, playerTags } from './src/analysis.js';
+import { analyzeMatch, playerTags, buildReadingExplanation } from './src/analysis.js';
 import { winProbFromState, impliedServeProbs } from './src/inplay.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
@@ -460,6 +460,7 @@ function openReview(tradeId) {
 const analiseEl = document.getElementById('screen-analise');
 const anal = {
   tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard',
+  explainOpen: false, moreOpen: false,
   live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 },
 };
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
@@ -591,6 +592,8 @@ function renderAnalise() {
   analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker((p) => { anal.b = p; renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
 
+  analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
+  analiseEl.querySelector('#btn-more')?.addEventListener('click', () => { anal.moreOpen = !anal.moreOpen; renderAnalise(); });
   analiseEl.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; renderAnalise(); });
   analiseEl.querySelectorAll('[data-live]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -725,6 +728,56 @@ function narrative(r) {
   return `No ${s}: ${phrase(r.a)}; ${phrase(r.b)}. O modelo vê <strong>${r.favorite}</strong> como <strong>${r.marginLabel}</strong> (${pct(r.favoriteProb)}). Confiança <strong>${r.confidence.level}</strong> — ${r.confidence.reason}.`;
 }
 
+const EXPLAIN_STATIC = {
+  elo: 'Nota única que resume o jogador juntando todos os jogos: vencer sobe, perder desce, e bater um forte vale mais que bater um fraco. Quanto maior, melhor.',
+  piso: 'A mesma conta, mas contando só os jogos naquela superfície. Mostra quem rende diferente conforme o piso (tem quem seja fera no saibro e sofra na grama).',
+  forca: 'Média do Elo geral com o piso (metade de cada). Nem só o geral, nem só a superfície: um meio-termo, pra valorizar o especialista sem exagerar num piso.',
+  delta: 'É o piso menos o Elo geral: o quanto o jogador rende a mais (+) ou a menos (−) nessa superfície, comparado com <strong>ele mesmo</strong>.',
+};
+const SAIBA_MAIS = [
+  'Todo jogador começa em <strong>1500</strong> e o número anda a cada partida.',
+  'A distância entre dois Elos vira a probabilidade: cada <strong>~400 pontos</strong> de vantagem ≈ <strong>91%</strong> pro mais forte; Elo igual = 50/50.',
+  'Os primeiros jogos mexem mais no número; com o tempo ele fica estável.',
+  'Menos de ~15 jogos na superfície: o piso ainda não é confiável — o app marca <strong>poucos dados</strong>.',
+  'Recalculado <strong>todo dia</strong> com os jogos mais recentes.',
+];
+
+function renderExplain(r) {
+  const ex = buildReadingExplanation(r);
+  const blk = (term, what, caso) =>
+    `<div class="explain-blk">
+       <div class="explain-term">${term}</div>
+       <div class="explain-what">${what}</div>
+       <div class="explain-case"><span class="explain-case-lbl">No jogo:</span> ${caso}</div>
+     </div>`;
+  const warn = `<div class="explain-warn">⚠️ É relativo a ele mesmo, não é ranking. Um top pode ter (−40) na grama e ainda assim ser muito melhor que um jogador fraco.</div>`;
+  const moreBody = anal.moreOpen
+    ? `<ul class="explain-more-list">${SAIBA_MAIS.map((li) => `<li>${li}</li>`).join('')}</ul>`
+    : '';
+  if (!anal.explainOpen) {
+    return `<button class="explain-head" id="btn-explain" aria-expanded="false">
+        <span>O que significam esses números?</span><span class="explain-caret">▸</span>
+      </button>`;
+  }
+  return `
+    <div class="explain">
+      <button class="explain-head open" id="btn-explain" aria-expanded="true">
+        <span>O que significam esses números?</span><span class="explain-caret">▾</span>
+      </button>
+      <div class="explain-body">
+        ${blk('Elo — o nível geral', EXPLAIN_STATIC.elo, ex.elo)}
+        ${blk('Piso — o Elo só nessa superfície', EXPLAIN_STATIC.piso, ex.piso)}
+        ${blk('Força — a nota que decide a %', EXPLAIN_STATIC.forca, ex.forca)}
+        ${blk('(+X) e (−Y) — acima ou abaixo do próprio nível', EXPLAIN_STATIC.delta, ex.delta)}
+        ${warn}
+        <button class="explain-more-head" id="btn-more" aria-expanded="${anal.moreOpen}">
+          <span>Saiba mais: de onde vem o Elo</span><span class="explain-caret">${anal.moreOpen ? '▾' : '▸'}</span>
+        </button>
+        ${moreBody}
+      </div>
+    </div>`;
+}
+
 function renderReading() {
   const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
@@ -743,6 +796,7 @@ function renderReading() {
       </div>
       <div class="reading-note">${narrative(r)}</div>
     </div>
+    ${renderExplain(r)}
     <button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>
     ${anal.live.active ? renderLive(r) : ''}`;
 }
