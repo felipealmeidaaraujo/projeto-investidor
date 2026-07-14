@@ -333,6 +333,7 @@ function oddStepper(field, value) {
   </div>`;
 }
 function regValid() {
+  if (!reg.players || !reg.players.a || !reg.players.b) return false;
   if (!reg.market || !reg.result || reg.stake <= 0) return false;
   if ((reg.result === 'green' || reg.result === 'red') && reg.plAmount <= 0) return false;
   return true;
@@ -356,11 +357,8 @@ function renderRegistrar() {
     ${sl.hit ? `<div class="warn-banner">⚠️ Stop-loss diário atingido. O ideal é <strong>parar hoje</strong>.</div>` : ''}
     ${tilt ? `<div class="warn-banner">🎢 Você aumentou o stake depois de um red. Cuidado com o <strong>tilt</strong> (caçar prejuízo).</div>` : ''}
 
-    <div class="field"><div class="field-label"><span>Mercado</span></div>${chipsHTML(reg, 'market', MARKET_OPTS)}</div>
-    <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
-
     <div class="field">
-      <div class="field-label"><span>Confronto</span><span class="field-hint">opcional — quem jogou</span></div>
+      <div class="field-label"><span>Confronto</span><span class="field-hint">quem jogou (obrigatório)</span></div>
       <div class="chips" style="margin-bottom:10px">
         <button class="chip${reg.tour === 'ATP' ? ' selected' : ''}" data-regtour="ATP">ATP</button>
         <button class="chip${reg.tour === 'WTA' ? ' selected' : ''}" data-regtour="WTA">WTA</button>
@@ -372,6 +370,9 @@ function renderRegistrar() {
       </div>
       ${reg.players && (reg.players.a || reg.players.b) ? `<button class="btn btn-ghost" id="reg-clearconf" style="margin-top:8px">Limpar confronto</button>` : ''}
     </div>
+
+    <div class="field"><div class="field-label"><span>Mercado</span></div>${chipsHTML(reg, 'market', MARKET_OPTS)}</div>
+    <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(reg, 'surface', SURFACE_OPTS)}</div>
 
     <div class="field">
       <div class="field-label"><span>Odd de entrada</span></div>
@@ -409,7 +410,7 @@ function renderRegistrar() {
   const pickReg = (side) => async () => {
     const m = await ensureModel(reg.tour);
     if (m.error) { toast('Não consegui carregar os jogadores.'); return; }
-    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; renderRegistrar(); });
+    openPlayerPicker(m, (p) => { reg.players = { ...(reg.players || {}), [side]: p.fullName || p.name, tour: reg.tour }; renderRegistrar(); }, { allowCustom: true });
   };
   regEl.querySelector('#reg-slot-a').addEventListener('click', pickReg('a'));
   regEl.querySelector('#reg-slot-b').addEventListener('click', pickReg('b'));
@@ -1036,8 +1037,9 @@ function renderLive(pre) {
     </div>`;
 }
 
-function openPlayerPicker(model, onPick) {
+function openPlayerPicker(model, onPick, opts = {}) {
   const root = document.getElementById('modal-root');
+  const allowCustom = !!opts.allowCustom; // permite digitar um nome fora do modelo
   let showAll = false; // por padrão, só quem está ativo (joga hoje)
   let letter = null;
   let query = '';
@@ -1066,18 +1068,28 @@ function openPlayerPicker(model, onPick) {
   }
   function renderList() {
     const list = computeList();
+    const q = query.trim();
     const wrap = root.querySelector('.picker-list');
-    wrap.innerHTML = list.length
-      ? list.map((p) => {
-          const nm = p.fullName || p.name;
-          return `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span class="pp-avatar" data-pk="${encodeURIComponent(p.name)}"><span>${initials(nm)}</span></span><span class="pp-name">${nm}</span><span class="field-hint">Elo ${p.elo}</span></button>`;
-        }).join('')
-      : `<div class="field-hint" style="padding:16px 6px">Ninguém com esse nome.</div>`;
-    wrap.querySelectorAll('.picker-row').forEach((b) =>
+    const customRow = allowCustom && q
+      ? `<button class="picker-row" data-custom="${encodeURIComponent(q)}"><span class="pp-avatar"><span>${initials(q)}</span></span><span class="pp-name">Usar “${q}”</span><span class="field-hint">digitado</span></button>`
+      : '';
+    const rowsHtml = list.map((p) => {
+      const nm = p.fullName || p.name;
+      return `<button class="picker-row" data-name="${encodeURIComponent(p.name)}"><span class="pp-avatar" data-pk="${encodeURIComponent(p.name)}"><span>${initials(nm)}</span></span><span class="pp-name">${nm}</span><span class="field-hint">Elo ${p.elo}</span></button>`;
+    }).join('');
+    wrap.innerHTML = customRow + (list.length ? rowsHtml : (customRow ? '' : `<div class="field-hint" style="padding:16px 6px">Ninguém com esse nome.</div>`));
+    wrap.querySelectorAll('.picker-row[data-name]').forEach((b) =>
       b.addEventListener('click', () => {
         const p = model.players.find((x) => x.name === decodeURIComponent(b.dataset.name));
         root.innerHTML = '';
         onPick(p);
+      })
+    );
+    wrap.querySelectorAll('.picker-row[data-custom]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const nm = decodeURIComponent(b.dataset.custom);
+        root.innerHTML = '';
+        onPick({ name: nm, fullName: nm });
       })
     );
     observePhotos();
