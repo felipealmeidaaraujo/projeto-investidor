@@ -5,8 +5,8 @@ import { ymd, matchClosing, closingPatches } from '../web/src/closings.js';
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
 
 const closings = [
-  { date: 20260712, surface: 'clay', tour: 'ATP', winner: 'Alcaraz C.', loser: 'Sinner J.', psw: 1.80, psl: 2.05, maxw: 1.85, maxl: 2.10 },
-  { date: 20260710, surface: 'hard', tour: 'ATP', winner: 'Zverev A.', loser: 'Ruud C.', psw: null, psl: null, maxw: 1.50, maxl: 2.60 },
+  { date: 20260712, surface: 'clay', tour: 'ATP', winner: 'Alcaraz C.', loser: 'Sinner J.', bfew: 1.80, bfel: 2.05, avgw: 1.78, avgl: 2.02, maxw: 1.85, maxl: 2.10 },
+  { date: 20260710, surface: 'hard', tour: 'ATP', winner: 'Zverev A.', loser: 'Ruud C.', bfew: null, bfel: null, avgw: 1.50, avgl: 2.60, maxw: 1.52, maxl: 2.65 },
 ];
 
 test('ymd: extrai YYYYMMDD de uma data ISO', () => {
@@ -18,14 +18,14 @@ test('ymd: extrai YYYYMMDD de uma data ISO', () => {
 test('matchClosing: casa por nomes (qualquer ordem) e escolhe a odd do lado', () => {
   const t = { market: 'Match Odds', entryType: 'pre', date: '2026-07-12T10:00', oddEntry: 2.0, dir: 'back',
     players: { a: 'Carlos Alcaraz', b: 'Jannik Sinner' }, side: 'a' };
-  approx(matchClosing(t, closings).oddClose, 1.80); // Alcaraz venceu → psw
-  approx(matchClosing({ ...t, side: 'b' }, closings).oddClose, 2.05); // Sinner perdeu → psl
+  approx(matchClosing(t, closings).oddClose, 1.80); // Alcaraz venceu → BFE do vencedor
+  approx(matchClosing({ ...t, side: 'b' }, closings).oddClose, 2.05); // Sinner perdeu → BFE do perdedor
 });
 
-test('matchClosing: fallback Max quando Pinnacle ausente', () => {
+test('matchClosing: fallback para a média quando Betfair Exchange ausente', () => {
   const t = { market: 'Match Odds', entryType: 'pre', date: '2026-07-10', oddEntry: 1.5, dir: 'back',
     players: { a: 'Alexander Zverev', b: 'Casper Ruud' }, side: 'a' };
-  approx(matchClosing(t, closings).oddClose, 1.50); // psw null → maxw
+  approx(matchClosing(t, closings).oddClose, 1.50); // bfew null → avgw
 });
 
 test('matchClosing: ignora ao vivo, já-com-oddClose, fora da janela e sem casar', () => {

@@ -48,7 +48,11 @@ export async function fetchTennisDataYear(year, tour = 'ATP') {
       loser: String(loser).trim(),
       winnerRank: num(get('WRank')),
       loserRank: num(get('LRank')),
-      // odds: Pinnacle (sharp) e Max (melhor preço disponível)
+      // odds de fechamento: Betfair Exchange (mercado do Felipe), média do mercado, Pinnacle, Max, B365
+      bfew: num(get('BFEW')),
+      bfel: num(get('BFEL')),
+      avgw: num(get('AvgW')),
+      avgl: num(get('AvgL')),
       psw: num(get('PSW')),
       psl: num(get('PSL')),
       maxw: num(get('MaxW')),

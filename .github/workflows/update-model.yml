@@ -36,6 +36,8 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: node pipeline/fixtures.js
+      - name: Gerar fechamentos (CLV pré-jogo, tennis-data)
+        run: node pipeline/closings.js
       - name: Rodar os testes (segurança)
         run: npm test
       - uses: actions/configure-pages@v5

@@ -35,7 +35,8 @@ export function matchClosing(trade, closings, { windowDays = 4 } = {}) {
     const sideIsWinner = matchesModelName(sidePlayer, c.winner) && matchesModelName(otherPlayer, c.loser);
     const sideIsLoser = matchesModelName(sidePlayer, c.loser) && matchesModelName(otherPlayer, c.winner);
     if (!sideIsWinner && !sideIsLoser) continue;
-    const oddClose = sideIsWinner ? (c.psw ?? c.maxw) : (c.psl ?? c.maxl);
+    // fechamento do lado apostado: Betfair Exchange → média do mercado → Max
+    const oddClose = sideIsWinner ? (c.bfew ?? c.avgw ?? c.maxw) : (c.bfel ?? c.avgl ?? c.maxl);
     if (!Number.isFinite(oddClose)) continue;
     if (dist < bestDist) { bestDist = dist; best = { oddClose }; }
   }
