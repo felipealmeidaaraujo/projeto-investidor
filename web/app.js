@@ -664,9 +664,9 @@ function renderAnalise() {
   const canRead = anal.a && anal.b;
   analiseEl.innerHTML = renderFixtures() + tourHeader() + `
     <div class="matchup-slots">
-      <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? anal.a.name : '➕ Jogador A'}</button>
+      <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? (anal.a.fullName || anal.a.name) : '➕ Jogador A'}</button>
       <span class="vs">vs</span>
-      <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? anal.b.name : '➕ Jogador B'}</button>
+      <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? (anal.b.fullName || anal.b.name) : '➕ Jogador B'}</button>
     </div>
     <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(anal, 'surface', SURF_OPTS)}</div>
     <div id="reading">${canRead ? renderReading() : `<div class="notice"><p>Escolha os <strong>dois jogadores</strong> e a superfície para ver a leitura do confronto.</p></div>`}</div>
@@ -703,6 +703,10 @@ function renderAnalise() {
       if (p) openDossier(p);
     })
   );
+  if (anal.a && anal.b) {
+    loadPhoto(anal.a, () => analiseEl.querySelector('.pl-avatar[data-photo="a"]'));
+    loadPhoto(anal.b, () => analiseEl.querySelector('.pl-avatar[data-photo="b"]'));
+  }
 }
 
 /* ================= Dossiê do jogador ================= */
@@ -711,13 +715,10 @@ function initials(name) {
   const t = name.trim().split(/\s+/);
   return ((t[0]?.[0] || '') + (t[1]?.[0] || '')).toUpperCase();
 }
-async function loadPhoto(player) {
-  const box = () => document.getElementById('dos-photo');
-  if (photoCache.has(player.name)) {
-    const url = photoCache.get(player.name);
-    if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`;
-    return;
-  }
+async function loadPhoto(player, getBox) {
+  const box = getBox || (() => document.getElementById('dos-photo'));
+  const set = (url) => { if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`; };
+  if (photoCache.has(player.name)) { set(photoCache.get(player.name)); return; }
   try {
     let title = player.fullName;
     if (!title) {
@@ -731,7 +732,7 @@ async function loadPhoto(player) {
     const sj = await sres.json();
     const url = sj.thumbnail?.source || null;
     photoCache.set(player.name, url);
-    if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`;
+    set(url);
   } catch {
     photoCache.set(player.name, null);
   }
@@ -834,11 +835,15 @@ function tagPill(tag) {
   return `<span class="pill ${map[tag] || 'pill-muted'}">${tag}</span>`;
 }
 
-function playerRow(side, prob, fairOdd, isFav, dossierKey) {
+function playerRow(side, prob, fairOdd, isFav, dossierKey, fullName) {
+  const nm = fullName || side.name;
   return `<div class="pl-row ${isFav ? 'fav' : ''}" data-dossier="${dossierKey}" role="button">
-    <div class="pl-top"><span class="pl-name">${side.name}${isFav ? ' 👑' : ''}</span><span class="pl-prob">${pct(prob)}</span></div>
-    <div class="pl-sub">Elo ${side.elo} · piso ${side.surfaceElo ?? '—'} · força ${side.blended} ${tagPill(side.surfaceRead.tag)}${side.surfaceRead.delta ? ` <span class="field-hint">(${side.surfaceRead.delta > 0 ? '+' : ''}${side.surfaceRead.delta})</span>` : ''}</div>
-    <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong> <span class="field-hint">· toque p/ dossiê 🃏</span></div>
+    <div class="pl-avatar" data-photo="${dossierKey}"><span>${initials(nm)}</span></div>
+    <div class="pl-body">
+      <div class="pl-top"><span class="pl-name">${nm}${isFav ? ' 👑' : ''}</span><span class="pl-prob"${isFav ? ' style="color:var(--green)"' : ''}>${pct(prob)}</span></div>
+      <div class="pl-sub">Elo ${side.elo} · piso ${side.surfaceElo ?? '—'} · força ${side.blended} ${tagPill(side.surfaceRead.tag)}${side.surfaceRead.delta ? ` (${side.surfaceRead.delta > 0 ? '+' : ''}${side.surfaceRead.delta})` : ''}</div>
+      <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong> <span class="field-hint">· toque p/ dossiê 🃏</span></div>
+    </div>
   </div>`;
 }
 
@@ -908,17 +913,24 @@ function renderReading() {
   const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
+  const fullA = anal.a.fullName || anal.a.name;
+  const fullB = anal.b.fullName || anal.b.name;
+  const favFull = favIsA ? fullA : fullB;
   return `
     <div class="reading-card">
       <div class="reading-fav">
-        <span class="field-hint">Favorito no ${SURFACE_PT[anal.surface]}</span>
-        <div class="reading-fav-name">${r.favorite}</div>
-        <div class="reading-fav-prob">${pct(r.favoriteProb)}</div>
-        <div class="reading-pills"><span class="pill pill-green">${r.marginLabel}</span><span class="pill ${confPill}">confiança ${r.confidence.level}</span></div>
+        <div class="reading-fav-head">
+          ${ring(r.favoriteProb, 92, 9, 'var(--accent)', 'var(--hover)', Math.round(r.favoriteProb * 100) + '%', 'var(--text-1)')}
+          <div class="reading-fav-info">
+            <span class="field-hint">Favorito no ${SURFACE_PT[anal.surface]}</span>
+            <div class="reading-fav-name">${favFull}</div>
+            <div class="reading-pills"><span class="pill pill-green">${r.marginLabel}</span><span class="pill ${confPill}">confiança ${r.confidence.level}</span></div>
+          </div>
+        </div>
       </div>
       <div class="reading-players">
-        ${playerRow(r.a, r.probA, r.fairOddA, favIsA, 'a')}
-        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b')}
+        ${playerRow(r.a, r.probA, r.fairOddA, favIsA, 'a', fullA)}
+        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b', fullB)}
       </div>
       <div class="reading-note">${narrative(r)}</div>
     </div>
