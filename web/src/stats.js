@@ -59,6 +59,58 @@ export function tiltWarning(trades, dayStr, newStake) {
   return last.result === 'red' && newStake > (last.stake ?? 0);
 }
 
+/** Resumo de CLV: quantos trades têm CLV, CLV médio (%), e quanto bateu o fechamento. */
+export function clvStats(trades) {
+  let sum = 0;
+  let measured = 0;
+  let beatCount = 0;
+  for (const t of trades) {
+    if (typeof t.clv !== 'number') continue;
+    measured++;
+    sum += t.clv;
+    if (t.clv > 0) beatCount++;
+  }
+  return {
+    measured,
+    avgClv: measured > 0 ? sum / measured : 0,
+    beatRate: measured > 0 ? beatCount / measured : 0,
+    beatCount,
+  };
+}
+
+/** Série do CLV médio acumulado, em ordem de data — só trades com CLV. */
+export function clvTrend(trades) {
+  const measured = trades
+    .filter((t) => typeof t.clv === 'number')
+    .slice()
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const out = [];
+  let sum = 0;
+  for (let i = 0; i < measured.length; i++) {
+    sum += measured[i].clv;
+    out.push(sum / (i + 1));
+  }
+  return out;
+}
+
+/** Agrupa por chave (market/surface) só trades com CLV: nº, CLV médio, beat rate. */
+export function clvBySegment(trades, key) {
+  const groups = {};
+  for (const t of trades) {
+    if (typeof t.clv !== 'number') continue;
+    const k = t[key] ?? '—';
+    const g = (groups[k] ??= { count: 0, sum: 0, beatCount: 0, avgClv: 0, beatRate: 0 });
+    g.count++;
+    g.sum += t.clv;
+    if (t.clv > 0) g.beatCount++;
+  }
+  for (const g of Object.values(groups)) {
+    g.avgClv = g.count > 0 ? g.sum / g.count : 0;
+    g.beatRate = g.count > 0 ? g.beatCount / g.count : 0;
+  }
+  return groups;
+}
+
 /** Agrupa os trades por uma chave (mercado, superfície...) com P/L, ROI e win rate. */
 export function segmentBy(trades, key) {
   const groups = {};
