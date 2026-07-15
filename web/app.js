@@ -1080,7 +1080,8 @@ function openDossier(player) {
           <div class="dossier">
             <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
             <div class="dos-name">${player.name}</div>
-            <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
+            <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}${player.level === 'challenger' ? ' <span class="pill pill-muted">Challenger</span>' : ''}</div>
+            ${player.level === 'challenger' ? '<div class="field-hint" style="margin-top:2px">Base Challenger/125 — Elo menos calibrado que o do tour.</div>' : ''}
             ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
             ${scoutBlock()}
             <div class="dos-section">Elo por superfície</div>
