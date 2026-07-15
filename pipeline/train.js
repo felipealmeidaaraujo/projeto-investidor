@@ -81,6 +81,7 @@ const players = [...engine.players.entries()]
       },
       lastDate: p.lastDate,
       active: p.lastDate >= activeCutoff,
+      // empate (chall === tour) cai em 'tour': trata como circuito principal
       level: o.chall > o.tour ? 'challenger' : 'tour',
     };
   })

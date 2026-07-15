@@ -54,7 +54,9 @@ export function matchesModelName(fullName, modelName) {
  *  - 2+ fullNames distintos que casariam com o MESMO jogador do tour (irmãos/homônimos de mesma
  *    inicial, ex.: "Petros"/"Pavlos Tsitsipas" ↔ "Tsitsipas P.") → mantém os nomes completos
  *    (separa — o gate de inicial não distingue, então canonicalizar fundiria os dois num Elo só).
- *  - fullName que não casa com ninguém → mantém o fullName (Challenger puro). */
+ *  - fullName que não casa com ninguém → mantém o fullName (Challenger puro).
+ *  Limitação residual: só desambigua homônimos que aparecem AMBOS no lote de Challenger; se só um
+ *  irmão jogou Challenger no período, ele ainda pode fundir com o do tour de mesma inicial. */
 export function buildChallengerNames(challFullNames, tourPlayers) {
   const hitOf = new Map();   // fullName -> nome do tour (quando casa)
   const perTour = new Map(); // nome do tour -> Set(fullName distintos que casam nele)
