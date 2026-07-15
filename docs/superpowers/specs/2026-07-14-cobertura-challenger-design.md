@@ -130,3 +130,27 @@ confiável** a quem hoje some ou aparece mal:
   Challenger no dossiê, forma/H2H funcionando.
 - Revisão adversarial. Deploy só com testes verdes + verificado (padrão do projeto: merge no main +
   Pages).
+
+## Notas de implementação (o que mudou vs o design acima — 2026-07-14/15)
+
+O núcleo saiu como planejado; alguns pontos evoluíram ao encostar nos dados reais:
+
+- **`canonicalName` (um-a-um) → `buildChallengerNames` (em lote, com desambiguação).** O casamento
+  ingênuo por sobrenome+inicial funde irmãos/homônimos de mesma inicial (Petros/Pavlos Tsitsipas ↔
+  "Tsitsipas P."). A versão em lote resolve por **volume de partidas de main draw de tour**
+  (`loadTourNameCounts` lê `atp_matches_YYYY`/`wta_matches_YYYY` do Sackmann): num grupo que colide no
+  mesmo nó, o dono é quem tem ≥3× as partidas de tour do 2º; volumes parecidos → todos crus (nunca
+  funde duas pessoas). Isso corrigiu **9 jogadores reais que ficavam duplicados** (Nakashima, Popyrin,
+  Nava, Johnson, Watanuki, Wang, Yuan, Liu, Chung) — bug pego só na revisão holística final, não pelos
+  testes unitários.
+- **Módulo único `pipeline/combined-matches.js` (`loadCombinedMatches`)** — extraído pra o treino e o
+  scouting canonicalizarem os nomes com os MESMOS parâmetros (`DEFAULT_FROM=2013`). Garante que os
+  nomes no `model-*.json` e no `matches.json` sejam idênticos (senão o scouting não casa). Verificado:
+  `missing=0` (todo ativo tem partidas no scouting).
+- **`findModelPlayer` no app** (`web/app.js`) — o valor ao vivo re-busca o jogador pelo rótulo guardado
+  (`fullName||name`) por casamento exato antes de cair no `matchPlayer`, senão Challenger puro (nome
+  completo) não era encontrado.
+- **Peso do `matches.json`**: janela do Challenger cortada pra ~2 anos (tour segue ~3) → 3,56 MB.
+- **Testes de `train`/`matches`**: continuam como **verificação por execução** (o projeto não testa
+  scripts de IO); a garantia "um nó de Elo por jogador" virou o teste de `buildChallengerNames` +
+  checagem de duplicações nos artefatos.
