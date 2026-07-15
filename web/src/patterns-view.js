@@ -46,7 +46,7 @@ export function bioText(bio, tour) {
   if (bio.rank) parts.push(`Ranking #${bio.rank} ${tour}`);
   if (bio.hand) parts.push(bio.hand === 'L' ? 'canhoto' : 'destro');
   if (bio.ht) parts.push(`${bio.ht} cm`);
-  if (bio.age) parts.push(`${Math.round(bio.age)} anos`);
+  if (bio.age) parts.push(`${Math.floor(bio.age)} anos`);
   if (bio.ioc) parts.push(IOC[bio.ioc] || bio.ioc);
   return parts.join(' · ');
 }
