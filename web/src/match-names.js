@@ -22,28 +22,30 @@ function parseModelName(name) {
  *  "só o último token" (pega nome-do-meio: "Juan Pablo Varillas" → "Varillas"). */
 function fullNameKey(full) {
   const tokens = full.trim().split(/\s+/);
-  if (tokens.length < 2) return { initial: '', cands: [normName(full)].filter(Boolean) };
+  if (tokens.length < 2) return { initial: '', candidates: [normName(full)].filter(Boolean) };
   const initial = (tokens[0][0] || '').toLowerCase();
   const rest = tokens.slice(1);
-  const cands = [...new Set([normName(rest.join('')), normName(rest[rest.length - 1])])].filter(Boolean);
-  return { initial, cands };
+  const candidates = [...new Set([normName(rest.join('')), normName(rest[rest.length - 1])])].filter(Boolean);
+  return { initial, candidates };
 }
 
+// Limitação: casa por sobrenome + inicial do 1º nome — homônimos com a mesma inicial
+// não são distinguidos (raro; o gate de inicial cobre o caso comum de irmãos).
 /** Acha o jogador do modelo correspondente ao nome completo (ou null). */
 export function matchPlayer(fullName, players) {
-  const { initial, cands } = fullNameKey(fullName);
+  const { initial, candidates } = fullNameKey(fullName);
   for (const p of players) {
     const m = parseModelName(p.name);
-    if (m.surname && cands.includes(m.surname) && (initial === '' || m.initial === initial)) return p;
+    if (m.surname && candidates.includes(m.surname) && (initial === '' || m.initial === initial)) return p;
   }
   return null;
 }
 
 /** Um nome completo ("Carlos Alcaraz") e um nome de modelo ("Alcaraz C.") são o mesmo jogador? */
 export function matchesModelName(fullName, modelName) {
-  const { initial, cands } = fullNameKey(fullName);
+  const { initial, candidates } = fullNameKey(fullName);
   const m = parseModelName(modelName);
-  return !!m.surname && cands.includes(m.surname) && (initial === '' || m.initial === initial);
+  return !!m.surname && candidates.includes(m.surname) && (initial === '' || m.initial === initial);
 }
 
 /** Nome canônico p/ o Elo: nome do modelo se o jogador transita; senão o próprio fullName (puro). */

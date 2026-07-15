@@ -50,7 +50,12 @@ test('canonicalName: transita → nome do modelo; puro → fullName', () => {
   assert.equal(canonicalName('Fulano Puro', players), 'Fulano Puro');
 });
 
-test('canonicalName: irmãos/homônimos puros ficam separados', () => {
-  assert.equal(canonicalName('Petros Tsitsipas', players), 'Petros Tsitsipas');
-  assert.equal(canonicalName('Pavlos Tsitsipas', players), 'Pavlos Tsitsipas');
+test('canonicalName: gate de inicial separa homônimos (Petros ≠ Tsitsipas S.)', () => {
+  const roster = [...players, { name: 'Tsitsipas S.' }]; // Stefanos, inicial "s"
+  // "Petros Tsitsipas" (inicial "p") NÃO pode casar com "Tsitsipas S." (inicial "s")
+  assert.equal(matchPlayer('Petros Tsitsipas', roster), null);
+  assert.equal(canonicalName('Petros Tsitsipas', roster), 'Petros Tsitsipas');
+  assert.equal(canonicalName('Pavlos Tsitsipas', roster), 'Pavlos Tsitsipas');
+  // e Stefanos casa certo
+  assert.equal(matchPlayer('Stefanos Tsitsipas', roster)?.name, 'Tsitsipas S.');
 });
