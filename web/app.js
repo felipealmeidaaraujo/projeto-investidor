@@ -4,7 +4,7 @@ import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy, clvStats, 
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './src/finance.js';
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
-import { winProbFromState, impliedServeProbs, liveFairOdds } from './src/inplay.js';
+import { winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
 import { closingPatches } from './src/closings.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -768,7 +768,7 @@ const analiseEl = document.getElementById('screen-analise');
 const anal = {
   tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard',
   explainOpen: false, moreOpen: false,
-  live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3 },
+  live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null },
 };
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
@@ -927,6 +927,12 @@ function renderAnalise() {
   );
   analiseEl.querySelectorAll('[data-bestof]').forEach((b) =>
     b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); renderAnalise(); })
+  );
+  analiseEl.querySelectorAll('[data-mkt]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const side = b.dataset.mkt;
+      openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; renderAnalise(); } });
+    })
   );
   analiseEl.querySelectorAll('[data-dossier]').forEach((el) =>
     el.addEventListener('click', () => {
@@ -1179,6 +1185,29 @@ function renderLive(pre) {
   const aN = anal.a.name;
   const bN = anal.b.name;
   const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
+
+  const fairA = 1 / probA, fairB = 1 / probB;
+  const signals = [
+    { n: aN, fair: fairA, mkt: L.mktA, or: overreaction(fairA, L.mktA) },
+    { n: bN, fair: fairB, mkt: L.mktB, or: overreaction(fairB, L.mktB) },
+  ].filter((s) => s.or);
+  const withLevel = signals.filter((s) => s.or.level).sort((a, b) => Math.abs(b.or.divPct) - Math.abs(a.or.divPct));
+  let orCard;
+  if (withLevel.length) {
+    const s = withLevel[0];
+    const dir = s.or.back ? `BACK no ${s.n}` : `LAY no ${s.n}`;
+    orCard = `<div class="or-card">
+      <div class="or-head">⚡ SOBRE-REAÇÃO ${s.or.level.toUpperCase()} · ${formatSignedPct(s.or.divPct)}</div>
+      <div class="or-action">Valor em <strong>${dir}</strong></div>
+      <div class="or-sub">Betfair paga ${s.mkt.toFixed(2)}, o justo é ${s.fair.toFixed(2)}. Medido pelo modelo — confira o motivo (lesão? cansaço?).</div>
+    </div>`;
+  } else if (signals.length) {
+    orCard = `<div class="or-card or-neutral"><div class="or-head">Odd em linha com o justo</div><div class="or-sub">Sem exagero relevante do mercado nesse placar.</div></div>`;
+  } else {
+    orCard = '';
+  }
+  const mktInput = (side, v) => `<button class="value-input" data-mkt="${side}">${v != null ? v.toFixed(2) : 'informar'}</button>`;
+
   return `
     <div class="live-panel">
       <div class="live-grid">
@@ -1203,7 +1232,12 @@ function renderLive(pre) {
           <div class="pl-row ${favA ? 'fav' : ''}"><div class="pl-top"><span class="pl-name">${aN}</span><span class="pl-prob">${pct(probA)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probA).toFixed(2)}</strong></div></div>
           <div class="pl-row ${favA ? '' : 'fav'}"><div class="pl-top"><span class="pl-name">${bN}</span><span class="pl-prob">${pct(probB)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probB).toFixed(2)}</strong></div></div>
         </div>
-        <div class="reading-note field-hint">No início era ${pct(pre.probA)} pra ${aN}. Se o mercado estiver bem longe da odd justa, pode ser sobre-reação.</div>
+        <div class="reading-note field-hint">No início era ${pct(pre.probA)} pra ${aN}. Informe a odd da Betfair pra medir a sobre-reação.</div>
+        <div class="or-inputs">
+          <div class="or-in"><span class="live-lbl">Betfair · ${aN}</span>${mktInput('A', L.mktA)}</div>
+          <div class="or-in"><span class="live-lbl">Betfair · ${bN}</span>${mktInput('B', L.mktB)}</div>
+        </div>
+        ${orCard}
       </div>
     </div>`;
 }
