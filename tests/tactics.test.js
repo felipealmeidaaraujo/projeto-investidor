@@ -8,7 +8,7 @@ test('tacticalSuggestion: favorito que começa bem + azarão que vira jogos', ()
   const styleFav = { firstSet: { pct: 87, n: 100 }, decider: { pct: 80, n: 50 } };
   const styleUnd = { comeback: { pct: 45, n: 30 } };
   const t = tacticalSuggestion(R, styleFav, styleUnd, 'saibro');
-  assert.equal(t.pende, 'No saibro, o Sinner J. é favorito claro (72%).');
+  assert.equal(t.pende, 'Em saibro, o Sinner J. é favorito claro (72%).');
   assert.ok(t.caminho.includes('ganha o 1º set em 87%'), t.caminho);
   assert.ok(t.caminho.includes('green cedo'), t.caminho);
   assert.ok(t.risco.includes('vira jogos'), t.risco);

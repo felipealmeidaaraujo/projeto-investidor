@@ -10,8 +10,8 @@ export function tacticalSuggestion(r, styleFav, styleUnd, surfacePt) {
 
   const pende =
     r.marginLabel === 'equilibrado'
-      ? `Jogo parelho no ${surfacePt} — leve vantagem pro ${fav} (${favPct}%).`
-      : `No ${surfacePt}, o ${fav} é ${r.marginLabel} (${favPct}%).`;
+      ? `Jogo parelho em ${surfacePt} — leve vantagem pro ${fav} (${favPct}%).`
+      : `Em ${surfacePt}, o ${fav} é ${r.marginLabel} (${favPct}%).`;
 
   const fFirst = pctOf(styleFav?.firstSet);
   const fDecider = pctOf(styleFav?.decider);
