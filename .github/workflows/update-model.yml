@@ -6,6 +6,7 @@ on:
   workflow_dispatch: # permite rodar manualmente pelo botão "Run workflow"
 
 permissions:
+  contents: write # p/ commitar os dados regenerados de volta ao repo (fonte única)
   pages: write
   id-token: write
 
@@ -42,6 +43,17 @@ jobs:
         run: node pipeline/matches.js
       - name: Rodar os testes (segurança)
         run: npm test
+      - name: Salvar os dados atualizados no repositório (fonte única — evita reverter no próximo push)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/model-atp.json web/model-wta.json web/today.json web/matches.json web/closings.json
+          if git diff --staged --quiet; then
+            echo "Sem mudanças nos dados — nada a commitar."
+          else
+            git commit -m "chore(dados): atualização diária automática [skip ci]"
+            git push
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
