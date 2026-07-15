@@ -7,6 +7,7 @@ import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './
 import { winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
 import { closingPatches } from './src/closings.js';
+import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 
 /* ---------------- Navegação ---------------- */
@@ -774,6 +775,18 @@ const anal = {
 function resetLive() {
   anal.live = { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null };
 }
+
+// Histórico de partidas (scouting) — carregado sob demanda ao abrir a Análise.
+let scoutMatches = null;
+async function loadScoutMatches() {
+  if (scoutMatches) return;
+  try {
+    const res = await fetch('matches.json');
+    if (!res.ok) return;
+    scoutMatches = (await res.json()).matches || [];
+    renderScreen(currentScreen);
+  } catch { /* sem scouting se o fetch falhar */ }
+}
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
@@ -875,6 +888,7 @@ function wireTour() {
 }
 
 function renderAnalise() {
+  loadScoutMatches();
   if (!anal.model) {
     analiseEl.innerHTML = tourHeader() + `<div class="card"><p class="card-lead">Carregando o modelo ${anal.tour}…</p></div>`;
     wireTour();
@@ -1039,6 +1053,19 @@ function openDossier(player) {
       const pill = r ? `<span class="refpill ref-${r.band}">${r.label}</span>` : '';
       return `<div class="dos-srow"><span>${lbl}</span><span class="dos-srv-val"><strong>${p100(v)}</strong>${pill}</span></div>`;
     };
+    const scoutBlock = () => {
+      const head = '<div class="dos-section">Forma &amp; descanso</div>';
+      if (!scoutMatches) return `${head}<div class="dos-srow"><span class="field-hint">carregando…</span></div>`;
+      const f = recentForm(scoutMatches, player.name, 10);
+      if (!f.results.length) return `${head}<div class="dos-srow"><span class="field-hint">sem partidas recentes no histórico</span></div>`;
+      const rest = restDays(scoutMatches, player.name, Number(todayLocal().replace(/-/g, '')));
+      const pills = f.results.map((rr) => `<span class="form-pill ${rr.won ? 'w' : 'l'}">${rr.won ? 'V' : 'D'}</span>`).join('');
+      const restTxt = rest == null ? '' : rest === 0 ? 'jogou hoje' : rest === 1 ? 'jogou ontem' : `descansado ${rest} dias`;
+      return `${head}
+        <div class="dos-srow"><span>Últimos ${f.results.length} <span class="field-hint">· recente à esquerda</span></span><strong>${f.wins}V ${f.losses}D</strong></div>
+        <div class="dos-form">${pills}</div>
+        ${restTxt ? `<div class="dos-srow"><span>Descanso</span><span>${restTxt}</span></div>` : ''}`;
+    };
     root.innerHTML = `
       <div class="modal-overlay" id="dos-overlay">
         <div class="modal-sheet">
@@ -1047,6 +1074,7 @@ function openDossier(player) {
             <div class="dos-name">${player.name}</div>
             <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}</div>
             ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
+            ${scoutBlock()}
             <div class="dos-section">Elo por superfície</div>
             <div class="dos-surf">${srow('clay', 'Saibro')}${srow('hard', 'Dura')}${srow('grass', 'Grama')}</div>
             ${s
@@ -1152,6 +1180,17 @@ function renderExplain(r) {
     </div>`;
 }
 
+function renderH2H() {
+  if (!scoutMatches) return '';
+  const aN = anal.a.name, bN = anal.b.name;
+  const h = headToHead(scoutMatches, aN, bN);
+  if (!h.total) return `<div class="h2h"><span class="h2h-lbl">H2H</span> <span class="field-hint">sem confrontos diretos (últimos 3 anos)</span></div>`;
+  const bs = h.bySurface[anal.surface];
+  const surfTxt = bs ? ` · ${bs.a}×${bs.b} no ${SURFACE_PT[anal.surface]}` : '';
+  const lastTxt = h.last ? ` · último: ${h.last.winner} venceu` : '';
+  return `<div class="h2h"><span class="h2h-lbl">H2H</span> <strong>${aN} ${h.aWins} × ${h.bWins} ${bN}</strong> <span class="field-hint">${surfTxt}${lastTxt}</span></div>`;
+}
+
 function renderReading() {
   const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
@@ -1175,6 +1214,7 @@ function renderReading() {
         ${playerRow(r.a, r.probA, r.fairOddA, favIsA, 'a', fullA)}
         ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b', fullB)}
       </div>
+      ${renderH2H()}
       <div class="reading-note">${narrative(r)}</div>
     </div>
     <button class="btn btn-primary" id="btn-reg-conf" style="margin-top:12px">📝 Registrar trade neste confronto</button>
