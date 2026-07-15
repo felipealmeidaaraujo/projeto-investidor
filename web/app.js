@@ -1496,12 +1496,31 @@ function traduzErroAuth(e) {
 
 const jogadoresEl = document.getElementById('screen-jogadores');
 const jog = { tour: 'ATP', query: '' };
+let jogObserver = null;
+
+function observeJogPhotos(model) {
+  if (jogObserver) jogObserver.disconnect();
+  const load = (el) => {
+    const p = model.players.find((x) => x.name === decodeURIComponent(el.dataset.pk));
+    if (p) loadPhoto(p, () => el);
+  };
+  const avatars = [...jogadoresEl.querySelectorAll('.jog-avatar[data-pk]')];
+  avatars.slice(0, 15).forEach(load); // as visíveis: carrega já
+  jogObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      jogObserver.unobserve(e.target);
+      load(e.target);
+    }
+  }, { rootMargin: '300px' });
+  avatars.slice(15).forEach((el) => jogObserver.observe(el)); // o resto: conforme rola
+}
 
 function jogListHTML(list) {
   if (!list.length) return '<p class="field-hint">Nenhum jogador encontrado.</p>';
   return list
     .map((p, i) => `<button class="jog-row" data-jog="${i}">
-        <span class="jog-avatar">${initials(p.name)}</span>
+        <span class="jog-avatar" data-pk="${encodeURIComponent(p.name)}">${initials(p.name)}</span>
         <span class="jog-body">
           <span class="jog-name">${p.fullName || p.name}</span>
           <span class="jog-sub">Elo ${p.elo}${p.bio && p.bio.rank ? ` · #${p.bio.rank} ${jog.tour}` : ''}${p.level === 'challenger' ? ' · Challenger' : ''}</span>
@@ -1551,8 +1570,10 @@ function renderJogadores() {
     const listEl = jogadoresEl.querySelector('#jog-list');
     listEl.innerHTML = jogListHTML(filtered);
     wire(filtered);
+    observeJogPhotos(model);
   });
   wire(list);
+  observeJogPhotos(model);
 }
 
 function renderAuth() {
