@@ -988,18 +988,25 @@ async function loadPhoto(player, getBox) {
   const box = getBox || (() => document.getElementById('dos-photo'));
   const set = (url) => { if (url && box()) box().innerHTML = `<img src="${url}" alt="${player.name}">`; };
   if (photoCache.has(player.name)) { set(photoCache.get(player.name)); return; }
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  const tokens = player.name.trim().split(/\s+/);
+  const isModelFmt = /\.$/.test(tokens[tokens.length - 1]); // formato "Sobrenome I."
+  // Busca sempre pelo nome completo + "tennis": desambigua nomes comuns ("Daniel Evans" cai numa
+  // página de desambiguação se usado como título direto) e acha o Challenger certo (o nome dele é
+  // completo, então NÃO dá pra usar o 1º token como sobrenome — isso trazia a foto de outro "Daniel").
+  const query = player.fullName || (isModelFmt ? tokens.slice(0, -1).join(' ') : player.name);
+  const surname = player.fullName
+    ? player.fullName.trim().split(/\s+/).slice(-1)[0]
+    : (isModelFmt ? tokens.slice(0, -1).join(' ') : tokens.slice(-1)[0]);
   try {
-    let title = player.fullName;
-    if (!title) {
-      const surname = player.name.split(' ')[0];
-      const r = await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(surname + ' tennis player')}&limit=1`);
-      const j = await r.json();
-      title = j.pages?.[0]?.key || j.pages?.[0]?.title;
-    }
-    if (!title) throw new Error('sem título');
+    const r = await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' tennis')}&limit=1`);
+    const j = await r.json();
+    const title = j.pages?.[0]?.key || j.pages?.[0]?.title;
+    // Só aceita se o resultado contém o sobrenome (evita foto de outro jogador por match fuzzy).
+    if (!title || !norm(title).includes(norm(surname))) throw new Error('sem match confiável');
     const sres = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
     const sj = await sres.json();
-    const url = sj.thumbnail?.source || null;
+    const url = (sj.type !== 'disambiguation' && sj.thumbnail?.source) || null;
     photoCache.set(player.name, url);
     set(url);
   } catch {

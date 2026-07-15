@@ -274,6 +274,7 @@ body {
   width: 100%; max-width: 440px; margin: 0 auto;
   background: var(--elevated); border-radius: 22px 22px 0 0; border: 1px solid var(--border-subtle);
   padding: 18px 18px calc(env(safe-area-inset-bottom) + 18px); animation: slideup .2s ease; box-shadow: var(--shadow-lg);
+  max-height: 90vh; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
 @media (min-width: 640px) { .modal-sheet { border-radius: var(--r-xl); } }
 @keyframes slideup { from { transform: translateY(100%); } to { transform: none; } }
