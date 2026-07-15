@@ -770,6 +770,10 @@ const anal = {
   explainOpen: false, moreOpen: false,
   live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null },
 };
+// Zera o painel ao vivo (placar + odds de mercado) — chamado ao trocar de confronto.
+function resetLive() {
+  anal.live = { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null };
+}
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
@@ -814,6 +818,7 @@ function switchTour(t) {
   anal.tour = t;
   anal.a = null;
   anal.b = null;
+  resetLive();
   anal.model = anal.models[t] || null;
   renderAnalise();
 }
@@ -850,6 +855,7 @@ async function pickFixture(game) {
   if (m && !m.error) {
     anal.a = m.players.find((p) => p.name === game.a) || null;
     anal.b = m.players.find((p) => p.name === game.b) || null;
+    resetLive();
     anal.surface = game.surface;
   }
   renderAnalise();
@@ -895,8 +901,8 @@ function renderAnalise() {
   analiseEl.querySelectorAll('[data-fx]').forEach((b) =>
     b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
   );
-  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; renderAnalise(); }));
-  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; renderAnalise(); }));
+  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; resetLive(); renderAnalise(); }));
+  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; resetLive(); renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
 
   analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
