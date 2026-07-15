@@ -106,6 +106,26 @@ export function impliedServeProbs(target, { base = 0.64, bestOf = 3 } = {}) {
   return { pA: clamp(base + delta), pB: clamp(base - delta) };
 }
 
+const OVERREACTION_BANDS = [
+  { min: 40, level: 'forte' },
+  { min: 25, level: 'moderada' },
+  { min: 15, level: 'leve' },
+];
+
+/**
+ * Sobre-reação: compara a odd de mercado com a odd justa de um jogador.
+ * divPct > 0 = mercado paga mais que o justo (subestima → valor em BACK nele).
+ * divPct < 0 = mercado paga menos (superestima → valor em LAY nele).
+ * level null = divergência < 15% (odd em linha). null se odds inválidas.
+ */
+export function overreaction(fairOdd, marketOdd) {
+  if (!Number.isFinite(fairOdd) || fairOdd <= 1 || !Number.isFinite(marketOdd) || marketOdd <= 1) return null;
+  const divPct = (marketOdd / fairOdd - 1) * 100;
+  const abs = Math.abs(divPct);
+  const band = OVERREACTION_BANDS.find((b) => abs >= b.min);
+  return { divPct, level: band ? band.level : null, back: divPct > 0 };
+}
+
 /** Odd justa ao vivo de A e B, dado a prob pré-jogo de A (target) e o placar. */
 export function liveFairOdds(preProbA, state, { base = 0.64, bestOf = 3 } = {}) {
   const { pA, pB } = impliedServeProbs(preProbA, { base, bestOf });
