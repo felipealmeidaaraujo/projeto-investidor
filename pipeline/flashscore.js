@@ -23,3 +23,11 @@ export function parseTournamentHeader(za) {
   }
   return { tour, singles, surface, tournament };
 }
+
+/** Código de status do Flashscore -> rótulo. */
+export function statusFromCode(ab) {
+  if (ab === '1') return 'SCHEDULED';
+  if (ab === '2') return 'IN_PROGRESS';
+  if (ab === '3') return 'FINISHED';
+  return 'OTHER';
+}

@@ -26,3 +26,12 @@ test('parseTournamentHeader: superfície desconhecida cai em hard', () => {
   assert.equal(r.surface, 'hard');
   assert.equal(r.tournament, 'Lugar Estranho');
 });
+
+import { statusFromCode } from '../pipeline/flashscore.js';
+
+test('statusFromCode: 1 agendado, 2 ao vivo, 3 encerrado', () => {
+  assert.equal(statusFromCode('1'), 'SCHEDULED');
+  assert.equal(statusFromCode('2'), 'IN_PROGRESS');
+  assert.equal(statusFromCode('3'), 'FINISHED');
+  assert.equal(statusFromCode('99'), 'OTHER');
+});
