@@ -5,6 +5,7 @@ import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './src/finance.js';
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
 import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
+import { tacticalSuggestion } from './src/tactics.js';
 import { winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
 import { closingPatches } from './src/closings.js';
@@ -1226,6 +1227,20 @@ function renderH2H() {
   return `<div class="h2h"><span class="h2h-lbl">H2H</span> <strong>${aN} ${h.aWins} × ${h.bWins} ${bN}</strong> <span class="field-hint">${surfTxt}${lastTxt}</span></div>`;
 }
 
+function renderTactics(r) {
+  const favIsA = r.favorite === anal.a.name;
+  const styleFav = favIsA ? anal.a.style : anal.b.style;
+  const styleUnd = favIsA ? anal.b.style : anal.a.style;
+  const t = tacticalSuggestion(r, styleFav, styleUnd, SURFACE_PT[anal.surface]);
+  return `<div class="tactics">
+      <div class="tactics-head">💡 Leitura pro trade</div>
+      <p class="tactics-line">${t.pende}</p>
+      <p class="tactics-line">${t.caminho}</p>
+      <p class="tactics-line tactics-risk">${t.risco}</p>
+      <p class="field-hint" style="margin-top:6px">Leitura dos padrões — não é recomendação nem garantia. Você decide.</p>
+    </div>`;
+}
+
 function renderReading() {
   const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
@@ -1251,6 +1266,7 @@ function renderReading() {
       </div>
       ${renderH2H()}
       <div class="reading-note">${narrative(r)}</div>
+      ${renderTactics(r)}
     </div>
     <button class="btn btn-primary" id="btn-reg-conf" style="margin-top:12px">📝 Registrar trade neste confronto</button>
     ${renderExplain(r)}
