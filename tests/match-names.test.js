@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normName, matchPlayer, matchesModelName, buildChallengerNames } from '../web/src/match-names.js';
+import { normName, matchPlayer, matchesModelName, buildChallengerNames, findModelPlayer } from '../web/src/match-names.js';
 
 const players = [
   { name: 'Sinner J.' },
@@ -80,4 +80,16 @@ test('buildChallengerNames: irmãos só de Challenger (sem partidas de tour) fic
   const m = buildChallengerNames(full, tour, new Map()); // nenhum no tour
   assert.equal(m.get('Petros Tsitsipas'), 'Petros Tsitsipas');
   assert.equal(m.get('Pavlos Tsitsipas'), 'Pavlos Tsitsipas');
+});
+
+test('findModelPlayer: nome no formato do modelo (Flashscore)', () => {
+  assert.equal(findModelPlayer('Sinner J.', players)?.name, 'Sinner J.');
+});
+
+test('findModelPlayer: nome completo (ESPN) cai no matchPlayer', () => {
+  assert.equal(findModelPlayer('Carlos Alcaraz', players)?.name, 'Alcaraz C.');
+});
+
+test('findModelPlayer: desconhecido devolve null', () => {
+  assert.equal(findModelPlayer('Fulano Z.', players), null);
 });

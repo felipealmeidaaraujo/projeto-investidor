@@ -48,6 +48,13 @@ export function matchesModelName(fullName, modelName) {
   return !!m.surname && candidates.includes(m.surname) && (initial === '' || m.initial === initial);
 }
 
+/** Resolve um nome contra o modelo, seja no formato do modelo ("Borges N.") ou completo ("Nuno Borges"). */
+export function findModelPlayer(name, players) {
+  const n = normName(name);
+  for (const p of players) if (normName(p.name) === n) return p;
+  return matchPlayer(name, players);
+}
+
 /** Mapa fullName (Sackmann) → nome canônico p/ o Elo, resolvendo ambiguidade em lote.
  *  - fullName que casa com UM jogador do tour, único do lote a casar → nome do tour (transita).
  *  - 2+ fullNames distintos casando com o MESMO jogador do tour (homônimos de mesma inicial):
