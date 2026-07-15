@@ -4,6 +4,7 @@ import { summarize, plOnDate, stopLossStatus, tiltWarning, segmentBy, clvStats, 
 import { makeTrade } from './src/trade.js';
 import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './src/finance.js';
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
+import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
 import { winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
 import { closingPatches } from './src/closings.js';
@@ -1100,6 +1101,7 @@ function openDossier(player) {
             <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
             <div class="dos-name">${player.name}</div>
             <div class="dos-elo">Elo ${player.elo}${player.matches ? ` · ${player.matches} jogos` : ''}${player.level === 'challenger' ? ' <span class="pill pill-muted">Challenger</span>' : ''}</div>
+            ${bioText(player.bio, anal.tour) ? `<div class="dos-bio">${bioText(player.bio, anal.tour)}</div>` : ''}
             ${player.level === 'challenger' ? '<div class="field-hint" style="margin-top:2px">Base Challenger/125 — Elo menos calibrado que o do tour.</div>' : ''}
             ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}
             ${scoutBlock()}
@@ -1115,6 +1117,10 @@ function openDossier(player) {
                    ${svRow('bpSavedPct', 'Break points salvos')}
                  </div>`
               : ''}
+            ${styleLines(player.style).length ? `<div class="dos-section">Como costuma jogar</div>
+              <div class="dos-patterns">${styleLines(player.style).map((l) => `<div class="dos-srow"><span>${l.label}</span><span class="dos-pat-detail">${l.detail}</span></div>`).join('')}</div>` : ''}
+            ${pressureLines(player.pressure).length ? `<div class="dos-section">Pressão nos games</div>
+              <div class="dos-patterns">${pressureLines(player.pressure).map((l) => `<div class="dos-srow"><span>${l.label}</span><span class="dos-pat-detail">${l.detail}</span></div>`).join('')}</div>` : ''}
             ${renderDossierExplain(st, !!s)}
           </div>
           <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
