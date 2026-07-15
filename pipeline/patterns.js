@@ -53,3 +53,19 @@ export function playerSideGame(match, sideKey) {
     oppBpSaved: opp.bpSaved,
   };
 }
+
+/** Agrupa jogos enriquecidos por nome completo -> [{ game, bio, dateInt }]. Ignora sem placar. */
+export function groupByPlayer(matches) {
+  const byName = new Map();
+  const add = (name, entry) => {
+    if (!name) return;
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(entry);
+  };
+  for (const m of matches) {
+    if (!m.score) continue;
+    add(m.winner.name, { game: playerSideGame(m, 'winner'), bio: m.winner, dateInt: m.dateInt });
+    add(m.loser.name, { game: playerSideGame(m, 'loser'), bio: m.loser, dateInt: m.dateInt });
+  }
+  return byName;
+}

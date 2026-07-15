@@ -66,3 +66,20 @@ test('playerSideGame: perspectiva do perdedor inverte os lados', () => {
   assert.equal(g.bpFaced, 7);
   assert.equal(g.oppBpSaved, 8);
 });
+
+import { groupByPlayer } from '../pipeline/patterns.js';
+
+test('groupByPlayer: cada jogo entra para os dois jogadores, na perspectiva certa', () => {
+  const m = toEnrichedMatch(ROW);
+  const g = groupByPlayer([m]);
+  assert.equal(g.get('Hubert Hurkacz').length, 1);
+  assert.equal(g.get('Hubert Hurkacz')[0].game.won, true);
+  assert.equal(g.get('Jannik Sinner')[0].game.won, false);
+  assert.equal(g.get('Jannik Sinner')[0].bio.rank, 1);
+});
+
+test('groupByPlayer: ignora jogos sem placar', () => {
+  const m = toEnrichedMatch({ ...ROW, score: '' });
+  const g = groupByPlayer([m]);
+  assert.equal(g.size, 0);
+});
