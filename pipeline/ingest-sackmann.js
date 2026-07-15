@@ -6,6 +6,25 @@ const BASE = 'https://raw.githubusercontent.com/Aneeshers/tennis-sackmann-archiv
 const fileFor = (year, tour) =>
   tour === 'WTA' ? `wta/wta_matches_qual_itf_${year}.csv` : `atp/atp_matches_qual_chall_${year}.csv`;
 
+const tourFileFor = (year, tour) =>
+  tour === 'WTA' ? `wta/wta_matches_${year}.csv` : `atp/atp_matches_${year}.csv`;
+
+/** Map de nome completo → nº de partidas no MAIN DRAW de tour (Sackmann atp_matches/wta_matches).
+ *  Serve p/ desambiguar homônimos de Challenger por volume (quem realmente é o jogador de tour). */
+export async function loadTourNameCounts(from, to, tour = 'ATP') {
+  const counts = new Map();
+  const bump = (n) => { if (n) counts.set(n, (counts.get(n) || 0) + 1); };
+  const years = [];
+  for (let y = from; y <= to; y++) years.push(y);
+  await Promise.all(years.map(async (y) => {
+    try {
+      const text = await (await fetch(`${BASE}/${tourFileFor(y, tour)}`)).text();
+      for (const row of parseCsv(text)) { bump(row.winner_name); bump(row.loser_name); }
+    } catch (e) { console.warn(`aviso: tour Sackmann ${tour} ${y} ignorado (${e.message})`); }
+  }));
+  return counts;
+}
+
 /** Texto CSV → partidas de Challenger/125 (só level 'C'). Puro (testável). */
 export function challengerMatches(text) {
   const out = [];

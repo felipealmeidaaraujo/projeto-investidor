@@ -55,3 +55,29 @@ test('buildChallengerNames: transita inequívoco, mantém puro, separa homônimo
   assert.equal(m.get('Petros Tsitsipas'), 'Petros Tsitsipas');  // ambíguo com Pavlos → separa
   assert.equal(m.get('Pavlos Tsitsipas'), 'Pavlos Tsitsipas');  // ambíguo com Petros → separa
 });
+
+test('buildChallengerNames: homônimo obscuro (poucas partidas de tour) não bloqueia o real', () => {
+  const tour = [{ name: 'Nava E.' }];
+  const full = ['Emilio Nava', 'Eduardo Nava'];
+  const counts = new Map([['Emilio Nava', 47], ['Eduardo Nava', 2]]); // Eduardo só 2 wildcards
+  const m = buildChallengerNames(full, tour, counts);
+  assert.equal(m.get('Emilio Nava'), 'Nava E.');       // dominante → canonicaliza (merge)
+  assert.equal(m.get('Eduardo Nava'), 'Eduardo Nava'); // obscuro → cru (separado)
+});
+
+test('buildChallengerNames: homônimos de tour de volume parecido → ambos crus (não wrong-merge)', () => {
+  const tour = [{ name: 'Martin A.' }];
+  const full = ['Andrej Martin', 'Andres Martin'];
+  const counts = new Map([['Andrej Martin', 40], ['Andres Martin', 22]]); // <3x → ambíguo
+  const m = buildChallengerNames(full, tour, counts);
+  assert.equal(m.get('Andrej Martin'), 'Andrej Martin');
+  assert.equal(m.get('Andres Martin'), 'Andres Martin');
+});
+
+test('buildChallengerNames: irmãos só de Challenger (sem partidas de tour) ficam separados', () => {
+  const tour = [{ name: 'Tsitsipas P.' }];
+  const full = ['Petros Tsitsipas', 'Pavlos Tsitsipas'];
+  const m = buildChallengerNames(full, tour, new Map()); // nenhum no tour
+  assert.equal(m.get('Petros Tsitsipas'), 'Petros Tsitsipas');
+  assert.equal(m.get('Pavlos Tsitsipas'), 'Pavlos Tsitsipas');
+});

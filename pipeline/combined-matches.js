@@ -1,7 +1,7 @@
 // Fonte única das partidas combinadas (tennis-data tour + Challenger Sackmann) com nomes canônicos.
 // Usado por train.js (Elo) e matches.js (scouting) — garante nomes IDÊNTICOS nos dois.
 import { loadTennisData } from './ingest-tennisdata.js';
-import { loadChallenger } from './ingest-sackmann.js';
+import { loadChallenger, loadTourNameCounts } from './ingest-sackmann.js';
 import { buildChallengerNames } from '../web/src/match-names.js';
 
 export const DEFAULT_FROM = 2013; // início da janela de treino/scouting — fonte única p/ nomes consistentes
@@ -10,9 +10,10 @@ export const DEFAULT_FROM = 2013; // início da janela de treino/scouting — fo
  *  contra o universo do tour, e devolve as partidas ordenadas por data, cada uma com `src`
  *  ('tour' | 'chall'). */
 export async function loadCombinedMatches(from, to, tour) {
-  const [tourMatches, challRaw] = await Promise.all([
+  const [tourMatches, challRaw, tourCounts] = await Promise.all([
     loadTennisData(from, to, tour),
     loadChallenger(from, to, tour),
+    loadTourNameCounts(from, to, tour),
   ]);
   for (const m of tourMatches) m.src = 'tour';
 
@@ -21,7 +22,7 @@ export async function loadCombinedMatches(from, to, tour) {
   const tourPlayers = [...tourNames].map((name) => ({ name }));
 
   const challFullNames = [...new Set(challRaw.flatMap((m) => [m.winnerFull, m.loserFull]))];
-  const canonMap = buildChallengerNames(challFullNames, tourPlayers);
+  const canonMap = buildChallengerNames(challFullNames, tourPlayers, tourCounts);
   const chall = challRaw.map((m) => ({
     dateInt: m.dateInt,
     surface: m.surface,

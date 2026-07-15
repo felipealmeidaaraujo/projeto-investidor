@@ -49,28 +49,35 @@ export function matchesModelName(fullName, modelName) {
 }
 
 /** Mapa fullName (Sackmann) → nome canônico p/ o Elo, resolvendo ambiguidade em lote.
- *  - fullName que casa com UM jogador do tour, e é o ÚNICO do lote a casar com ele → usa o nome
- *    do tour (o jogador transita entre níveis e unifica no mesmo Elo).
- *  - 2+ fullNames distintos que casariam com o MESMO jogador do tour (irmãos/homônimos de mesma
- *    inicial, ex.: "Petros"/"Pavlos Tsitsipas" ↔ "Tsitsipas P.") → mantém os nomes completos
- *    (separa — o gate de inicial não distingue, então canonicalizar fundiria os dois num Elo só).
+ *  - fullName que casa com UM jogador do tour, único do lote a casar → nome do tour (transita).
+ *  - 2+ fullNames distintos casando com o MESMO jogador do tour (homônimos de mesma inicial):
+ *    o "dono" do nó é quem tem MUITO mais partidas de main draw (`tourCounts`): se o 1º tem ≥3× o 2º,
+ *    ele canonicaliza e os outros ficam crus; senão (volumes parecidos → ambíguo) todos ficam crus.
  *  - fullName que não casa com ninguém → mantém o fullName (Challenger puro).
- *  Limitação residual: só desambigua homônimos que aparecem AMBOS no lote de Challenger; se só um
- *  irmão jogou Challenger no período, ele ainda pode fundir com o do tour de mesma inicial. */
-export function buildChallengerNames(challFullNames, tourPlayers) {
+ *  Limitação residual: homônimos de tour com volumes parecidos ficam separados (evita merge errado). */
+export function buildChallengerNames(challFullNames, tourPlayers, tourCounts = new Map()) {
   const hitOf = new Map();   // fullName -> nome do tour (quando casa)
-  const perTour = new Map(); // nome do tour -> Set(fullName distintos que casam nele)
+  const perTour = new Map(); // nome do tour -> [fullNames distintos que casam nele]
   for (const full of challFullNames) {
     const p = matchPlayer(full, tourPlayers);
     if (!p) continue;
     hitOf.set(full, p.name);
-    if (!perTour.has(p.name)) perTour.set(p.name, new Set());
-    perTour.get(p.name).add(full);
+    if (!perTour.has(p.name)) perTour.set(p.name, []);
+    perTour.get(p.name).push(full);
+  }
+  const owner = new Map(); // nome do tour -> fullName dono (ou null se ambíguo)
+  for (const [tourName, group] of perTour) {
+    if (group.length === 1) { owner.set(tourName, group[0]); continue; }
+    const ranked = group
+      .map((n) => ({ n, c: tourCounts.get(n) || 0 }))
+      .filter((x) => x.c > 0)
+      .sort((a, b) => b.c - a.c);
+    owner.set(tourName, ranked.length && ranked[0].c >= 3 * (ranked[1]?.c || 0) ? ranked[0].n : null);
   }
   const map = new Map();
   for (const full of challFullNames) {
     const tourName = hitOf.get(full);
-    map.set(full, tourName && perTour.get(tourName).size === 1 ? tourName : full);
+    map.set(full, tourName && owner.get(tourName) === full ? tourName : full);
   }
   return map;
 }
