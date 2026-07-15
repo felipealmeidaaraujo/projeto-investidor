@@ -348,6 +348,11 @@ let _probLoadingKey = null;
 function probKeyFor() {
   return `${reg.tour}|${reg.players?.a}|${reg.players?.b}|${reg.surface || 'hard'}`;
 }
+// Acha o jogador do modelo a partir do rótulo guardado (fullName||name): casa exato primeiro
+// (cobre Challenger puro e tour sem fullName), com matchPlayer como fallback (nomes digitados/Odds API).
+function findModelPlayer(label, players) {
+  return players.find((p) => (p.fullName || p.name) === label || p.name === label) || matchPlayer(label, players);
+}
 // (Re)calcula a prob pré-jogo do confronto sempre que tour/jogadores/superfície mudam.
 async function ensurePreProb() {
   if (reg.market !== 'Match Odds' || reg.entryType !== 'live' || !reg.players?.a || !reg.players?.b) return;
@@ -357,8 +362,8 @@ async function ensurePreProb() {
   try {
     const m = await ensureModel(reg.tour);
     if (m.error) return;
-    const pa = matchPlayer(reg.players.a, m.players);
-    const pb = matchPlayer(reg.players.b, m.players);
+    const pa = findModelPlayer(reg.players.a, m.players);
+    const pb = findModelPlayer(reg.players.b, m.players);
     const prob = pa && pb ? analyzeMatch(pa, pb, reg.surface || 'hard', m).probA : null;
     if (probKeyFor() === key && reg.entryType === 'live') {
       reg.preProbA = prob;
