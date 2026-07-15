@@ -6,6 +6,7 @@ import { evFraction, kellyFraction, stakeKelly, impliedProb, clvPct } from './sr
 import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './src/analysis.js';
 import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
 import { tacticalSuggestion } from './src/tactics.js';
+import { searchPlayers } from './src/player-search.js';
 import { winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from './src/inplay.js';
 import { matchPlayer } from './src/match-names.js';
 import { closingPatches } from './src/closings.js';
@@ -22,6 +23,7 @@ function renderScreen(target) {
   else if (target === 'registrar') renderRegistrar();
   else if (target === 'historico') renderHistorico();
   else if (target === 'analise') renderAnalise();
+  else if (target === 'jogadores') renderJogadores();
 }
 function showScreen(target) {
   currentScreen = target;
@@ -1490,6 +1492,67 @@ function traduzErroAuth(e) {
   if (m.includes('password')) return 'Senha muito curta (mínimo 6 caracteres).';
   if (m.includes('email')) return 'E-mail inválido.';
   return 'Não deu certo. Confira os dados e a conexão.';
+}
+
+const jogadoresEl = document.getElementById('screen-jogadores');
+const jog = { tour: 'ATP', query: '' };
+
+function jogListHTML(list) {
+  if (!list.length) return '<p class="field-hint">Nenhum jogador encontrado.</p>';
+  return list
+    .map((p, i) => `<button class="jog-row" data-jog="${i}">
+        <span class="jog-avatar">${initials(p.name)}</span>
+        <span class="jog-body">
+          <span class="jog-name">${p.fullName || p.name}</span>
+          <span class="jog-sub">Elo ${p.elo}${p.bio && p.bio.rank ? ` · #${p.bio.rank} ${jog.tour}` : ''}${p.level === 'challenger' ? ' · Challenger' : ''}</span>
+        </span>
+      </button>`)
+    .join('');
+}
+
+function renderJogadores() {
+  loadScoutMatches();
+  const model = anal.models[jog.tour];
+  if (!model) {
+    anal.tour = jog.tour;
+    loadModel();
+    jogadoresEl.innerHTML = '<h1 class="screen-title">Jogadores</h1><div class="notice"><p>Carregando o modelo…</p></div>';
+    return;
+  }
+  if (model.error) {
+    jogadoresEl.innerHTML = `<h1 class="screen-title">Jogadores</h1><div class="notice"><p>Não consegui carregar o modelo ${jog.tour} (${model.error}).</p></div>`;
+    return;
+  }
+  const wire = (list) => {
+    jogadoresEl.querySelectorAll('[data-jog]').forEach((b) =>
+      b.addEventListener('click', () => {
+        anal.tour = jog.tour;
+        anal.model = model;
+        openDossier(list[Number(b.dataset.jog)]);
+      })
+    );
+  };
+  const list = searchPlayers(model.players, jog.query);
+  jogadoresEl.innerHTML = `
+    <h1 class="screen-title">Jogadores</h1>
+    <div class="chips" style="margin-bottom:12px">
+      <button class="chip${jog.tour === 'ATP' ? ' selected' : ''}" data-jtour="ATP">ATP</button>
+      <button class="chip${jog.tour === 'WTA' ? ' selected' : ''}" data-jtour="WTA">WTA</button>
+    </div>
+    <input class="jog-search" id="jog-search" type="search" placeholder="Buscar por nome…" value="${jog.query}" />
+    <div class="jog-list" id="jog-list">${jogListHTML(list)}</div>`;
+  jogadoresEl.querySelectorAll('[data-jtour]').forEach((b) =>
+    b.addEventListener('click', () => { jog.tour = b.dataset.jtour; jog.query = ''; renderJogadores(); })
+  );
+  const inp = jogadoresEl.querySelector('#jog-search');
+  inp.addEventListener('input', () => {
+    jog.query = inp.value;
+    const filtered = searchPlayers(model.players, jog.query);
+    const listEl = jogadoresEl.querySelector('#jog-list');
+    listEl.innerHTML = jogListHTML(filtered);
+    wire(filtered);
+  });
+  wire(list);
 }
 
 function renderAuth() {

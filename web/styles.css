@@ -388,6 +388,14 @@ body {
 .tactics-head { font-size: 12.5px; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
 .tactics-line { font-size: 13px; line-height: 1.5; color: var(--text-1); margin: 0 0 5px; }
 .tactics-risk { color: var(--text-2); }
+.jog-search { width: 100%; padding: 11px 14px; font-size: 15px; font-family: inherit; color: var(--text-1); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); margin-bottom: 12px; box-sizing: border-box; }
+.jog-list { display: flex; flex-direction: column; gap: 8px; }
+.jog-row { display: flex; align-items: center; gap: 11px; text-align: left; background: var(--card); border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 10px 13px; cursor: pointer; font-family: inherit; color: var(--text-1); -webkit-tap-highlight-color: transparent; }
+.jog-row:active { background: var(--hover); }
+.jog-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--hover); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.jog-body { display: flex; flex-direction: column; }
+.jog-name { font-size: 14.5px; font-weight: 700; }
+.jog-sub { font-size: 12px; color: var(--text-2); }
 
 /* ===================== Trade ao vivo ===================== */
 .live-panel { margin-top: 14px; padding: 16px; background: var(--card); border: 1px solid var(--border-subtle); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
