@@ -101,3 +101,36 @@ test('stylePatterns: duracao media ignora nulos', () => {
   const r = stylePatterns(GAMES);
   assert.equal(r.avgMinutes, Math.round((90 + 150 + 80 + 170) / 4));
 });
+
+import { pressurePatterns } from '../pipeline/game-patterns.js';
+
+const BP = [
+  { bpFaced: 4, bpSaved: 3, svGms: 10, oppBpFaced: 6, oppBpSaved: 3 },
+  { bpFaced: 2, bpSaved: 2, svGms: 8, oppBpFaced: 4, oppBpSaved: 1 },
+];
+
+test('pressurePatterns: salva break points (salvos / enfrentados)', () => {
+  const r = pressurePatterns(BP);
+  assert.equal(r.bpSavedPct, Math.round((5 / 6) * 100));
+});
+
+test('pressurePatterns: quebras sofridas por jogo de saque', () => {
+  const r = pressurePatterns(BP);
+  assert.equal(r.breaksAgainstPerSvGm, Math.round((1 / 18) * 100) / 100);
+});
+
+test('pressurePatterns: quebras convertidas na devolucao', () => {
+  const r = pressurePatterns(BP);
+  assert.equal(r.breaksFor, 6);
+});
+
+test('pressurePatterns: pressao criada (break points gerados na devolucao)', () => {
+  const r = pressurePatterns(BP);
+  assert.equal(r.bpCreated, 10);
+});
+
+test('pressurePatterns: lista vazia devolve nulos, nao quebra', () => {
+  const r = pressurePatterns([]);
+  assert.equal(r.bpSavedPct, null);
+  assert.equal(r.breaksFor, 0);
+});

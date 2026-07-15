@@ -72,3 +72,23 @@ export function stylePatterns(games) {
     avgMinutes: minN ? Math.round(minSum / minN) : null,
   };
 }
+
+/** Agrega padrões de pressão/quebra de um jogador a partir dos break points por partida.
+ *  games: [{ bpFaced, bpSaved, svGms, oppBpFaced, oppBpSaved }] (perspectiva do jogador). */
+export function pressurePatterns(games) {
+  let bpFaced = 0, bpSaved = 0, svGms = 0, oppBpFaced = 0, oppBpSaved = 0;
+  for (const g of games) {
+    bpFaced += g.bpFaced || 0;
+    bpSaved += g.bpSaved || 0;
+    svGms += g.svGms || 0;
+    oppBpFaced += g.oppBpFaced || 0;
+    oppBpSaved += g.oppBpSaved || 0;
+  }
+  const breaksAgainst = bpFaced - bpSaved;
+  return {
+    bpSavedPct: bpFaced ? Math.round((bpSaved / bpFaced) * 100) : null,
+    breaksAgainstPerSvGm: svGms ? Math.round((breaksAgainst / svGms) * 100) / 100 : null,
+    breaksFor: oppBpFaced - oppBpSaved,
+    bpCreated: oppBpFaced,
+  };
+}
