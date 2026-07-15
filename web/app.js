@@ -856,18 +856,25 @@ function renderFixtures() {
   const list = todayData.matches || [];
   if (!list.length) {
     return `<div class="section-title">Jogos de hoje</div>
-      <div class="notice" style="margin-bottom:18px"><p>Sem jogos cobertos hoje. O feed automático cobre os <strong>torneios grandes</strong> (Grand Slams, Masters) enquanto ativos — hoje não há nenhum. Use a busca manual abaixo. 👇</p></div>`;
+      <div class="notice" style="margin-bottom:18px"><p>Sem jogos de tour agora. A grade é montada <strong>automaticamente todo dia</strong> a partir do calendário ATP/WTA — se está vazia, não há jogos do circuito principal no momento (fora de temporada). Use a busca manual abaixo. 👇</p></div>`;
   }
+  const liveCount = list.filter((m) => m.status === 'IN_PROGRESS').length;
   const rows = list
     .map((g, i) => {
       const favPct = (g.favoriteProb * 100).toFixed(0);
+      const flag =
+        g.status === 'IN_PROGRESS' ? `<span class="fx-live">● AO VIVO</span> ` :
+        g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span> ` : '';
+      const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
       return `<button class="fixture" data-fx="${i}">
-        <div class="fx-top"><span class="fx-players">${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
+        <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
         <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}</div>
+        ${tourn}
       </button>`;
     })
     .join('');
-  return `<div class="section-title">Jogos de hoje (${list.length})</div><div class="fixtures">${rows}</div>`;
+  const header = liveCount ? `Jogos de hoje (${list.length}) · ${liveCount} ao vivo` : `Jogos de hoje (${list.length})`;
+  return `<div class="section-title">${header}</div><div class="fixtures">${rows}</div>`;
 }
 
 async function pickFixture(game) {
