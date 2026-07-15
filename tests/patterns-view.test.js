@@ -39,3 +39,20 @@ test('pressureLines: pressure ausente ou vazio devolve lista vazia', () => {
   assert.deepEqual(pressureLines(null), []);
   assert.deepEqual(pressureLines({ bpSavedPct: null, breaksAgainstPerSvGm: null }), []);
 });
+
+import { bioText } from '../web/src/patterns-view.js';
+
+test('bioText: identidade clara e por extenso', () => {
+  const s = bioText({ rank: 1, hand: 'R', ht: 191, age: 24.7, ioc: 'ITA' }, 'ATP');
+  assert.equal(s, 'Ranking #1 ATP · destro · 191 cm · 24 anos · Itália');
+});
+
+test('bioText: canhoto e país fora do mapa mostra o código', () => {
+  const s = bioText({ hand: 'L', ioc: 'ZZZ' }, 'ATP');
+  assert.ok(s.includes('canhoto'));
+  assert.ok(s.includes('ZZZ'));
+});
+
+test('bioText: bio nulo devolve string vazia', () => {
+  assert.equal(bioText(null, 'ATP'), '');
+});
