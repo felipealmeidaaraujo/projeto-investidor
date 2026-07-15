@@ -48,10 +48,29 @@ export function matchesModelName(fullName, modelName) {
   return !!m.surname && candidates.includes(m.surname) && (initial === '' || m.initial === initial);
 }
 
-/** Resolve um nome contra o modelo, seja no formato do modelo ("Borges N.") ou completo ("Nuno Borges"). */
+/** Sobrenome normalizado + primeira inicial de um nome "Sobrenome... I. [I. ...]".
+ *  Trata o formato do modelo ("Borges N.") e o do Flashscore com 2 iniciais ("Burruchaga R. A."). */
+function shortNameKey(name) {
+  const tokens = (name || '').trim().split(/\s+/);
+  let i = tokens.length;
+  while (i > 1 && /^[A-Za-z]\.?$/.test(tokens[i - 1])) i--;
+  const surname = normName(tokens.slice(0, i).join(''));
+  const initials = tokens.slice(i);
+  return { surname, firstInitial: initials.length ? initials[0][0].toLowerCase() : '' };
+}
+
+/** Resolve um nome contra o modelo, seja no formato do modelo ("Borges N.", "Burruchaga R. A.")
+ *  ou completo ("Nuno Borges"). */
 export function findModelPlayer(name, players) {
   const n = normName(name);
   for (const p of players) if (normName(p.name) === n) return p;
+  const k = shortNameKey(name);
+  if (k.surname && k.firstInitial) {
+    for (const p of players) {
+      const pk = shortNameKey(p.name);
+      if (pk.surname === k.surname && pk.firstInitial === k.firstInitial) return p;
+    }
+  }
   return matchPlayer(name, players);
 }
 

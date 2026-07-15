@@ -93,3 +93,8 @@ test('findModelPlayer: nome completo (ESPN) cai no matchPlayer', () => {
 test('findModelPlayer: desconhecido devolve null', () => {
   assert.equal(findModelPlayer('Fulano Z.', players), null);
 });
+
+test('findModelPlayer: nome do Flashscore com duas iniciais casa por sobrenome + 1a inicial', () => {
+  const pl = [{ name: 'Burruchaga R.' }, { name: 'Cobolli F.' }];
+  assert.equal(findModelPlayer('Burruchaga R. A.', pl)?.name, 'Burruchaga R.');
+});
