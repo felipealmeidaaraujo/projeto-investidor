@@ -33,9 +33,9 @@ jobs:
           node pipeline/train.js WTA
       - name: Enriquecer ATP e WTA com stats de saque (dossiês)
         run: node pipeline/serve-stats.js
-      - name: Buscar os jogos do dia (The Odds API)
-        env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      - name: Enriquecer com padrões de jogo (estilo, pressão, bio)
+        run: node pipeline/patterns-ingest.js
+      - name: Buscar os jogos do dia (grade Flashscore, ESPN de fallback)
         run: node pipeline/fixtures.js
       - name: Gerar fechamentos (CLV pré-jogo, tennis-data)
         run: node pipeline/closings.js
