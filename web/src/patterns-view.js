@@ -14,3 +14,16 @@ export function styleLines(style, minN = 5) {
     .filter((d) => d.r && d.r.pct != null && d.r.n >= minN)
     .map((d) => ({ label: d.label, detail: d.txt(d.r.pct) }));
 }
+
+/** Padrões de pressão -> linhas legíveis (só as taxas claras). */
+export function pressureLines(pressure) {
+  if (!pressure) return [];
+  const lines = [];
+  if (pressure.bpSavedPct != null) {
+    lines.push({ label: 'Salva break point', detail: `segura ${pressure.bpSavedPct}% dos break points contra` });
+  }
+  if (pressure.breaksAgainstPerSvGm != null) {
+    lines.push({ label: 'Firmeza no saque', detail: `é quebrado em ${Math.round(pressure.breaksAgainstPerSvGm * 100)}% dos games de saque` });
+  }
+  return lines;
+}

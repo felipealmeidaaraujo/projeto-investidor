@@ -26,3 +26,16 @@ test('styleLines: omite leituras com poucos dados', () => {
 test('styleLines: style ausente devolve lista vazia', () => {
   assert.deepEqual(styleLines(null), []);
 });
+
+import { pressureLines } from '../web/src/patterns-view.js';
+
+test('pressureLines: salva break point e fragilidade no saque, claros', () => {
+  const lines = pressureLines({ bpSavedPct: 73, breaksAgainstPerSvGm: 0.05, breaksFor: 653, bpCreated: 1516 });
+  assert.deepEqual(lines[0], { label: 'Salva break point', detail: 'segura 73% dos break points contra' });
+  assert.deepEqual(lines[1], { label: 'Firmeza no saque', detail: 'é quebrado em 5% dos games de saque' });
+});
+
+test('pressureLines: pressure ausente ou vazio devolve lista vazia', () => {
+  assert.deepEqual(pressureLines(null), []);
+  assert.deepEqual(pressureLines({ bpSavedPct: null, breaksAgainstPerSvGm: null }), []);
+});
