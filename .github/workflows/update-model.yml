@@ -38,6 +38,8 @@ jobs:
         run: node pipeline/fixtures.js
       - name: Gerar fechamentos (CLV pré-jogo, tennis-data)
         run: node pipeline/closings.js
+      - name: Gerar histórico de partidas (scouting)
+        run: node pipeline/matches.js
       - name: Rodar os testes (segurança)
         run: npm test
       - uses: actions/configure-pages@v5
