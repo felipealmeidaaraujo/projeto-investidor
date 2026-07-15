@@ -3,9 +3,7 @@
 // Uso: node pipeline/train.js [ATP|WTA] [anoInicio] [anoFim]
 import { writeFile } from 'node:fs/promises';
 import { EloEngine } from './elo-engine.js';
-import { loadTennisData } from './ingest-tennisdata.js';
-import { loadChallenger } from './ingest-sackmann.js';
-import { buildChallengerNames } from '../web/src/match-names.js';
+import { loadCombinedMatches } from './combined-matches.js';
 import { fitTemperature } from './calibrate.js';
 
 const TOUR = (process.argv[2] || 'ATP').toUpperCase();
@@ -16,28 +14,10 @@ const warmupInt = (FROM + 2) * 10000;
 const splitInt = (TO - 3) * 10000;
 
 console.log(`Baixando ${TOUR} ${FROM}–${TO} (tennis-data + Challenger Sackmann)...`);
-const tour = await loadTennisData(FROM, TO, TOUR);
-for (const m of tour) m.src = 'tour';
-
-// universo de nomes do tour, p/ canonicalizar os nomes do Sackmann (quem transita unifica)
-const tourNames = new Set();
-for (const m of tour) { tourNames.add(m.winner); tourNames.add(m.loser); }
-const tourPlayers = [...tourNames].map((name) => ({ name }));
-
-const challRaw = await loadChallenger(FROM, TO, TOUR);
-const challFullNames = [...new Set(challRaw.flatMap((m) => [m.winnerFull, m.loserFull]))];
-const canonMap = buildChallengerNames(challFullNames, tourPlayers);
-const chall = challRaw.map((m) => ({
-  dateInt: m.dateInt,
-  surface: m.surface,
-  winner: canonMap.get(m.winnerFull),
-  loser: canonMap.get(m.loserFull),
-  src: 'chall',
-}));
-
-const matches = [...tour, ...chall].sort((a, b) => a.dateInt - b.dateInt);
+const matches = await loadCombinedMatches(FROM, TO, TOUR);
+const nTour = matches.filter((m) => m.src === 'tour').length;
 const maxDate = matches[matches.length - 1].dateInt;
-console.log(`${tour.length} tour + ${chall.length} challenger = ${matches.length} partidas (até ${maxDate}). Treinando ${TOUR}...`);
+console.log(`${nTour} tour + ${matches.length - nTour} challenger = ${matches.length} partidas (até ${maxDate}). Treinando ${TOUR}...`);
 
 const engine = new EloEngine();
 const origin = new Map(); // name -> { tour, chall }

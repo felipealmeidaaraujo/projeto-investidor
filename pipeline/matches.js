@@ -1,33 +1,37 @@
-// Gera web/matches.json com o histórico de partidas (~3 anos, ATP+WTA) pra forma/descanso/H2H.
-// Rode: node pipeline/matches.js
+// Gera web/matches.json (~3 anos, ATP+WTA, tour + Challenger) pra forma/descanso/H2H.
+// Usa a MESMA canonicalização do train (loadCombinedMatches, FROM=2013) → nomes consistentes
+// com o modelo. Rode: node pipeline/matches.js
 import { writeFile } from 'node:fs/promises';
-import { fetchTennisDataYear } from './ingest-tennisdata.js';
+import { loadCombinedMatches } from './combined-matches.js';
 
 function ymdOf(d) {
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
+const FROM = 2013; // mesmo início do train, pra a canonicalização de nomes bater
+
 async function build() {
-  const cutoff = ymdOf(new Date(Date.now() - 3 * 365 * 86400000)); // ~3 anos
+  const cutoff = ymdOf(new Date(Date.now() - 3 * 365 * 86400000)); // emite ~3 anos (tour)
+  const challCutoff = ymdOf(new Date(Date.now() - 2 * 365 * 86400000)); // Challenger: ~2 anos (peso)
   const nowYear = new Date().getUTCFullYear();
-  const years = [];
-  for (let y = Math.floor(cutoff / 10000); y <= nowYear; y++) years.push(y);
   const out = { generatedAt: new Date().toISOString(), count: 0, matches: [] };
+
   for (const tour of ['ATP', 'WTA']) {
-    for (const year of years) {
-      let matches = [];
-      try {
-        matches = await fetchTennisDataYear(year, tour);
-      } catch (e) {
-        console.warn(`${tour} ${year} ignorado: ${e.message}`);
-        continue;
-      }
-      for (const m of matches) {
-        if (!m.dateInt || m.dateInt < cutoff || !m.winner || !m.loser) continue;
-        out.matches.push({ date: m.dateInt, surface: m.surface, tour, winner: m.winner, loser: m.loser });
-      }
+    let all = [];
+    try {
+      all = await loadCombinedMatches(FROM, nowYear, tour);
+    } catch (e) {
+      console.warn(`${tour} ignorado: ${e.message}`);
+      continue;
+    }
+    for (const m of all) {
+      if (!m.dateInt || !m.surface || !m.winner || !m.loser) continue;
+      const lim = m.src === 'chall' ? challCutoff : cutoff;
+      if (m.dateInt < lim) continue;
+      out.matches.push({ date: m.dateInt, surface: m.surface, tour, winner: m.winner, loser: m.loser });
     }
   }
+
   out.matches.sort((a, b) => a.date - b.date);
   out.count = out.matches.length;
   if (out.count === 0) {
