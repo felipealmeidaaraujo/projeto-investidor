@@ -787,6 +787,13 @@ async function loadScoutMatches() {
     renderScreen(currentScreen);
   } catch { /* sem scouting se o fetch falhar */ }
 }
+// Partidas só do circuito atual (evita misturar ATP/WTA em nomes iguais). Cacheado por tour.
+let _scoutTour = null, _scoutTourCache = null;
+function scoutForTour() {
+  if (!scoutMatches) return null;
+  if (_scoutTour !== anal.tour) { _scoutTour = anal.tour; _scoutTourCache = scoutMatches.filter((m) => m.tour === anal.tour); }
+  return _scoutTourCache;
+}
 const SURF_OPTS = [{ v: 'clay', l: 'Saibro' }, { v: 'hard', l: 'Dura' }, { v: 'grass', l: 'Grama' }];
 const SURFACE_PT = { clay: 'saibro', hard: 'quadra dura', grass: 'grama' };
 
@@ -1055,10 +1062,11 @@ function openDossier(player) {
     };
     const scoutBlock = () => {
       const head = '<div class="dos-section">Forma &amp; descanso</div>';
-      if (!scoutMatches) return `${head}<div class="dos-srow"><span class="field-hint">carregando…</span></div>`;
-      const f = recentForm(scoutMatches, player.name, 10);
+      const sm = scoutForTour();
+      if (!sm) return `${head}<div class="dos-srow"><span class="field-hint">carregando…</span></div>`;
+      const f = recentForm(sm, player.name, 10);
       if (!f.results.length) return `${head}<div class="dos-srow"><span class="field-hint">sem partidas recentes no histórico</span></div>`;
-      const rest = restDays(scoutMatches, player.name, Number(todayLocal().replace(/-/g, '')));
+      const rest = restDays(sm, player.name, Number(todayLocal().replace(/-/g, '')));
       const pills = f.results.map((rr) => `<span class="form-pill ${rr.won ? 'w' : 'l'}">${rr.won ? 'V' : 'D'}</span>`).join('');
       const restTxt = rest == null ? '' : rest === 0 ? 'jogou hoje' : rest === 1 ? 'jogou ontem' : `descansado ${rest} dias`;
       return `${head}
@@ -1181,9 +1189,10 @@ function renderExplain(r) {
 }
 
 function renderH2H() {
-  if (!scoutMatches) return '';
+  const sm = scoutForTour();
+  if (!sm) return '';
   const aN = anal.a.name, bN = anal.b.name;
-  const h = headToHead(scoutMatches, aN, bN);
+  const h = headToHead(sm, aN, bN);
   if (!h.total) return `<div class="h2h"><span class="h2h-lbl">H2H</span> <span class="field-hint">sem confrontos diretos (últimos 3 anos)</span></div>`;
   const bs = h.bySurface[anal.surface];
   const surfTxt = bs ? ` · ${bs.a}×${bs.b} no ${SURFACE_PT[anal.surface]}` : '';

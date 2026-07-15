@@ -29,7 +29,9 @@ export function restDays(matches, name, asOfYmd) {
   for (const m of matches) {
     if (m.winner === name || m.loser === name) last = last == null ? m.date : Math.max(last, m.date);
   }
-  return last == null ? null : daysBetween(last, asOfYmd);
+  if (last == null) return null;
+  // sem Math.abs: se a última partida for hoje/futura (fuso/glitch), 0 em vez de negativo.
+  return Math.max(0, Math.round((ymdToDate(asOfYmd) - ymdToDate(last)) / 86400000));
 }
 
 /** Confrontos diretos entre A e B: total, vitórias de cada, por superfície e o último. */

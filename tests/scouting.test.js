@@ -28,6 +28,8 @@ test('recentForm: respeita o limite n', () => {
 test('restDays: dias desde a última partida', () => {
   assert.equal(restDays(M, 'Alcaraz C.', 20260705), 4); // última em 20260701
   assert.equal(restDays(M, 'Ninguém X.', 20260705), null);
+  assert.equal(restDays(M, 'Alcaraz C.', 20260701), 0); // mesma data
+  assert.equal(restDays(M, 'Alcaraz C.', 20260620), 0); // asOf antes da última → 0, não negativo
 });
 
 test('headToHead: placar geral, por superfície e último', () => {
