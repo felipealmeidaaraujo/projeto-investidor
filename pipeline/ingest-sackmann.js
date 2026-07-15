@@ -21,8 +21,9 @@ export function challengerMatches(text) {
 
 /** Baixa um ano (IO). Ano faltando → lança (tratado por loadChallenger). */
 export async function fetchChallengerYear(year, tour = 'ATP') {
-  const res = await fetch(`${BASE}/${fileFor(year, tour)}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${fileFor(year, tour)}`);
+  const url = `${BASE}/${fileFor(year, tour)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} para ${url}`);
   return challengerMatches(await res.text());
 }
 

@@ -8,6 +8,8 @@ const csv = [
   'A,Hard,20241230,Yoshihito Nishioka,Benjamin Bonzi',  // quali de tour → fora
   'C,Clay,20250310,,Foo Bar',                           // sem winner → descarta
   'C,,20250310,A B,C D',                                // sem surface → descarta
+  'C,Hard,20250106,Foo Bar,',                           // sem loser → descarta
+  'C,Hard,,A B,C D',                                    // sem tourney_date → descarta
 ].join('\n');
 
 test('challengerMatches: só level C, formato normalizado, descarta incompletas', () => {
