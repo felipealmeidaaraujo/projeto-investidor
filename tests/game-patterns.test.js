@@ -63,3 +63,41 @@ test('isComeback: vencedor que perdeu o 1º set virou o jogo', () => {
 test('isComeback: perdedor nunca conta como virada', () => {
   assert.equal(isComeback(parseScore('4-6 6-3 6-2'), false), false);
 });
+
+import { stylePatterns } from '../pipeline/game-patterns.js';
+
+const GAMES = [
+  { won: true, score: '6-4 6-3', minutes: 90 },
+  { won: true, score: '4-6 6-3 6-2', minutes: 150 },
+  { won: false, score: '6-3 6-4', minutes: 80 },
+  { won: false, score: '4-6 6-3 7-6(4)', minutes: 170 },
+];
+
+test('stylePatterns: taxa de ganhar o 1o set', () => {
+  const r = stylePatterns(GAMES);
+  assert.equal(r.firstSet.n, 4);
+  assert.equal(r.firstSet.pct, 50);
+});
+
+test('stylePatterns: taxa de virada quando perde o 1o set', () => {
+  const r = stylePatterns(GAMES);
+  assert.equal(r.comeback.n, 2);
+  assert.equal(r.comeback.pct, 50);
+});
+
+test('stylePatterns: taxa de vitoria quando vai a 3 sets', () => {
+  const r = stylePatterns(GAMES);
+  assert.equal(r.decider.n, 2);
+  assert.equal(r.decider.pct, 50);
+});
+
+test('stylePatterns: aproveitamento em tie-break', () => {
+  const r = stylePatterns(GAMES);
+  assert.equal(r.tieBreak.n, 1);
+  assert.equal(r.tieBreak.pct, 0);
+});
+
+test('stylePatterns: duracao media ignora nulos', () => {
+  const r = stylePatterns(GAMES);
+  assert.equal(r.avgMinutes, Math.round((90 + 150 + 80 + 170) / 4));
+});
