@@ -83,3 +83,25 @@ test('groupByPlayer: ignora jogos sem placar', () => {
   const g = groupByPlayer([m]);
   assert.equal(g.size, 0);
 });
+
+import { buildProfile } from '../pipeline/patterns.js';
+
+test('buildProfile: agrega padrões e usa o bio do jogo mais recente', () => {
+  const entries = [
+    { game: { won: true, score: '6-4 6-3', minutes: 90, bpFaced: 2, bpSaved: 2, svGms: 10, oppBpFaced: 4, oppBpSaved: 1 },
+      bio: { rank: 50, hand: 'R' }, dateInt: 20250101 },
+    { game: { won: false, score: '4-6 6-3 6-2', minutes: 150, bpFaced: 5, bpSaved: 3, svGms: 12, oppBpFaced: 3, oppBpSaved: 2 },
+      bio: { rank: 30, hand: 'R' }, dateInt: 20260101 },
+  ];
+  const p = buildProfile(entries);
+  assert.equal(p.games, 2);
+  assert.equal(p.bio.rank, 30);
+  assert.equal(p.style.firstSet.n, 2);
+  assert.equal(typeof p.pressure.bpSavedPct, 'number');
+});
+
+test('buildProfile: lista vazia devolve bio null', () => {
+  const p = buildProfile([]);
+  assert.equal(p.games, 0);
+  assert.equal(p.bio, null);
+});

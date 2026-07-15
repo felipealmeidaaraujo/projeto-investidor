@@ -69,3 +69,16 @@ export function groupByPlayer(matches) {
   }
   return byName;
 }
+
+/** Perfil agregado de um jogador a partir das entries de groupByPlayer. */
+export function buildProfile(entries) {
+  const sorted = [...entries].sort((a, b) => a.dateInt - b.dateInt);
+  const recent = sorted[sorted.length - 1];
+  const games = entries.map((e) => e.game);
+  return {
+    games: entries.length,
+    style: stylePatterns(games),
+    pressure: pressurePatterns(games),
+    bio: recent ? recent.bio : null,
+  };
+}
