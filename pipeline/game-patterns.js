@@ -16,3 +16,16 @@ export function parseScore(score) {
   }
   return { sets, walkover: false, incomplete };
 }
+
+/** O jogador ganhou o 1º set? `playerWon` diz se ele é o vencedor da partida (perspectiva do score). */
+export function firstSetWonByPlayer(parsed, playerWon) {
+  const s = parsed.sets[0];
+  if (!s) return false;
+  const winnerTookSet = s.w > s.l;
+  return playerWon ? winnerTookSet : !winnerTookSet;
+}
+
+/** Virada: o jogador venceu a PARTIDA tendo perdido o 1º set. Só o vencedor pode virar. */
+export function isComeback(parsed, playerWon) {
+  return playerWon === true && parsed.sets.length > 0 && !firstSetWonByPlayer(parsed, true);
+}

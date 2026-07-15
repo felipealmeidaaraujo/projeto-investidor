@@ -37,3 +37,29 @@ test('parseScore: vazio devolve estrutura segura', () => {
   const r = parseScore('');
   assert.deepEqual(r, { sets: [], walkover: false, incomplete: false });
 });
+
+import { firstSetWonByPlayer, isComeback } from '../pipeline/game-patterns.js';
+
+test('firstSetWonByPlayer: vencedor da partida que ganhou o 1º set', () => {
+  const p = parseScore('6-4 6-3');
+  assert.equal(firstSetWonByPlayer(p, true), true);
+});
+
+test('firstSetWonByPlayer: perdedor da partida enxerga o 1º set invertido', () => {
+  const p = parseScore('6-4 6-3');
+  assert.equal(firstSetWonByPlayer(p, false), false);
+});
+
+test('firstSetWonByPlayer: perdedor que tinha levado o 1º set', () => {
+  const p = parseScore('4-6 6-3 6-2');
+  assert.equal(firstSetWonByPlayer(p, false), true);
+});
+
+test('isComeback: vencedor que perdeu o 1º set virou o jogo', () => {
+  assert.equal(isComeback(parseScore('4-6 6-3 6-2'), true), true);
+  assert.equal(isComeback(parseScore('6-4 6-3'), true), false);
+});
+
+test('isComeback: perdedor nunca conta como virada', () => {
+  assert.equal(isComeback(parseScore('4-6 6-3 6-2'), false), false);
+});
