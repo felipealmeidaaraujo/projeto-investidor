@@ -64,3 +64,17 @@ export function parseFeed(text) {
   flush();
   return out;
 }
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+
+/** Baixa e parseia a grade de tênis do dia do Flashscore (IO). Lança se o feed vier vazio. */
+export async function fetchGrid() {
+  const r = await fetch('https://www.flashscore.com/x/feed/f_2_0_3_en_1', {
+    headers: { 'x-fsign': 'SW9D1eZo', Referer: 'https://www.flashscore.com/', 'User-Agent': UA },
+  });
+  if (!r.ok) throw new Error(`Flashscore HTTP ${r.status}`);
+  const text = await r.text();
+  const jogos = parseFeed(text);
+  if (!jogos.length) throw new Error('Flashscore: feed sem jogos (formato mudou?)');
+  return jogos;
+}
