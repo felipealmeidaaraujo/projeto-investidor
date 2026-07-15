@@ -18,8 +18,10 @@ export async function loadTourNameCounts(from, to, tour = 'ATP') {
   for (let y = from; y <= to; y++) years.push(y);
   await Promise.all(years.map(async (y) => {
     try {
-      const text = await (await fetch(`${BASE}/${tourFileFor(y, tour)}`)).text();
-      for (const row of parseCsv(text)) { bump(row.winner_name); bump(row.loser_name); }
+      const url = `${BASE}/${tourFileFor(y, tour)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} para ${url}`);
+      for (const row of parseCsv(await res.text())) { bump(row.winner_name); bump(row.loser_name); }
     } catch (e) { console.warn(`aviso: tour Sackmann ${tour} ${y} ignorado (${e.message})`); }
   }));
   return counts;
