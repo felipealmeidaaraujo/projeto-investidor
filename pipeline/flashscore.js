@@ -31,3 +31,36 @@ export function statusFromCode(ab) {
   if (ab === '3') return 'FINISHED';
   return 'OTHER';
 }
+
+const ACTIVE = new Set(['SCHEDULED', 'IN_PROGRESS']);
+
+/** Feed cru do Flashscore -> jogos de simples não-encerrados. */
+export function parseFeed(text) {
+  const out = [];
+  let th = null;   // cabeçalho de torneio atual
+  let cur = null;  // jogo atual
+  const flush = () => {
+    if (cur && th && th.singles && ACTIVE.has(cur.status) && cur.a && cur.b) {
+      out.push({
+        tour: th.tour, tournament: th.tournament, surface: th.surface,
+        status: cur.status, commence: cur.commence, a: cur.a, b: cur.b,
+      });
+    }
+  };
+  for (const reg of text.split('¬')) {
+    const i = reg.indexOf('÷');
+    if (i < 0) continue;
+    const key = reg.slice(0, i).replace(/^~/, '');
+    const val = reg.slice(i + 1);
+    if (key === 'ZA') { flush(); cur = null; th = parseTournamentHeader(val); }
+    else if (key === 'AA') { flush(); cur = { status: null, commence: null, a: null, b: null }; }
+    else if (cur) {
+      if (key === 'AB' && cur.status == null) cur.status = statusFromCode(val);
+      else if (key === 'AD' && cur.commence == null) cur.commence = new Date(Number(val) * 1000).toISOString();
+      else if (key === 'AE' && cur.a == null) cur.a = val;
+      else if (key === 'AF' && cur.b == null) cur.b = val;
+    }
+  }
+  flush();
+  return out;
+}

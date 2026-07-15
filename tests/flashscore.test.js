@@ -35,3 +35,37 @@ test('statusFromCode: 1 agendado, 2 ao vivo, 3 encerrado', () => {
   assert.equal(statusFromCode('3'), 'FINISHED');
   assert.equal(statusFromCode('99'), 'OTHER');
 });
+
+import { parseFeed } from '../pipeline/flashscore.js';
+
+const FEED = [
+  '~ZA÷CHALLENGER MEN - SINGLES: Bunschoten (Netherlands), clay',
+  '~AA÷id1', 'AD÷1784106600', 'AB÷1', 'AE÷Borges N.', 'AF÷Dimitrov G.',
+  '~AA÷id2', 'AD÷1784110000', 'AB÷3', 'AE÷Encerrado A.', 'AF÷Encerrado B.',
+  '~ZA÷WTA - DOUBLES: Prague (Czechia), hard',
+  '~AA÷id3', 'AD÷1784106600', 'AB÷1', 'AE÷Dupla A.', 'AF÷Dupla B.',
+  '~ZA÷WTA - SINGLES: Prague (Czechia), hard',
+  '~AA÷id4', 'AD÷1784106600', 'AB÷2', 'AE÷Swiatek I.', 'AF÷Gauff C.',
+].join('¬');
+
+test('parseFeed: só simples não-encerrados (exclui duplas, encerrado)', () => {
+  const jogos = parseFeed(FEED);
+  assert.equal(jogos.length, 2);
+  assert.deepEqual(jogos.map((j) => `${j.a} vs ${j.b}`), ['Borges N. vs Dimitrov G.', 'Swiatek I. vs Gauff C.']);
+});
+
+test('parseFeed: preenche tour, superfície, status e horário ISO', () => {
+  const [g] = parseFeed(FEED);
+  assert.equal(g.tour, 'ATP');
+  assert.equal(g.surface, 'clay');
+  assert.equal(g.status, 'SCHEDULED');
+  assert.equal(g.tournament, 'Bunschoten (Netherlands)');
+  assert.equal(g.commence, new Date(1784106600 * 1000).toISOString());
+});
+
+test('parseFeed: o jogo ao vivo vem com status IN_PROGRESS e tour WTA', () => {
+  const jogos = parseFeed(FEED);
+  const g = jogos.find((x) => x.a === 'Swiatek I.');
+  assert.equal(g.status, 'IN_PROGRESS');
+  assert.equal(g.tour, 'WTA');
+});
