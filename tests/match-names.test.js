@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normName, matchPlayer, matchesModelName, canonicalName } from '../web/src/match-names.js';
+import { normName, matchPlayer, matchesModelName, buildChallengerNames } from '../web/src/match-names.js';
 
 const players = [
   { name: 'Sinner J.' },
@@ -45,17 +45,13 @@ test('matchPlayer: nome do meio (Juan Pablo Varillas) casa Varillas J.', () => {
   assert.equal(matchPlayer('Juan Pablo Varillas', pl)?.name, 'Varillas J.');
 });
 
-test('canonicalName: transita → nome do modelo; puro → fullName', () => {
-  assert.equal(canonicalName('Jannik Sinner', players), 'Sinner J.');
-  assert.equal(canonicalName('Fulano Puro', players), 'Fulano Puro');
-});
-
-test('canonicalName: gate de inicial separa homônimos (Petros ≠ Tsitsipas S.)', () => {
-  const roster = [...players, { name: 'Tsitsipas S.' }]; // Stefanos, inicial "s"
-  // "Petros Tsitsipas" (inicial "p") NÃO pode casar com "Tsitsipas S." (inicial "s")
-  assert.equal(matchPlayer('Petros Tsitsipas', roster), null);
-  assert.equal(canonicalName('Petros Tsitsipas', roster), 'Petros Tsitsipas');
-  assert.equal(canonicalName('Pavlos Tsitsipas', roster), 'Pavlos Tsitsipas');
-  // e Stefanos casa certo
-  assert.equal(matchPlayer('Stefanos Tsitsipas', roster)?.name, 'Tsitsipas S.');
+test('buildChallengerNames: transita inequívoco, mantém puro, separa homônimos de mesma inicial', () => {
+  const tour = [{ name: 'Sinner J.' }, { name: 'Tsitsipas P.' }, { name: 'Tsitsipas S.' }];
+  const full = ['Jannik Sinner', 'Fulano Puro', 'Stefanos Tsitsipas', 'Petros Tsitsipas', 'Pavlos Tsitsipas'];
+  const m = buildChallengerNames(full, tour);
+  assert.equal(m.get('Jannik Sinner'), 'Sinner J.');            // casa único → tour
+  assert.equal(m.get('Fulano Puro'), 'Fulano Puro');            // não casa → puro
+  assert.equal(m.get('Stefanos Tsitsipas'), 'Tsitsipas S.');    // casa único (inicial s) → tour
+  assert.equal(m.get('Petros Tsitsipas'), 'Petros Tsitsipas');  // ambíguo com Pavlos → separa
+  assert.equal(m.get('Pavlos Tsitsipas'), 'Pavlos Tsitsipas');  // ambíguo com Petros → separa
 });
