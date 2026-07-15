@@ -1,5 +1,5 @@
-// Casa nomes completos (The Odds API: "Jannik Sinner") com os do modelo ("Sinner J.").
-// Estratégia: comparar sobrenome normalizado + inicial do primeiro nome.
+// Casa nomes completos ("Jannik Sinner") com os do modelo ("Sinner J.").
+// Estratégia: sobrenome normalizado (candidatos p/ nome-do-meio) + inicial do primeiro nome.
 
 export function normName(s) {
   return (s || '')
@@ -17,28 +17,36 @@ function parseModelName(name) {
   return { surname, initial };
 }
 
-/** Nome completo "Primeiro ... Último" → { surname (tudo após o 1º token), initial }. */
-function parseFullName(full) {
+/** Nome completo → inicial do 1º nome + candidatos de sobrenome.
+ *  Candidatos = "tudo após o 1º token" (pega "de Minaur", "Bautista Agut") E
+ *  "só o último token" (pega nome-do-meio: "Juan Pablo Varillas" → "Varillas"). */
+function fullNameKey(full) {
   const tokens = full.trim().split(/\s+/);
-  if (tokens.length < 2) return { surname: normName(full), initial: '' };
+  if (tokens.length < 2) return { initial: '', cands: [normName(full)].filter(Boolean) };
   const initial = (tokens[0][0] || '').toLowerCase();
-  const surname = normName(tokens.slice(1).join(''));
-  return { surname, initial };
+  const rest = tokens.slice(1);
+  const cands = [...new Set([normName(rest.join('')), normName(rest[rest.length - 1])])].filter(Boolean);
+  return { initial, cands };
 }
 
 /** Acha o jogador do modelo correspondente ao nome completo (ou null). */
 export function matchPlayer(fullName, players) {
-  const f = parseFullName(fullName);
+  const { initial, cands } = fullNameKey(fullName);
   for (const p of players) {
     const m = parseModelName(p.name);
-    if (m.surname && m.surname === f.surname && (f.initial === '' || m.initial === f.initial)) return p;
+    if (m.surname && cands.includes(m.surname) && (initial === '' || m.initial === initial)) return p;
   }
   return null;
 }
 
 /** Um nome completo ("Carlos Alcaraz") e um nome de modelo ("Alcaraz C.") são o mesmo jogador? */
 export function matchesModelName(fullName, modelName) {
-  const f = parseFullName(fullName);
+  const { initial, cands } = fullNameKey(fullName);
   const m = parseModelName(modelName);
-  return !!m.surname && m.surname === f.surname && (f.initial === '' || m.initial === f.initial);
+  return !!m.surname && cands.includes(m.surname) && (initial === '' || m.initial === initial);
+}
+
+/** Nome canônico p/ o Elo: nome do modelo se o jogador transita; senão o próprio fullName (puro). */
+export function canonicalName(fullName, players) {
+  return matchPlayer(fullName, players)?.name ?? fullName;
 }

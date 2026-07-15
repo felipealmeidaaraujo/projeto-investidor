@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normName, matchPlayer, matchesModelName } from '../web/src/match-names.js';
+import { normName, matchPlayer, matchesModelName, canonicalName } from '../web/src/match-names.js';
 
 const players = [
   { name: 'Sinner J.' },
@@ -38,4 +38,19 @@ test('matchesModelName: casa nome completo com formato do modelo', () => {
   assert.equal(matchesModelName('Jannik Sinner', 'Sinner J.'), true);
   assert.equal(matchesModelName('Carlos Alcaraz', 'Sinner J.'), false);
   assert.equal(matchesModelName('Félix Auger-Aliassime', 'Auger-Aliassime F.'), true); // acentos/hífen
+});
+
+test('matchPlayer: nome do meio (Juan Pablo Varillas) casa Varillas J.', () => {
+  const pl = [...players, { name: 'Varillas J.' }];
+  assert.equal(matchPlayer('Juan Pablo Varillas', pl)?.name, 'Varillas J.');
+});
+
+test('canonicalName: transita → nome do modelo; puro → fullName', () => {
+  assert.equal(canonicalName('Jannik Sinner', players), 'Sinner J.');
+  assert.equal(canonicalName('Fulano Puro', players), 'Fulano Puro');
+});
+
+test('canonicalName: irmãos/homônimos puros ficam separados', () => {
+  assert.equal(canonicalName('Petros Tsitsipas', players), 'Petros Tsitsipas');
+  assert.equal(canonicalName('Pavlos Tsitsipas', players), 'Pavlos Tsitsipas');
 });
