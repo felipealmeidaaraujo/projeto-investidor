@@ -2,13 +2,13 @@
 // Usa a MESMA canonicalização do train (loadCombinedMatches, FROM=2013) → nomes consistentes
 // com o modelo. Rode: node pipeline/matches.js
 import { writeFile } from 'node:fs/promises';
-import { loadCombinedMatches } from './combined-matches.js';
+import { loadCombinedMatches, DEFAULT_FROM } from './combined-matches.js';
 
 function ymdOf(d) {
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
-const FROM = 2013; // mesmo início do train, pra a canonicalização de nomes bater
+const FROM = DEFAULT_FROM; // mesmo início do train, pra a canonicalização de nomes bater
 
 async function build() {
   const cutoff = ymdOf(new Date(Date.now() - 3 * 365 * 86400000)); // emite ~3 anos (tour)
@@ -39,7 +39,7 @@ async function build() {
     return;
   }
   await writeFile(new URL('../web/matches.json', import.meta.url), JSON.stringify(out));
-  console.log(`matches.json: ${out.count} partidas desde ${cutoff}`);
+  console.log(`matches.json: ${out.count} partidas (tour desde ${cutoff}, challenger desde ${challCutoff})`);
 }
 
 build();

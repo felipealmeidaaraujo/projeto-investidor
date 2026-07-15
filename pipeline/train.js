@@ -3,11 +3,11 @@
 // Uso: node pipeline/train.js [ATP|WTA] [anoInicio] [anoFim]
 import { writeFile } from 'node:fs/promises';
 import { EloEngine } from './elo-engine.js';
-import { loadCombinedMatches } from './combined-matches.js';
+import { loadCombinedMatches, DEFAULT_FROM } from './combined-matches.js';
 import { fitTemperature } from './calibrate.js';
 
 const TOUR = (process.argv[2] || 'ATP').toUpperCase();
-const FROM = Number(process.argv[3]) || 2013;
+const FROM = Number(process.argv[3]) || DEFAULT_FROM;
 const TO = Number(process.argv[4]) || new Date().getFullYear();
 const MIN_MATCHES = 20;
 const warmupInt = (FROM + 2) * 10000;
