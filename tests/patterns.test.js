@@ -47,3 +47,22 @@ test('toEnrichedMatch: campos ausentes viram null/0 sem quebrar', () => {
   assert.equal(m.winner.bpFaced, 0);
   assert.equal(m.bestOf, 3);
 });
+
+import { playerSideGame } from '../pipeline/patterns.js';
+
+test('playerSideGame: perspectiva do vencedor', () => {
+  const m = toEnrichedMatch(ROW);
+  const g = playerSideGame(m, 'winner');
+  assert.equal(g.won, true);
+  assert.equal(g.score, '6-3 3-6 6-3');
+  assert.equal(g.bpFaced, 9);
+  assert.equal(g.oppBpFaced, 7);
+});
+
+test('playerSideGame: perspectiva do perdedor inverte os lados', () => {
+  const m = toEnrichedMatch(ROW);
+  const g = playerSideGame(m, 'loser');
+  assert.equal(g.won, false);
+  assert.equal(g.bpFaced, 7);
+  assert.equal(g.oppBpSaved, 8);
+});

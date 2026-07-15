@@ -36,3 +36,20 @@ export function toEnrichedMatch(row) {
     loser: side(row, 'loser', 'l'),
   };
 }
+
+/** Monta o jogo na perspectiva de um lado ('winner'|'loser') para o motor de padrões. */
+export function playerSideGame(match, sideKey) {
+  const won = sideKey === 'winner';
+  const me = won ? match.winner : match.loser;
+  const opp = won ? match.loser : match.winner;
+  return {
+    won,
+    score: match.score,
+    minutes: match.minutes,
+    bpFaced: me.bpFaced,
+    bpSaved: me.bpSaved,
+    svGms: me.svGms,
+    oppBpFaced: opp.bpFaced,
+    oppBpSaved: opp.bpSaved,
+  };
+}
