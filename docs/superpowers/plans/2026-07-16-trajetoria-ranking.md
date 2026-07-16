@@ -265,7 +265,7 @@ O **spike** existe porque 26,3% dos "Em ascensão" da ATP tiram ≥50% da subida
 
 **Interfaces:**
 - Consumes: `parseRankingRows`, `latestDate`, `minus12Months`, `nearestDate` (Tasks 1-2).
-- Produces: `spikeOf(serie, fromDate, toDate) -> {pct, date}|null`, `buildTrajectories(rows) -> Map<string, {rank, points, rank12m, points12m, peak, peakDate, snapshotDate, date12m, spikePct, spikeDate}>`
+- Produces: `spikeOf(serie, from, to) -> {pct, date, ganho, total}|null`, `buildTrajectories(rows) -> Map<string, {rank, points, rank12m, points12m, peak, peakDate, snapshotDate, date12m, spikePct, spikeDate}>`
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -345,8 +345,8 @@ Adicione a `pipeline/rankings.js`:
 ```js
 /** A maior fatia do ganho de pontos do período vinda de uma única semana.
  *  null se não houve ganho (quem caiu não tem "subida concentrada"). */
-export function spikeOf(serie, fromDate, toDate_) {
-  const win = serie.filter((s) => s.date >= fromDate && s.date <= toDate_);
+export function spikeOf(serie, from, to) {
+  const win = serie.filter((s) => s.date >= from && s.date <= to);
   if (win.length < 2) return null;
   const total = win[win.length - 1].points - win[0].points;
   if (total <= 0) return null;
