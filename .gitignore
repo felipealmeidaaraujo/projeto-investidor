@@ -11,6 +11,11 @@ dist/
 # Dados brutos baixados (grandes / não versionar)
 data/*
 !data/.gitkeep
+# Exceção: pico de ranking 2010-2019 é dado DERIVADO, pequeno (238 KB) e imutável
+# (essa história não muda mais). Versionado de propósito: evita rebaixar 37 MB/dia
+# no cron só para recalcular um número congelado desde 2019. Gerado por
+# pipeline/peak-cache-build.js, que roda uma vez e NÃO entra no cron.
+!data/peak-2010-2019.json
 
 # Sistema
 *.log
