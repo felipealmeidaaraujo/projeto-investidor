@@ -46,3 +46,33 @@ test('parseRankingRows: texto vazio, nulo ou ausente devolve lista vazia', () =>
   assert.deepEqual(parseRankingRows(undefined), []);
   assert.deepEqual(parseRankingRows('ranking_date,rank,player,points'), []);
 });
+
+import { latestDate, minus12Months, nearestDate, ageFrom } from '../pipeline/rankings.js';
+
+test('latestDate: acha o snapshot mais recente', () => {
+  assert.equal(latestDate(parseRankingRows(CSV_ATP)), 20260608);
+  assert.equal(latestDate([]), null);
+});
+
+test('minus12Months: volta um ano no calendário', () => {
+  assert.equal(minus12Months(20260608), 20250608);
+  assert.equal(minus12Months(20260101), 20250101);
+});
+
+test('nearestDate: pega a data disponível mais próxima do alvo', () => {
+  const dates = [20250602, 20250609, 20250616];
+  assert.equal(nearestDate(dates, 20250608), 20250609); // 1 dia de distância
+  assert.equal(nearestDate([], 20250608), null);
+});
+
+test('ageFrom: idade na data pedida, não hoje', () => {
+  // Djokovic: dob 22/05/1987. Em 08/06/2026 tem 39,0.
+  assert.equal(ageFrom(19870522, 20260608), 39);
+});
+
+test('ageFrom: rejeita o lixo do CSV (dob vazio, 19000000)', () => {
+  assert.equal(ageFrom(0, 20260608), null);
+  assert.equal(ageFrom(null, 20260608), null);
+  assert.equal(ageFrom(19000000, 20260608), null); // daria 126 anos
+  assert.equal(ageFrom(19870522, null), null);
+});
