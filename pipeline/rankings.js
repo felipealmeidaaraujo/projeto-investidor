@@ -172,19 +172,18 @@ export function resolvePlayers(ids, players, meta) {
     if (!m) continue;
     const p = byBioId.get(String(id)) || findModelPlayer(m.fullName, players);
     if (!p) continue;
-    // Registra a TENTATIVA de match em `hits` já aqui, antes do guarda-corpo de
-    // idade abaixo. Motivo: se dois ids caírem no mesmo slot e um deles for
-    // barrado pela idade, ele precisa CONTINUAR contando pra detecção de colisão
-    // — senão o outro id fica sozinho em `hits` e a colisão nunca é vista (o
-    // caso Brandon/Bryce Nakashima: o guarda-corpo barra o Bryce sozinho e
-    // esconderia que o Brandon também deveria ser reavaliado como ambíguo).
-    if (!hits.has(p.name)) hits.set(p.name, []);
-    hits.get(p.name).push(id);
     // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
     if (p.bio && p.bio.age != null && m.dob && p.lastDate) {
       const idade = ageFrom(m.dob, p.lastDate);
       if (idade != null && Math.abs(idade - p.bio.age) > GAP_IDADE_MAX) continue;
     }
+    // Registra em `hits` só DEPOIS do guarda-corpo, de propósito: o guarda-corpo
+    // desambigua ANTES da detecção de colisão. Ser barrado por idade é evidência
+    // de que aquele id NÃO é aquele jogador (quem casa por bio.id nunca é barrado
+    // aqui, pois dob e bio.age vêm da mesma pessoa) — então esse id não deve
+    // sobrar como candidato "ambíguo" pra colisão abaixo.
+    if (!hits.has(p.name)) hits.set(p.name, []);
+    hits.get(p.name).push(id);
     resolved.set(id, p);
   }
 

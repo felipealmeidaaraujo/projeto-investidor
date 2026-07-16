@@ -227,16 +227,30 @@ test('resolvePlayers: cai para o nome quando não há bio.id', () => {
   assert.equal(resolved.get('999001').name, 'Tomas Barrios Vera');
 });
 
-test('resolvePlayers: colisão de nome exclui os dois — não sorteia', () => {
-  // Brandon Nakashima (#32) e Bryce Nakashima (#1483) casam no mesmo 'Nakashima B.'
+test('resolvePlayers: quando a idade desambigua, resolve o jogador certo (nao descarta o #32 do mundo)', () => {
+  // Brandon Nakashima (#32, bio.id bate) e Bryce Nakashima (#1483) caem no mesmo 'Nakashima B.'.
+  // O guarda-corpo de idade barra o Bryce -> isso PROVA que o slot e do Brandon.
   const meta = new Map([
     ['206909', { fullName: 'Brandon Nakashima', dob: 20010803 }],
     ['210416', { fullName: 'Bryce Nakashima', dob: 20040101 }],
   ]);
   const { resolved, excluded } = resolvePlayers(['206909', '210416'], PLAYERS, meta);
-  assert.equal(resolved.has('206909'), false);
+  assert.equal(resolved.get('206909').name, 'Nakashima B.');
   assert.equal(resolved.has('210416'), false);
-  assert.deepEqual(excluded, ['Nakashima B.']);
+  assert.deepEqual(excluded, []);
+});
+
+test('resolvePlayers: colisão genuína (os dois passam pela idade) exclui os dois — não sorteia', () => {
+  // Dois ids no mesmo slot, ambos com idade compatível: não há como saber quem é. Exclui.
+  const players = [{ name: 'Silva J.', lastDate: 20260601, bio: { id: null, age: 25 } }];
+  const meta = new Map([
+    ['900001', { fullName: 'Joao Silva', dob: 20010601 }],
+    ['900002', { fullName: 'Jose Silva', dob: 20010601 }],
+  ]);
+  const { resolved, excluded } = resolvePlayers(['900001', '900002'], players, meta);
+  assert.equal(resolved.has('900001'), false);
+  assert.equal(resolved.has('900002'), false);
+  assert.deepEqual(excluded, ['Silva J.']);
 });
 
 test('resolvePlayers: guarda-corpo do dob compara na data do ÚLTIMO JOGO, não hoje', () => {
