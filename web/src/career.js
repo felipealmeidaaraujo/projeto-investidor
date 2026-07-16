@@ -50,3 +50,70 @@ export function careerMoment(career) {
   if (noAuge(career.rank, career.peak)) return { moment: 'auge', reason: null, ratio };
   return { moment: 'estavel', reason: null, ratio };
 }
+
+const SPIKE_MIN = 60; // % do ganho de 12 meses vindo de uma semana só
+
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** 1685 -> "1.685" (separador de milhar do pt-BR, sem depender de locale). */
+const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+/** 20260608 -> "08/06/2026" */
+const dia = (d) => `${String(d % 100).padStart(2, '0')}/${String(Math.floor(d / 100) % 100).padStart(2, '0')}/${Math.floor(d / 10000)}`;
+/** 20250609 -> "junho de 2025" */
+const mesAno = (d) => `${MESES[(Math.floor(d / 100) % 100) - 1]} de ${Math.floor(d / 10000)}`;
+const ano = (d) => Math.floor(d / 10000);
+/** 2.6 -> "2,6" */
+const dec = (x) => x.toFixed(1).replace('.', ',');
+
+/** Momento de carreira -> {label, detail, warn} para o card. null se não há dado.
+ *  O número vai sempre embutido — nenhum rótulo aparece nu. */
+export function careerText(career) {
+  if (!career) return null;
+  const m = careerMoment(career);
+  const { rank, points, rank12m, points12m, peak, peakDate, date12m, spikePct, spikeDate } = career;
+
+  if (m.reason === 'sem-dados') return null;
+  if (m.reason === 'sem-historico') {
+    const quando = date12m ? mesAno(date12m) : 'um ano atrás';
+    return { label: 'Sem histórico', warn: null,
+      detail: `não tinha ranking em ${quando}, então não dá para dizer o momento. Hoje está no #${rank}.` };
+  }
+  if (m.reason === 'pouco-tenis') {
+    return { label: 'Pouco tênis no período', warn: null,
+      detail: `não passou de ${num(Math.max(points, points12m))} pontos nos últimos 12 meses; não dá para falar em momento de carreira.` };
+  }
+
+  // aviso de subida concentrada: só para quem subiu (quem caiu não tem "subida")
+  const warn = m.moment === 'ascensao' && spikePct != null && spikePct >= SPIKE_MIN && spikeDate
+    ? `Cuidado: ${spikePct}% da subida veio de uma semana só — em ${dia(spikeDate)}.`
+    : null;
+
+  if (m.moment === 'ascensao') {
+    const detail = points12m === 0
+      ? `não tinha pontos em ${date12m ? mesAno(date12m) : 'um ano atrás'}; hoje tem ${num(points)}. Saiu do #${rank12m} e está no #${rank}.`
+      : `os pontos subiram ${dec(m.ratio)}x em 12 meses (${num(points12m)} → ${num(points)}). Saiu do #${rank12m} e está no #${rank}.`;
+    return { label: 'Em ascensão', detail, warn };
+  }
+
+  if (m.moment === 'declinio') {
+    return { label: 'Em declínio', warn: null,
+      detail: `perdeu ${Math.round((1 - m.ratio) * 100)}% dos pontos em 12 meses (${num(points12m)} → ${num(points)}). Era #${rank12m}, está no #${rank}.` };
+  }
+
+  // auge e estável citam o pico — e o ANO do pico é obrigatório
+  const delta = Math.round((m.ratio - 1) * 100);
+  const variacao = `Os pontos mudaram ${delta >= 0 ? '+' : ''}${delta}% em 12 meses (${num(points12m)} → ${num(points)}).`;
+
+  if (m.moment === 'auge') {
+    if (rank === peak) {
+      return { label: 'No auge', warn: null,
+        detail: `está no #${rank}, o melhor ranking da carreira, alcançado em ${ano(peakDate)}.` };
+    }
+    return { label: 'No auge', warn: null,
+      detail: `está no #${rank}; seu melhor foi #${peak}, em ${ano(peakDate)}. ${variacao}` };
+  }
+
+  return { label: 'Estável', warn: null,
+    detail: `os pontos mudaram ${delta >= 0 ? '+' : ''}${delta}% em 12 meses (${num(points12m)} → ${num(points)}); está no #${rank}, longe do melhor da carreira (#${peak}, em ${ano(peakDate)}).` };
+}

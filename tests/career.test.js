@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { careerMoment, noAuge } from '../web/src/career.js';
+import { careerMoment, noAuge, careerText } from '../web/src/career.js';
 
 const c = (o) => ({ rank: 10, points: 3000, rank12m: 10, points12m: 3000, peak: 10, peakDate: 20260608, snapshotDate: 20260608, date12m: 20250609, spikePct: null, spikeDate: null, ...o });
 
@@ -103,4 +103,77 @@ test('careerMoment: sem pico não vira "estável" por acidente (a regra de ouro)
   const m = careerMoment(c({ rank: 30, points: 1500, rank12m: 30, points12m: 1500, peak: null, peakDate: null }));
   assert.equal(m.moment, null);
   assert.equal(m.reason, 'sem-dados');
+});
+
+test('careerText: ascensão traz o multiplicador e o movimento de rank', () => {
+  const t = careerText(c({ rank: 4, points: 4440, rank12m: 29, points12m: 1685 }));
+  assert.equal(t.label, 'Em ascensão');
+  assert.equal(t.detail, 'os pontos subiram 2,6x em 12 meses (1.685 → 4.440). Saiu do #29 e está no #4.');
+});
+
+test('careerText: declínio traz a perda em % e o movimento', () => {
+  const t = careerText(c({ rank: 7, points: 4879, rank12m: 2, points12m: 8083, peak: 2, peakDate: 20250101 }));
+  assert.equal(t.label, 'Em declínio');
+  assert.equal(t.detail, 'perdeu 40% dos pontos em 12 meses (8.083 → 4.879). Era #2, está no #7.');
+});
+
+test('careerText: auge no pico exato diz "o melhor da carreira" e o ano', () => {
+  const t = careerText(c({ rank: 1, points: 13500, rank12m: 1, points12m: 10880, peak: 1, peakDate: 20240610 }));
+  assert.equal(t.label, 'No auge');
+  assert.equal(t.detail, 'está no #1, o melhor ranking da carreira, alcançado em 2024.');
+});
+
+test('careerText: auge perto do pico mostra a distância e o ano', () => {
+  const t = careerText(c({ rank: 4, points: 6056, rank12m: 3, points12m: 6483, peak: 3, peakDate: 20220307 }));
+  assert.equal(t.label, 'No auge');
+  assert.ok(t.detail.includes('está no #4'), t.detail);
+  assert.ok(t.detail.includes('#3, em 2022'), t.detail);
+  assert.ok(t.detail.includes('-7%'), t.detail);
+});
+
+test('careerText: estável diz que está longe do melhor, com o ano', () => {
+  const t = careerText(c({ rank: 7, points: 3760, rank12m: 5, points12m: 4630, peak: 1, peakDate: 20110704 }));
+  assert.equal(t.label, 'Estável');
+  assert.ok(t.detail.includes('-19%'), t.detail);
+  assert.ok(t.detail.includes('longe do melhor da carreira (#1, em 2011)'), t.detail);
+});
+
+test('careerText: sem histórico diz o mês e que não dá para saber', () => {
+  const t = careerText(c({ rank: 465, points: 123, rank12m: null, points12m: null, peak: 2 }));
+  assert.equal(t.label, 'Sem histórico');
+  assert.ok(t.detail.includes('junho de 2025'), t.detail);
+  assert.ok(t.detail.includes('#465'), t.detail);
+});
+
+test('careerText: pouco tênis diz o número de pontos', () => {
+  const t = careerText(c({ rank: 900, points: 7, rank12m: 1100, points12m: 1 }));
+  assert.equal(t.label, 'Pouco tênis no período');
+  assert.ok(t.detail.includes('7 pontos'), t.detail);
+});
+
+test('careerText: quem saiu do zero não escreve "Infinityx"', () => {
+  const t = careerText(c({ rank: 187, points: 400, rank12m: 1324, points12m: 0 }));
+  assert.equal(t.label, 'Em ascensão');
+  assert.ok(!/Infinity|NaN/.test(t.detail), t.detail);
+  assert.ok(t.detail.includes('não tinha pontos'), t.detail);
+});
+
+test('careerText: aviso de subida concentrada dispara em 60% e não em 59%', () => {
+  const base = { rank: 10, points: 1670, rank12m: 40, points12m: 100, peak: 10, spikeDate: 20260608 };
+  const com = careerText(c({ ...base, spikePct: 76 }));
+  assert.ok(com.warn.includes('76% da subida'), com.warn);
+  assert.ok(com.warn.includes('08/06/2026'), com.warn);
+  assert.equal(careerText(c({ ...base, spikePct: 60 })).warn !== null, true);
+  assert.equal(careerText(c({ ...base, spikePct: 59 })).warn, null);
+});
+
+test('careerText: o aviso de subida só vale para quem subiu', () => {
+  const t = careerText(c({ rank: 7, points: 4879, rank12m: 2, points12m: 8083, spikePct: 90, spikeDate: 20260608 }));
+  assert.equal(t.label, 'Em declínio');
+  assert.equal(t.warn, null);
+});
+
+test('careerText: career nulo devolve null', () => {
+  assert.equal(careerText(null), null);
+  assert.equal(careerText(undefined), null);
 });
