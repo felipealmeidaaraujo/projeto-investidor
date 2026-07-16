@@ -35,6 +35,8 @@ jobs:
         run: node pipeline/serve-stats.js
       - name: Enriquecer com padrões de jogo (estilo, pressão, bio)
         run: node pipeline/patterns-ingest.js
+      - name: Enriquecer com a trajetória de ranking (momento de carreira)
+        run: node pipeline/rankings-ingest.js
       - name: Buscar os jogos do dia (grade Flashscore, ESPN de fallback)
         run: node pipeline/fixtures.js
       - name: Gerar fechamentos (CLV pré-jogo, tennis-data)
