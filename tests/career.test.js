@@ -136,6 +136,7 @@ test('careerText: estável diz que está longe do melhor, com o ano', () => {
   assert.equal(t.label, 'Estável');
   assert.ok(t.detail.includes('-19%'), t.detail);
   assert.ok(t.detail.includes('longe do melhor da carreira (#1, em 2011)'), t.detail);
+  assert.ok(t.detail.includes('está no #7'), t.detail);
 });
 
 test('careerText: sem histórico diz o mês e que não dá para saber', () => {
@@ -165,6 +166,8 @@ test('careerText: quem saiu do zero não escreve "Infinityx"', () => {
   assert.equal(t.label, 'Em ascensão');
   assert.ok(!/Infinity|NaN/.test(t.detail), t.detail);
   assert.ok(t.detail.includes('não tinha pontos'), t.detail);
+  assert.ok(t.detail.includes('#1324'), t.detail);
+  assert.ok(t.detail.includes('#187'), t.detail);
 });
 
 test('careerText: aviso de subida concentrada dispara em 60% e não em 59%', () => {
