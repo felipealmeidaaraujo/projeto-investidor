@@ -24,3 +24,8 @@ Thumbs.db
 audit-*.png
 ds*.png
 .playwright-mcp/
+
+# Guia de estilo vivo — ferramenta de trabalho local (localhost:5173/design-system.html).
+# Fica fora do repo porque o deploy publica a pasta web/ inteira: se versionado,
+# iria pro ar no site público.
+web/design-system.html
