@@ -206,3 +206,63 @@ test('buildTrajectories: spikePct e spikeDate chegam preenchidos para subida con
   assert.equal(p.spikePct, 100);
   assert.equal(p.spikeDate, 20260608);
 });
+
+import { resolvePlayers } from '../pipeline/rankings.js';
+
+const PLAYERS = [
+  { name: 'Sinner J.', lastDate: 20260712, bio: { id: '206173', age: 24.7 } },
+  { name: 'Nakashima B.', lastDate: 20260701, bio: { id: '206909', age: 24.8 } },
+  { name: 'Tomas Barrios Vera', lastDate: 20260601, bio: null }, // challenger, nome cru, sem bio
+];
+
+test('resolvePlayers: casa por bio.id quando existe', () => {
+  const meta = new Map([['206173', { fullName: 'Jannik Sinner', dob: 20010816 }]]);
+  const { resolved } = resolvePlayers(['206173'], PLAYERS, meta);
+  assert.equal(resolved.get('206173').name, 'Sinner J.');
+});
+
+test('resolvePlayers: cai para o nome quando não há bio.id', () => {
+  const meta = new Map([['999001', { fullName: 'Tomas Barrios Vera', dob: 19950101 }]]);
+  const { resolved } = resolvePlayers(['999001'], PLAYERS, meta);
+  assert.equal(resolved.get('999001').name, 'Tomas Barrios Vera');
+});
+
+test('resolvePlayers: colisão de nome exclui os dois — não sorteia', () => {
+  // Brandon Nakashima (#32) e Bryce Nakashima (#1483) casam no mesmo 'Nakashima B.'
+  const meta = new Map([
+    ['206909', { fullName: 'Brandon Nakashima', dob: 20010803 }],
+    ['210416', { fullName: 'Bryce Nakashima', dob: 20040101 }],
+  ]);
+  const { resolved, excluded } = resolvePlayers(['206909', '210416'], PLAYERS, meta);
+  assert.equal(resolved.has('206909'), false);
+  assert.equal(resolved.has('210416'), false);
+  assert.deepEqual(excluded, ['Nakashima B.']);
+});
+
+test('resolvePlayers: guarda-corpo do dob compara na data do ÚLTIMO JOGO, não hoje', () => {
+  // Aposentado: bio.age 38.4 congelada em 2024; hoje teria 40. Não pode ser excluído.
+  const players = [{ name: 'Nadal R.', lastDate: 20240721, bio: { id: null, age: 38.4 } }];
+  const meta = new Map([['104745', { fullName: 'Rafael Nadal', dob: 19860603 }]]);
+  const { resolved } = resolvePlayers(['104745'], players, meta);
+  assert.equal(resolved.get('104745').name, 'Nadal R.');
+});
+
+test('resolvePlayers: idade incompatível é recusada (identidade errada)', () => {
+  // 'Wang Xin.' recebendo o id de outra Wang: gap de idade grande -> recusa
+  const players = [{ name: 'Wang Xin.', lastDate: 20260601, bio: { id: null, age: 22.2 } }];
+  const meta = new Map([['888', { fullName: 'Xin Wang', dob: 19900101 }]]); // teria ~36
+  const { resolved } = resolvePlayers(['888'], players, meta);
+  assert.equal(resolved.has('888'), false);
+});
+
+test('resolvePlayers: id sem meta ou sem jogador no modelo é ignorado', () => {
+  const { resolved } = resolvePlayers(['000'], PLAYERS, new Map());
+  assert.equal(resolved.size, 0);
+});
+
+test('resolvePlayers: ids, players ou meta nulos devolvem resultado vazio (não estoura)', () => {
+  const meta = new Map([['206173', { fullName: 'Jannik Sinner', dob: 20010816 }]]);
+  assert.deepEqual(resolvePlayers(null, PLAYERS, meta), { resolved: new Map(), excluded: [] });
+  assert.deepEqual(resolvePlayers(['206173'], null, meta), { resolved: new Map(), excluded: [] });
+  assert.deepEqual(resolvePlayers(['206173'], PLAYERS, null), { resolved: new Map(), excluded: [] });
+});

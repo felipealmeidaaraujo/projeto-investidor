@@ -3,6 +3,7 @@
 //
 // NÃO use o parseCsv de ingest.js aqui: o arquivo dos anos 2020 tem 516 mil linhas
 // e viraria 516 mil objetos. Estes CSVs são 4-5 colunas, sem aspas — split(',') basta.
+import { findModelPlayer } from '../web/src/match-names.js';
 
 /** Uma linha do CSV de ranking -> {date, rank, id, points}.
  *  ATP: ranking_date,rank,player,points | WTA: +coluna `tours` no fim (ignorada). */
@@ -147,4 +148,52 @@ export function buildTrajectories(rows) {
     });
   }
   return out;
+}
+
+const GAP_IDADE_MAX = 2; // anos de tolerância entre o dob do Sackmann e o bio.age do modelo
+
+/** player_id -> jogador do modelo.
+ *  1. bio.id quando existir (é o player_id do Sackmann — bate em 98,8% ATP / 97,7% WTA)
+ *  2. cai para o nome via findModelPlayer
+ *  3. guarda-corpo: idade calculada do dob NA DATA DO ÚLTIMO JOGO vs bio.age
+ *  4. colisão (2+ ids no mesmo jogador) -> exclui os dois. Ambíguo não se chuta.
+ *  `meta`: Map<player_id, {fullName, dob}>. */
+export function resolvePlayers(ids, players, meta) {
+  if (!ids || !players || !meta) return { resolved: new Map(), excluded: [] }; // guarda: nulo não estoura
+
+  const byBioId = new Map();
+  for (const p of players) if (p.bio && p.bio.id) byBioId.set(String(p.bio.id), p);
+
+  const resolved = new Map();
+  const hits = new Map(); // nome do modelo -> [ids que casaram nele]
+
+  for (const id of ids) {
+    const m = meta.get(id);
+    if (!m) continue;
+    const p = byBioId.get(String(id)) || findModelPlayer(m.fullName, players);
+    if (!p) continue;
+    // Registra a TENTATIVA de match em `hits` já aqui, antes do guarda-corpo de
+    // idade abaixo. Motivo: se dois ids caírem no mesmo slot e um deles for
+    // barrado pela idade, ele precisa CONTINUAR contando pra detecção de colisão
+    // — senão o outro id fica sozinho em `hits` e a colisão nunca é vista (o
+    // caso Brandon/Bryce Nakashima: o guarda-corpo barra o Bryce sozinho e
+    // esconderia que o Brandon também deveria ser reavaliado como ambíguo).
+    if (!hits.has(p.name)) hits.set(p.name, []);
+    hits.get(p.name).push(id);
+    // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
+    if (p.bio && p.bio.age != null && m.dob && p.lastDate) {
+      const idade = ageFrom(m.dob, p.lastDate);
+      if (idade != null && Math.abs(idade - p.bio.age) > GAP_IDADE_MAX) continue;
+    }
+    resolved.set(id, p);
+  }
+
+  const excluded = [];
+  for (const [name, idList] of hits) {
+    if (idList.length > 1) {
+      for (const id of idList) resolved.delete(id);
+      excluded.push(name);
+    }
+  }
+  return { resolved, excluded };
 }
