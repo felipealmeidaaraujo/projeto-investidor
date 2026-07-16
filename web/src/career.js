@@ -43,6 +43,10 @@ export function careerMoment(career) {
   const ratio = career.points / career.points12m;
   if (ratio >= T) return { moment: 'ascensao', reason: null, ratio };
   if (ratio <= 1 / T) return { moment: 'declinio', reason: null, ratio };
+  // Guarda: hoje inalcançável (o buildTrajectories sempre dá um pico a quem está no
+  // ranking), mas existe para que uma mudança futura no pipeline não vire fallback
+  // silencioso — ausência de dado tem que virar estado próprio com motivo, nunca "estável".
+  if (career.peak == null) return { moment: null, reason: 'sem-dados', ratio };
   if (noAuge(career.rank, career.peak)) return { moment: 'auge', reason: null, ratio };
   return { moment: 'estavel', reason: null, ratio };
 }

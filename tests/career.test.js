@@ -34,10 +34,20 @@ test('careerMoment: Alcaraz #2 com pico #1 é auge, não estável (a régua adit
   assert.equal(m.moment, 'auge');
 });
 
-test('careerMoment: Sabalenka #1->#1 (razão 0,787) NÃO é declínio — a defesa do T=1,5', () => {
-  // Em T=1,3 o corte seria 0,769 e ela ficaria a 0,018 de ser publicada como "Em declínio".
+test('careerMoment: Sabalenka #1->#1 com queda de pontos continua no auge', () => {
+  // Razão 0,787: perto do corte de T=1,3 (0,769), a apenas 0,018 dele, mas não o atravessa —
+  // ou seja, este teste passaria com T=1,5 ou T=1,3. Não trava o limiar sozinho (ver o
+  // teste do Cerundolo logo abaixo, que atravessa a fronteira de verdade).
   const m = careerMoment(c({ rank: 1, points: 8260, rank12m: 1, points12m: 10490, peak: 1 }));
   assert.equal(m.moment, 'auge');
+});
+
+test('careerMoment: Cerundolo (razão 0,726) é estável em T=1,5 mas viraria declínio em T=1,3 — trava o limiar', () => {
+  // Caso real: #18 -> #27, pontos 2.285 -> 1.660 (razão 0,726).
+  // 0,726 está ENTRE 1/1,5 (0,667) e 1/1,3 (0,769): com T=1,5 não é declínio; com T=1,3 seria.
+  // Se alguém baixar o T para 1,3, ESTE teste quebra — o da Sabalenka (0,787) não quebraria.
+  const m = careerMoment(c({ rank: 27, points: 1660, rank12m: 18, points12m: 2285, peak: 18, peakDate: 20250601 }));
+  assert.equal(m.moment, 'estavel');
 });
 
 test('careerMoment: sem ranking há 12 meses NÃO vira estável — vira sem-histórico', () => {
@@ -81,6 +91,16 @@ test('noAuge: folga de 25% do pico, entre 3 e 20 posições', () => {
   assert.equal(noAuge(121, 100), false);
   assert.equal(noAuge(1010, 1000), true); // teto 20 segura a cauda
   assert.equal(noAuge(1021, 1000), false);
+  assert.equal(noAuge(50, 40), true);   // 40 + round(0.25*40)=10 -> folga até 50, sem grampo
+  assert.equal(noAuge(51, 40), false);
   assert.equal(noAuge(null, 1), false);
   assert.equal(noAuge(1, null), false);
+});
+
+test('careerMoment: sem pico não vira "estável" por acidente (a regra de ouro)', () => {
+  // Hoje inalcançável — o buildTrajectories sempre dá um pico a quem está no ranking.
+  // A guarda existe para que uma mudança futura no pipeline não vire fallback silencioso.
+  const m = careerMoment(c({ rank: 30, points: 1500, rank12m: 30, points12m: 1500, peak: null, peakDate: null }));
+  assert.equal(m.moment, null);
+  assert.equal(m.reason, 'sem-dados');
 });
