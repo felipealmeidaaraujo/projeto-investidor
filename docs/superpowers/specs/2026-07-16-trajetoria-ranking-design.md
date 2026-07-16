@@ -14,7 +14,9 @@ Eram duas coisas. **Uma vai ser feita, a outra foi medida e não existe.**
 
 **Não vai ser feita — o aviso de "Elo defasado":** a ideia era avisar quando o modelo estivesse atrasado sobre um jogador. Medimos em 118.214 partidas e **a premissa estava invertida**: o Elo do projeto reage *rápido demais*, não devagar. O aviso apontaria o trader para o lado errado. Detalhes e números em "O obituário do item 2", abaixo.
 
-**De brinde, dois bugs somem.** O card mostra hoje o Djokovic como `#4` (ele é #7) e o Nadal com `38 anos` (ele tem 40) — ambos porque o app exibe dados congelados na data do último jogo do jogador. O mesmo download que traz a trajetória conserta os dois.
+**De brinde, dois bugs somem.** O card mostra hoje o Djokovic como `#4` (ele é #7) e 88 jogadores ATP com a idade errada — ambos porque o app exibe dados congelados na data do último jogo do jogador. O mesmo download que traz a trajetória conserta os dois.
+
+*Ressalva honesta, apurada na review final:* a correção só alcança **quem está no ranking de hoje**. O Nadal, que aparece com 38 anos tendo 40, **não** é consertado — ele saiu do ranking, então não tem trajetória. Isso é inofensivo porque ele é `active: false` e nenhuma lista do app o mostra, mas a promessa original desta spec ("conserta o Nadal") era falsa e está corrigida aqui.
 
 **O download diário é de ~29,5 MB, não 66 MB.** O histórico de ranking de 2010–2019 (37 MB, 56% do total) **não é baixado todo dia**: ele é história, não muda mais. Vira um arquivo de 238 KB calculado uma vez e versionado. Cortá-lo de vez mudaria 0 rótulos na ATP, mas faria o card afirmar que o auge do Tomic foi #164 quando foi #17 — daí o cache em vez do corte.
 
@@ -224,15 +226,24 @@ Pior: **`Wang Xin.` já exibe hoje o ranking da pessoa errada** — recebeu o ra
 
 Tom do projeto, **número sempre embutido** (regra declarada em [patterns-view.js:2](../../../web/src/patterns-view.js)). Ordem: rótulo — evidência em pontos — evidência em rank.
 
+Textos finais, como saem em produção:
+
 ```
-Em ascensão — os pontos subiram 2,6x em 12 meses (1.685 → 4.440). Saiu do #29 e está no #4.
+Em ascensão — os pontos subiram 1,8x em 12 meses (1.970 → 3.540). Saiu do #25 e está no #10.
 No auge — está no #1, o melhor ranking da carreira, alcançado em 2024.
-No auge — está no #4; seu melhor foi #3, em 2022. Os pontos mudaram -7% em 12 meses (6.483 → 6.056).
-Estável — os pontos mudaram -19% em 12 meses (4.630 → 3.760); está no #7, longe do melhor da carreira (#1, em 2011).
+No auge — está no #2; seu melhor foi #1, em 2022. Os pontos mudaram +13% em 12 meses (8.850 → 9.960).
+Estável — os pontos mudaram -19% em 12 meses (4.630 → 3.760); está no #7; seu melhor foi #1, em 2011.
 Em declínio — perdeu 40% dos pontos em 12 meses (8.083 → 4.879). Era #2, está no #7.
-Sem histórico — não tinha ranking em junho de 2025, então não dá para dizer o momento. Hoje está no #465.
+Sem histórico — não tinha ranking em junho de 2025, então não dá para dizer o momento. Está no #465.
 Pouco tênis no período — não passou de 49 pontos nos últimos 12 meses; não dá para falar em momento de carreira.
 ```
+
+Mais a data do snapshot, uma vez, junto da ressalva: `Ranking de 08/06/2026. Descreve o que já aconteceu…`
+
+**Duas armadilhas que a review final pegou e que valem como regra:**
+
+- **A palavra "longe" foi proibida.** A versão anterior desta spec trazia *"está no #7, longe do melhor da carreira (#1, em 2011)"*. Medido em produção: isso escrevia *"Mensik J. — está no #17, longe do melhor da carreira (#12, em 2026)"* — cinco posições, pico no mesmo ano. Era o único adjetivo editorial do módulo sem número que o sustentasse, e o número ao lado o desmentia. Usar sempre a construção neutra `; seu melhor foi #X, em ANO.` e deixar o leitor julgar a distância.
+- **A palavra "hoje" foi proibida** (ver a regra normativa em Fundação de dados). A versão anterior trazia *"Hoje está no #465"* sobre um snapshot de 5 semanas atrás — exatamente o defeito que esta feature existe para corrigir.
 
 **O ano do pico é obrigatório** em "No auge" e "Estável". *"No auge — #8, melhor foi #3, em 2017"* é uma frase muito diferente de *"No auge — #6, seu melhor de sempre, em 2024"*. Com o ano visível, o leitor calibra sozinho.
 
@@ -318,3 +329,7 @@ Funções com `fetch` **não são testadas** (não há mock no repo) — mantenh
 3. **Janela COVID.** 2020 tem 27 semanas de ranking ATP (vs ~47). Ranking congelado / melhor-de-24-meses quebra o significado da razão de pontos naquele período.
 4. **Estabilidade temporal do rótulo.** Deslocar a janela em 2/4/8 semanas troca 12,8%/21,3%/26,9% dos rótulos. Quanto disso é ruído e quanto é sinal, não sabemos.
 5. **O pico vem de séries que começam em 2010.** Quem teve pico antes disso fica com o pico errado — mas teria 40+ anos hoje. Aceito.
+6. **`peakDate` é a PRIMEIRA vez no pico, não a última.** O Djokovic sai como "seu melhor foi #1, em 2011" tendo sido #1 até 2024. É verdade literal e a regra é consistente (a alternativa — a data da janela viva — não significa nada, só reflete onde o recorte começa). Um `peakDateLast` seria mais informativo para quem está longe do pico, mas exigiria regerar o cache versionado, o que custa rebaixar o `10s`. Registrado, não resolvido.
+7. **A identidade contaminada é recusada, não consertada.** A feature detecta quando `fullName` e `bio.name` discordam e se cala (7 casos). Mas o `bio` continua sendo da pessoa errada para o resto do card: a linha `Ranking #708 WTA · 19 anos` do `Wang Y.` segue errada, como já era antes desta branch. A raiz é o matching fraco do [patterns-ingest.js](../../../pipeline/patterns-ingest.js) e continua viva. **Esta feature parou de piorar o problema; não o resolveu.**
+8. **`excluded` é um `console.log` num cron que ninguém lê.** O guarda de cobertura protege contra colapso (<80%), não contra erosão: se o join começar a excluir 30 jogadores em vez de 7, a cobertura cairia para ~88% e o dia passaria em silêncio. Um segundo guarda ("excluídos cresceram 3x vs. ontem") seria o que realmente avisa.
+9. **O `rankings-ingest` pode derrubar a grade do dia.** Ele roda **antes** do `fixtures.js` no cron e falha alto (`throw`) se o mirror devolver 404. O `patterns-ingest.js` escolheu o oposto (`if (!res.ok) return` — degrada). Um 503 do mirror às 08:00 UTC não custa só a trajetória: custa os jogos do dia, e o Felipe vê a grade de ontem sem aviso de que é de ontem.
