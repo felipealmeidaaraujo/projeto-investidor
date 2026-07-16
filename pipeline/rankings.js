@@ -83,7 +83,16 @@ export function ageFrom(dobInt, whenInt) {
 }
 
 /** A maior fatia do ganho de pontos do período vinda de uma única semana.
- *  null se não houve ganho (quem caiu não tem "subida concentrada"). */
+ *  null se não houve ganho (quem caiu não tem "subida concentrada").
+ *  `pct` é capado em 100 com `Math.min`: se uma única semana ganhar mais
+ *  pontos que o ganho líquido do período inteiro (porque o resto do período
+ *  foi negativo, defendendo pontos), a fração bruta passa de 100% e vira um
+ *  número sem sentido pro usuário (ex: "240% da subida veio de uma semana
+ *  só"). Capar em 100 mantém a frase verdadeira: "a subida veio toda de uma
+ *  semana" — regra de UX "clareza zero dúvida" do projeto.
+ *  PRÉ-CONDIÇÃO: `serie` deve vir ordenada por data crescente. Esta função
+ *  NÃO ordena — quem chama (`buildTrajectories`) já ordena antes de invocar;
+ *  ordenar aqui seria redundante e mascararia bug de quem chamar fora de ordem. */
 export function spikeOf(serie, from, to) {
   const win = serie.filter((s) => s.date >= from && s.date <= to);
   if (win.length < 2) return null;
@@ -96,11 +105,12 @@ export function spikeOf(serie, from, to) {
     if (d > maior) { maior = d; quando = win[i].date; }
   }
   if (!quando) return null;
-  return { pct: Math.round((100 * maior) / total), date: quando, ganho: maior, total };
+  return { pct: Math.min(100, Math.round((100 * maior) / total)), date: quando, ganho: maior, total };
 }
 
 /** Rows -> trajetória por player_id. Só quem está no snapshot mais recente. */
 export function buildTrajectories(rows) {
+  if (!rows) return new Map(); // guarda: null/undefined não estoura em latestDate
   const snapshotDate = latestDate(rows);
   if (!snapshotDate) return new Map();
   const dates = [...new Set(rows.map((r) => r.date))];
@@ -115,9 +125,9 @@ export function buildTrajectories(rows) {
 
   const out = new Map();
   for (const [id, serie] of byId) {
-    serie.sort((a, b) => a.date - b.date);
     const hoje = serie.find((s) => s.date === snapshotDate);
-    if (!hoje) continue; // não está no ranking hoje
+    if (!hoje) continue; // não está no ranking hoje: nem vale a pena ordenar a série
+    serie.sort((a, b) => a.date - b.date); // peak e spikeOf abaixo dependem da série ordenada
     const antes = serie.find((s) => s.date === date12m) || null;
     let peak = Infinity;
     let peakDate = null;

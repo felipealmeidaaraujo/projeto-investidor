@@ -120,6 +120,17 @@ test('spikeOf: sem ganho no período devolve null', () => {
   assert.equal(spikeOf(serie, 20250609, 20260608), null);
 });
 
+test('spikeOf: nunca passa de 100% (semana grande + queda depois nao vira "240%")', () => {
+  // ganha 1.200 numa semana, depois perde defendendo; ganho liquido do periodo: 500
+  const serie = [
+    { date: 20250609, points: 500 },
+    { date: 20260601, points: 1700 },
+    { date: 20260608, points: 1000 },
+  ];
+  const s = spikeOf(serie, 20250609, 20260608);
+  assert.equal(s.pct, 100);
+});
+
 test('buildTrajectories: monta hoje, 12m, pico e a data do snapshot', () => {
   const csv = [
     'ranking_date,rank,player,points',
@@ -159,4 +170,39 @@ test('buildTrajectories: quem não está no snapshot de hoje fica fora', () => {
   const t = buildTrajectories(parseRankingRows(csv));
   assert.equal(t.has('222'), false); // sumiu do ranking
   assert.equal(t.has('111'), true);
+});
+
+test('buildTrajectories: o pico vem da serie inteira, nao so de hoje e 12 meses atras', () => {
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20230612,5,777,5000',   // <- o pico de verdade: #5, nem hoje nem 12m atras
+    '20250609,40,777,1200',
+    '20260608,25,777,1800',
+  ].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  const p = t.get('777');
+  assert.equal(p.peak, 5);
+  assert.equal(p.peakDate, 20230612);
+  assert.equal(p.rank, 25);
+  assert.equal(p.rank12m, 40);
+});
+
+test('buildTrajectories: entrada vazia, nula ou ausente devolve mapa vazio', () => {
+  assert.equal(buildTrajectories([]).size, 0);
+  assert.equal(buildTrajectories(null).size, 0);
+  assert.equal(buildTrajectories(undefined).size, 0);
+});
+
+test('buildTrajectories: spikePct e spikeDate chegam preenchidos para subida concentrada', () => {
+  // mesmo caso do teste anterior: de 12m atras (1200) a hoje (1800), tudo numa unica semana
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20230612,5,777,5000',
+    '20250609,40,777,1200',
+    '20260608,25,777,1800',
+  ].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  const p = t.get('777');
+  assert.equal(p.spikePct, 100);
+  assert.equal(p.spikeDate, 20260608);
 });
