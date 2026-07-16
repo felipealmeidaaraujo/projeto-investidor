@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { careerMoment, noAuge, careerText } from '../web/src/career.js';
+import { careerMoment, atPeak, careerText } from '../web/src/career.js';
 
 const c = (o) => ({ rank: 10, points: 3000, rank12m: 10, points12m: 3000, peak: 10, peakDate: 20260608, snapshotDate: 20260608, date12m: 20250609, spikePct: null, spikeDate: null, ...o });
 
@@ -82,19 +82,19 @@ test('careerMoment: career nulo ou vazio não estoura', () => {
   assert.equal(careerMoment({}).moment, null);
 });
 
-test('noAuge: folga de 25% do pico, entre 3 e 20 posições', () => {
-  assert.equal(noAuge(1, 1), true);    // no topo
-  assert.equal(noAuge(4, 1), true);    // 1 + piso 3
-  assert.equal(noAuge(5, 1), false);
-  assert.equal(noAuge(9, 7), true);    // 7 + piso 3 = 10
-  assert.equal(noAuge(120, 100), true);  // 100 + teto 20
-  assert.equal(noAuge(121, 100), false);
-  assert.equal(noAuge(1010, 1000), true); // teto 20 segura a cauda
-  assert.equal(noAuge(1021, 1000), false);
-  assert.equal(noAuge(50, 40), true);   // 40 + round(0.25*40)=10 -> folga até 50, sem grampo
-  assert.equal(noAuge(51, 40), false);
-  assert.equal(noAuge(null, 1), false);
-  assert.equal(noAuge(1, null), false);
+test('atPeak: folga de 25% do pico, entre 3 e 20 posições', () => {
+  assert.equal(atPeak(1, 1), true);    // no topo
+  assert.equal(atPeak(4, 1), true);    // 1 + piso 3
+  assert.equal(atPeak(5, 1), false);
+  assert.equal(atPeak(9, 7), true);    // 7 + piso 3 = 10
+  assert.equal(atPeak(120, 100), true);  // 100 + teto 20
+  assert.equal(atPeak(121, 100), false);
+  assert.equal(atPeak(1010, 1000), true); // teto 20 segura a cauda
+  assert.equal(atPeak(1021, 1000), false);
+  assert.equal(atPeak(50, 40), true);   // 40 + round(0.25*40)=10 -> folga até 50, sem grampo
+  assert.equal(atPeak(51, 40), false);
+  assert.equal(atPeak(null, 1), false);
+  assert.equal(atPeak(1, null), false);
 });
 
 test('careerMoment: sem pico não vira "estável" por acidente (a regra de ouro)', () => {
@@ -131,12 +131,16 @@ test('careerText: auge perto do pico mostra a distância e o ano', () => {
   assert.ok(t.detail.includes('-7%'), t.detail);
 });
 
-test('careerText: estável diz que está longe do melhor, com o ano', () => {
+test('careerText: estável cita o próprio melhor ranking e o ano, sem editorializar', () => {
+  // Antes dizia "longe do melhor da carreira" — mesmo adjetivo cobria o Mensik (5
+  // posições do pico, no mesmo ano) e a Svitolina (5 posições do pico, 9 anos atrás):
+  // o número não sustentava a palavra. Agora só o número, igual ao ramo "No auge perto".
   const t = careerText(c({ rank: 7, points: 3760, rank12m: 5, points12m: 4630, peak: 1, peakDate: 20110704 }));
   assert.equal(t.label, 'Estável');
   assert.ok(t.detail.includes('-19%'), t.detail);
-  assert.ok(t.detail.includes('longe do melhor da carreira (#1, em 2011)'), t.detail);
   assert.ok(t.detail.includes('está no #7'), t.detail);
+  assert.ok(t.detail.includes('seu melhor foi #1, em 2011'), t.detail);
+  assert.ok(!t.detail.includes('longe'), t.detail);
 });
 
 test('careerText: sem histórico diz o mês e que não dá para saber', () => {
@@ -170,19 +174,34 @@ test('careerText: quem saiu do zero não escreve "Infinityx"', () => {
   assert.ok(t.detail.includes('#187'), t.detail);
 });
 
-test('careerText: aviso de subida concentrada dispara em 60% e não em 59%', () => {
-  const base = { rank: 10, points: 1670, rank12m: 40, points12m: 100, peak: 10, spikeDate: 20260608 };
+test('careerText: aviso de subida concentrada dispara em 60% e não em 59%, com os números absolutos', () => {
+  // ganho/total batem com o caso real do spikeOf: 1.200 dos 1.570 pontos veio de uma semana.
+  const base = { rank: 10, points: 1670, rank12m: 40, points12m: 100, peak: 10, spikeDate: 20260608, spikeGanho: 1200, spikeTotal: 1570 };
   const com = careerText(c({ ...base, spikePct: 76 }));
   assert.ok(com.warn.includes('76% da subida'), com.warn);
+  assert.ok(com.warn.includes('1.200 dos 1.570 pontos'), com.warn);
   assert.ok(com.warn.includes('08/06/2026'), com.warn);
   assert.equal(careerText(c({ ...base, spikePct: 60 })).warn !== null, true);
   assert.equal(careerText(c({ ...base, spikePct: 59 })).warn, null);
+});
+
+test('careerText: aviso de subida sem os números absolutos (dado antigo) mantém o texto anterior', () => {
+  const t = careerText(c({ rank: 10, points: 1670, rank12m: 40, points12m: 100, peak: 10, spikeDate: 20260608, spikePct: 76 }));
+  assert.ok(t.warn.includes('76% da subida'), t.warn);
+  assert.ok(t.warn.includes('08/06/2026'), t.warn);
+  assert.ok(!/\d+ dos \d+ pontos/.test(t.warn), t.warn);
 });
 
 test('careerText: o aviso de subida só vale para quem subiu', () => {
   const t = careerText(c({ rank: 7, points: 4879, rank12m: 2, points12m: 8083, spikePct: 90, spikeDate: 20260608 }));
   assert.equal(t.label, 'Em declínio');
   assert.equal(t.warn, null);
+});
+
+test('careerText: nunca diz "hoje" — o ranking é do snapshot, que tem semanas de atraso', () => {
+  const t = careerText(c({ rank: 465, points: 123, rank12m: null, points12m: null, peak: 2 }));
+  assert.ok(!/hoje/i.test(t.detail), t.detail);
+  assert.equal(t.asOf, '08/06/2026'); // o helper c() usa snapshotDate: 20260608
 });
 
 test('careerText: career nulo devolve null', () => {

@@ -27,7 +27,7 @@ const FOLGA_MAX = 20;
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
 /** Está no pico da carreira, ou perto o bastante? Folga de 25% do pico, entre 3 e 20 posições. */
-export function noAuge(rank, peak) {
+export function atPeak(rank, peak) {
   if (rank == null || peak == null) return false;
   return rank <= peak + clamp(Math.round(FOLGA_PCT * peak), FOLGA_MIN, FOLGA_MAX);
 }
@@ -47,7 +47,7 @@ export function careerMoment(career) {
   // ranking), mas existe para que uma mudança futura no pipeline não vire fallback
   // silencioso — ausência de dado tem que virar estado próprio com motivo, nunca "estável".
   if (career.peak == null) return { moment: null, reason: 'sem-dados', ratio };
-  if (noAuge(career.rank, career.peak)) return { moment: 'auge', reason: null, ratio };
+  if (atPeak(career.rank, career.peak)) return { moment: 'auge', reason: null, ratio };
   return { moment: 'estavel', reason: null, ratio };
 }
 
@@ -71,33 +71,41 @@ const dec = (x) => x.toFixed(1).replace('.', ',');
 export function careerText(career) {
   if (!career) return null;
   const m = careerMoment(career);
-  const { rank, points, rank12m, points12m, peak, peakDate, date12m, spikePct, spikeDate } = career;
+  const { rank, points, rank12m, points12m, peak, peakDate, date12m, snapshotDate,
+    spikePct, spikeDate, spikeGanho, spikeTotal } = career;
+  // Data do snapshot, formatada — nunca "hoje": o ranking do Sackmann tem semanas de
+  // atraso em relação à data do modelo (a própria razão de ser desta feature).
+  const asOf = snapshotDate ? dia(snapshotDate) : null;
 
   if (m.reason === 'sem-dados') return null;
   if (m.reason === 'sem-historico') {
     const quando = date12m ? `em ${mesAno(date12m)}` : 'há um ano';
-    return { label: 'Sem histórico', warn: null,
-      detail: `não tinha ranking ${quando}, então não dá para dizer o momento. Hoje está no #${rank}.` };
+    return { label: 'Sem histórico', warn: null, asOf,
+      detail: `não tinha ranking ${quando}, então não dá para dizer o momento. Está no #${rank}.` };
   }
   if (m.reason === 'pouco-tenis') {
-    return { label: 'Pouco tênis no período', warn: null,
+    return { label: 'Pouco tênis no período', warn: null, asOf,
       detail: `não passou de ${num(Math.max(points, points12m))} pontos nos últimos 12 meses; não dá para falar em momento de carreira.` };
   }
 
-  // aviso de subida concentrada: só para quem subiu (quem caiu não tem "subida")
+  // aviso de subida concentrada: só para quem subiu (quem caiu não tem "subida").
+  // Usa os números absolutos (ganho/total) quando existem; dado antigo sem eles mantém
+  // o texto anterior, só com o percentual.
   const warn = m.moment === 'ascensao' && spikePct != null && spikePct >= SPIKE_MIN && spikeDate
-    ? `Cuidado: ${spikePct}% da subida veio de uma semana só — em ${dia(spikeDate)}.`
+    ? (spikeGanho != null && spikeTotal != null
+        ? `Cuidado: ${spikePct}% da subida veio de uma semana só — ${num(spikeGanho)} dos ${num(spikeTotal)} pontos, em ${dia(spikeDate)}.`
+        : `Cuidado: ${spikePct}% da subida veio de uma semana só — em ${dia(spikeDate)}.`)
     : null;
 
   if (m.moment === 'ascensao') {
     const detail = points12m === 0
-      ? `não tinha pontos em ${date12m ? mesAno(date12m) : 'um ano atrás'}; hoje tem ${num(points)}. Saiu do #${rank12m} e está no #${rank}.`
+      ? `não tinha pontos em ${date12m ? mesAno(date12m) : 'um ano atrás'}; passou a ter ${num(points)}. Saiu do #${rank12m} e está no #${rank}.`
       : `os pontos subiram ${dec(m.ratio)}x em 12 meses (${num(points12m)} → ${num(points)}). Saiu do #${rank12m} e está no #${rank}.`;
-    return { label: 'Em ascensão', detail, warn };
+    return { label: 'Em ascensão', detail, warn, asOf };
   }
 
   if (m.moment === 'declinio') {
-    return { label: 'Em declínio', warn: null,
+    return { label: 'Em declínio', warn: null, asOf,
       detail: `perdeu ${Math.round((1 - m.ratio) * 100)}% dos pontos em 12 meses (${num(points12m)} → ${num(points)}). Era #${rank12m}, está no #${rank}.` };
   }
 
@@ -107,13 +115,13 @@ export function careerText(career) {
 
   if (m.moment === 'auge') {
     if (rank === peak) {
-      return { label: 'No auge', warn: null,
+      return { label: 'No auge', warn: null, asOf,
         detail: `está no #${rank}, o melhor ranking da carreira, alcançado em ${ano(peakDate)}.` };
     }
-    return { label: 'No auge', warn: null,
+    return { label: 'No auge', warn: null, asOf,
       detail: `está no #${rank}; seu melhor foi #${peak}, em ${ano(peakDate)}. ${variacao}` };
   }
 
-  return { label: 'Estável', warn: null,
-    detail: `os pontos mudaram ${delta >= 0 ? '+' : ''}${delta}% em 12 meses (${num(points12m)} → ${num(points)}); está no #${rank}, longe do melhor da carreira (#${peak}, em ${ano(peakDate)}).` };
+  return { label: 'Estável', warn: null, asOf,
+    detail: `os pontos mudaram ${delta >= 0 ? '+' : ''}${delta}% em 12 meses (${num(points12m)} → ${num(points)}); está no #${rank}; seu melhor foi #${peak}, em ${ano(peakDate)}.` };
 }

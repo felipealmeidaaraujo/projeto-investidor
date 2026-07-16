@@ -272,6 +272,24 @@ test('resolvePlayers: idade incompatível é recusada (identidade errada)', () =
   assert.equal(resolved.has('888'), false);
 });
 
+test('resolvePlayers: bio de outra pessoa (fullName != bio.name) é recusado', () => {
+  // Caso real: 'Wang Y.' tem fullName "Yafan Wang" mas o patterns-ingest colou nele o bio
+  // da "Yuhan Wang". O bio inteiro é da pessoa errada — inclusive o bio.id e o bio.age,
+  // então o guarda-corpo de idade CONFIRMARIA o impostor. As duas fontes de nome
+  // discordando é a única prova disponível de que o bio está trocado.
+  const players = [{ name: 'Wang Y.', fullName: 'Yafan Wang', lastDate: 20260601, bio: { id: '264205', name: 'Yuhan Wang', age: 19 } }];
+  const meta = new Map([['264205', { fullName: 'Yuhan Wang', dob: 20070101 }]]);
+  const { resolved } = resolvePlayers(['264205'], players, meta);
+  assert.equal(resolved.size, 0);
+});
+
+test('resolvePlayers: bio integro (fullName == bio.name) passa normalmente', () => {
+  const players = [{ name: 'Sinner J.', fullName: 'Jannik Sinner', lastDate: 20260712, bio: { id: '206173', name: 'Jannik Sinner', age: 24.7 } }];
+  const meta = new Map([['206173', { fullName: 'Jannik Sinner', dob: 20010816 }]]);
+  const { resolved } = resolvePlayers(['206173'], players, meta);
+  assert.equal(resolved.get('206173').name, 'Sinner J.');
+});
+
 test('resolvePlayers: id sem meta é ignorado', () => {
   const { resolved } = resolvePlayers(['000'], PLAYERS, new Map());
   assert.equal(resolved.size, 0);

@@ -1111,7 +1111,7 @@ function openDossier(player) {
               if (!ct) return '';
               return `<div class="dos-career"><strong>${ct.label}</strong> — ${ct.detail}</div>
                 ${ct.warn ? `<div class="explain-warn" style="margin:6px 0 0">${ct.warn}</div>` : ''}
-                <div class="field-hint" style="margin-top:4px">Descreve o que já aconteceu nos últimos 12 meses — medimos que não antecipa o próximo jogo.</div>`;
+                <div class="field-hint" style="margin-top:4px">${ct.asOf ? `Ranking de ${ct.asOf}. ` : ''}Descreve o que já aconteceu nos últimos 12 meses — medimos que não antecipa o próximo jogo.</div>`;
             })()}
             ${player.level === 'challenger' ? '<div class="field-hint" style="margin-top:2px">Base Challenger/125 — Elo menos calibrado que o do tour.</div>' : ''}
             ${tags.length ? `<div class="dos-tags">${tags.map((t) => `<span class="pill ${{ strength: 'pill-green', relative: 'pill-amber', weakness: 'pill-red' }[t.kind] || 'pill-muted'}">${t.t}</span>`).join('')}</div>` : ''}

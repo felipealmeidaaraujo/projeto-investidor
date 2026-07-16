@@ -47,6 +47,15 @@ async function enrich(modelFile, tour) {
   const meta = parsePlayers(playersCsv);
   const { resolved, excluded } = resolvePlayers([...traj.keys()], model.players, meta);
 
+  // Limpa carreira de um ingest anterior para quem não resolveu NESTA rodada (ex: o
+  // guarda-corpo de bio contaminado passou a barrar este id). Sem isto, um jogador que
+  // um dia foi resolvido errado continuaria publicando o `career` antigo para sempre —
+  // o guarda-corpo protegeria só resoluções futuras, nunca corrigiria a já gravada.
+  const resolvedPlayers = new Set(resolved.values());
+  for (const p of model.players) {
+    if (p.career && !resolvedPlayers.has(p)) p.career = null;
+  }
+
   const antigo = peakCache[t] || {};
   let n = 0;
   for (const [id, p] of resolved) {
@@ -73,7 +82,6 @@ async function enrich(modelFile, tour) {
     n++;
   }
 
-  await writeFile(url, JSON.stringify(model));
   const ativos = model.players.filter((p) => p.active);
   const comCareer = ativos.filter((p) => p.career).length;
   console.log(
@@ -81,9 +89,14 @@ async function enrich(modelFile, tour) {
     `(${((100 * comCareer) / ativos.length).toFixed(1)}%). ${excluded.length} excluídos por ambiguidade` +
     `${excluded.length ? `: ${excluded.join(', ')}` : ''}.`
   );
-  if (comCareer / ativos.length < 0.8) {
-    throw new Error(`Cobertura caiu para ${((100 * comCareer) / ativos.length).toFixed(1)}% dos ativos (esperado ~92% ATP / ~96% WTA). O join quebrou.`);
+  // guarda de cobertura ANTES de gravar: se o join quebrou, nada é escrito no disco.
+  // `!(x >= 0.8)` (e não `x < 0.8`) de propósito: com ativos.length === 0, `comCareer /
+  // ativos.length` é NaN, e `NaN < 0.8` é `false` — o guarda não dispararia. `!(NaN >=
+  // 0.8)` é `true`, então lança, que é o lado seguro.
+  if (!(comCareer / ativos.length >= 0.8)) {
+    throw new Error(`Cobertura de ${comCareer}/${ativos.length} ativos (esperado ~92% ATP / ~96% WTA). O join quebrou — nada foi gravado.`);
   }
+  await writeFile(url, JSON.stringify(model));
 }
 
 async function main() {

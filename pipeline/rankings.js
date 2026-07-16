@@ -3,7 +3,7 @@
 //
 // NÃO use o parseCsv de ingest.js aqui: o arquivo dos anos 2020 tem 516 mil linhas
 // e viraria 516 mil objetos. Estes CSVs são 4-5 colunas, sem aspas — split(',') basta.
-import { findModelPlayer } from '../web/src/match-names.js';
+import { findModelPlayer, normName } from '../web/src/match-names.js';
 
 /** Uma linha do CSV de ranking -> {date, rank, id, points}.
  *  ATP: ranking_date,rank,player,points | WTA: +coluna `tours` no fim (ignorada). */
@@ -148,6 +148,8 @@ export function buildTrajectories(rows) {
       date12m,
       spikePct: spike ? spike.pct : null,
       spikeDate: spike ? spike.date : null,
+      spikeGanho: spike ? spike.ganho : null,
+      spikeTotal: spike ? spike.total : null,
     });
   }
   return out;
@@ -175,8 +177,21 @@ export function resolvePlayers(ids, players, meta) {
     if (!m) continue;
     const p = byBioId.get(String(id)) || findModelPlayer(m.fullName, players);
     if (!p) continue;
+    // guarda-corpo de bio contaminado: p.fullName (do serve-stats) e p.bio.name (do
+    // patterns-ingest) são duas fontes independentes do mesmo dado. Quando discordam, o
+    // bio inteiro foi colado da pessoa errada (bug pré-existente do patterns-ingest) — e
+    // isso vale para TODO o bio, inclusive bio.id (por isso o match acima pode ter
+    // "confirmado" o impostor) e bio.age (por isso o guarda-corpo de idade logo abaixo
+    // NÃO pega esse caso: a idade bate, só que com a idade do impostor). As duas fontes
+    // de nome discordando são a única evidência disponível de que nada no bio é
+    // confiável aqui. Não resolve, não registra em `hits`: cai em "sem trajetória", o
+    // desfecho seguro que a regra de clareza do projeto exige.
+    if (p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
     // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
-    if (p.bio && p.bio.age != null && m.dob && p.lastDate) {
+    // `> 0` (não `!= null`): bio.age igual a 0 é dado faltante virado zero, não uma
+    // idade real — com `!= null` ele entraria na conta e um gap de ~idade-0 sempre
+    // estouraria MAX_AGE_GAP_YEARS, barrando até o jogador certo.
+    if (p.bio && p.bio.age > 0 && m.dob && p.lastDate) {
       const idade = ageFrom(m.dob, p.lastDate);
       if (idade != null && Math.abs(idade - p.bio.age) > MAX_AGE_GAP_YEARS) continue;
     }
