@@ -51,9 +51,17 @@ async function enrich(modelFile, tour) {
   let n = 0;
   for (const [id, p] of resolved) {
     const c = { ...traj.get(id) };
-    // pico final = o melhor entre a janela viva e a história de 2010-2019
+    // pico final = o melhor entre a janela viva e a história de 2010-2019.
+    // No EMPATE de rank, vale a data mais antiga: "peak" é a PRIMEIRA vez que ele
+    // atingiu o melhor ranking da carreira — a mesma regra que buildTrajectories e
+    // peak-cache-build.js já usam dentro de cada arquivo. Sem isto, a data seria a do
+    // primeiro snapshot da janela viva, que só reflete onde o recorte começa (o
+    // Djokovic foi #1 em 2011 e em 2020: sem o empate, o card diria 2020).
     const velho = antigo[id];
-    if (velho && (c.peak == null || velho[0] < c.peak)) { c.peak = velho[0]; c.peakDate = velho[1]; }
+    if (velho && (c.peak == null || velho[0] < c.peak || (velho[0] === c.peak && velho[1] < c.peakDate))) {
+      c.peak = velho[0];
+      c.peakDate = velho[1];
+    }
     p.career = c;
     // conserta o que hoje fica congelado na data do último jogo
     if (p.bio) {
