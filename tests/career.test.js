@@ -145,6 +145,15 @@ test('careerText: sem histórico diz o mês e que não dá para saber', () => {
   assert.ok(t.detail.includes('#465'), t.detail);
 });
 
+test('careerText: sem histórico e sem data de referência cai num texto gramatical', () => {
+  // Caminho raro: o dataset não tem nenhum snapshot de 12 meses atrás.
+  // Antes escrevia "não tinha ranking EM UM ANO ATRÁS" — erro de português que ia pra tela.
+  const t = careerText(c({ rank: 465, points: 123, rank12m: null, points12m: null, peak: 2, date12m: null }));
+  assert.equal(t.label, 'Sem histórico');
+  assert.ok(t.detail.includes('não tinha ranking há um ano'), t.detail);
+  assert.ok(!/em um ano atrás|em há um ano/.test(t.detail), t.detail);
+});
+
 test('careerText: pouco tênis diz o número de pontos', () => {
   const t = careerText(c({ rank: 900, points: 7, rank12m: 1100, points12m: 1 }));
   assert.equal(t.label, 'Pouco tênis no período');

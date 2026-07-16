@@ -75,9 +75,9 @@ export function careerText(career) {
 
   if (m.reason === 'sem-dados') return null;
   if (m.reason === 'sem-historico') {
-    const quando = date12m ? mesAno(date12m) : 'um ano atrás';
+    const quando = date12m ? `em ${mesAno(date12m)}` : 'há um ano';
     return { label: 'Sem histórico', warn: null,
-      detail: `não tinha ranking em ${quando}, então não dá para dizer o momento. Hoje está no #${rank}.` };
+      detail: `não tinha ranking ${quando}, então não dá para dizer o momento. Hoje está no #${rank}.` };
   }
   if (m.reason === 'pouco-tenis') {
     return { label: 'Pouco tênis no período', warn: null,

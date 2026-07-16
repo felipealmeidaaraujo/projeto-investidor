@@ -156,13 +156,16 @@ test('buildTrajectories: monta hoje, 12m, pico e a data do snapshot', () => {
 });
 
 test('buildTrajectories: quem não tem snapshot de 12m fica com rank12m null (não com 2000)', () => {
-  // caso Venus Williams: está no ranking hoje, não estava há 12 meses
+  // caso Venus Williams: está no ranking hoje, não estava há 12 meses.
+  // date12m é a data de referência do DATASET (existe mesmo sem ela ter jogado
+  // naquele dia) — só rank12m/points12m, que são DELA, ficam null.
   const csv = ['ranking_date,rank,player,points', '20250609,3,222,6000', '20260608,465,999,123'].join('\n');
   const t = buildTrajectories(parseRankingRows(csv));
   const v = t.get('999');
   assert.equal(v.rank, 465);
   assert.equal(v.rank12m, null);
   assert.equal(v.points12m, null);
+  assert.equal(v.date12m, 20250609);
 });
 
 test('buildTrajectories: quem não está no snapshot de hoje fica fora', () => {

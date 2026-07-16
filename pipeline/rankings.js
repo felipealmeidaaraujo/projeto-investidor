@@ -142,7 +142,10 @@ export function buildTrajectories(rows) {
       peak: peak === Infinity ? null : peak,
       peakDate,
       snapshotDate,
-      date12m: antes ? date12m : null,
+      // date12m é a data de referência do DATASET (não do jogador): existe mesmo
+      // para quem não tinha ranking nela. rank12m/points12m continuam null nesse
+      // caso — só a data serve pro texto dizer QUANDO ele não tinha ranking.
+      date12m,
       spikePct: spike ? spike.pct : null,
       spikeDate: spike ? spike.date : null,
     });
