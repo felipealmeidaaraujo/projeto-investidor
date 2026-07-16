@@ -40,7 +40,9 @@ test('parseRankingRows: pontos ausentes viram 0, não NaN', () => {
   assert.equal(rows[0].points, 0);
 });
 
-test('parseRankingRows: texto vazio devolve lista vazia', () => {
+test('parseRankingRows: texto vazio, nulo ou ausente devolve lista vazia', () => {
   assert.deepEqual(parseRankingRows(''), []);
+  assert.deepEqual(parseRankingRows(null), []);
+  assert.deepEqual(parseRankingRows(undefined), []);
   assert.deepEqual(parseRankingRows('ranking_date,rank,player,points'), []);
 });
