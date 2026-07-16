@@ -81,3 +81,60 @@ export function ageFrom(dobInt, whenInt) {
   if (!(years > 0 && years < 120)) return null;
   return Math.round(years * 10) / 10;
 }
+
+/** A maior fatia do ganho de pontos do período vinda de uma única semana.
+ *  null se não houve ganho (quem caiu não tem "subida concentrada"). */
+export function spikeOf(serie, from, to) {
+  const win = serie.filter((s) => s.date >= from && s.date <= to);
+  if (win.length < 2) return null;
+  const total = win[win.length - 1].points - win[0].points;
+  if (total <= 0) return null;
+  let maior = 0;
+  let quando = null;
+  for (let i = 1; i < win.length; i++) {
+    const d = win[i].points - win[i - 1].points;
+    if (d > maior) { maior = d; quando = win[i].date; }
+  }
+  if (!quando) return null;
+  return { pct: Math.round((100 * maior) / total), date: quando, ganho: maior, total };
+}
+
+/** Rows -> trajetória por player_id. Só quem está no snapshot mais recente. */
+export function buildTrajectories(rows) {
+  const snapshotDate = latestDate(rows);
+  if (!snapshotDate) return new Map();
+  const dates = [...new Set(rows.map((r) => r.date))];
+  const date12m = nearestDate(dates, minus12Months(snapshotDate));
+
+  const byId = new Map();
+  for (const r of rows) {
+    let s = byId.get(r.id);
+    if (!s) { s = []; byId.set(r.id, s); }
+    s.push(r);
+  }
+
+  const out = new Map();
+  for (const [id, serie] of byId) {
+    serie.sort((a, b) => a.date - b.date);
+    const hoje = serie.find((s) => s.date === snapshotDate);
+    if (!hoje) continue; // não está no ranking hoje
+    const antes = serie.find((s) => s.date === date12m) || null;
+    let peak = Infinity;
+    let peakDate = null;
+    for (const s of serie) if (s.rank < peak) { peak = s.rank; peakDate = s.date; }
+    const spike = antes ? spikeOf(serie, date12m, snapshotDate) : null;
+    out.set(id, {
+      rank: hoje.rank,
+      points: hoje.points,
+      rank12m: antes ? antes.rank : null,
+      points12m: antes ? antes.points : null,
+      peak: peak === Infinity ? null : peak,
+      peakDate,
+      snapshotDate,
+      date12m: antes ? date12m : null,
+      spikePct: spike ? spike.pct : null,
+      spikeDate: spike ? spike.date : null,
+    });
+  }
+  return out;
+}

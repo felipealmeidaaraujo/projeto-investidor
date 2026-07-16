@@ -100,3 +100,63 @@ test('nearestDate: no empate fica com a data mais recente', () => {
 test('minus12Months: 29/fev de ano bissexto cai em 1/mar (o nearestDate absorve)', () => {
   assert.equal(minus12Months(20240229), 20230301);
 });
+
+import { spikeOf, buildTrajectories } from '../pipeline/rankings.js';
+
+test('spikeOf: acha a maior fatia do ganho vinda de uma semana só', () => {
+  // ganho total 100 -> 1.670; a semana de 08/06 sozinha deu 1.200 (76%)
+  const serie = [
+    { date: 20250609, points: 100 },
+    { date: 20260601, points: 470 },
+    { date: 20260608, points: 1670 },
+  ];
+  const s = spikeOf(serie, 20250609, 20260608);
+  assert.equal(s.pct, 76);
+  assert.equal(s.date, 20260608);
+});
+
+test('spikeOf: sem ganho no período devolve null', () => {
+  const serie = [{ date: 20250609, points: 500 }, { date: 20260608, points: 300 }];
+  assert.equal(spikeOf(serie, 20250609, 20260608), null);
+});
+
+test('buildTrajectories: monta hoje, 12m, pico e a data do snapshot', () => {
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20240610,50,111,800',   // pico do 111: #50
+    '20250609,47,111,900',
+    '20260608,12,111,2000',
+    '20250609,3,222,6000',
+    '20260608,4,222,5800',   // pico do 222: #3
+  ].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  const a = t.get('111');
+  assert.equal(a.rank, 12);
+  assert.equal(a.points, 2000);
+  assert.equal(a.rank12m, 47);
+  assert.equal(a.points12m, 900);
+  assert.equal(a.peak, 12);          // o melhor de sempre é o de hoje
+  assert.equal(a.peakDate, 20260608);
+  assert.equal(a.snapshotDate, 20260608);
+  assert.equal(a.date12m, 20250609);
+  const b = t.get('222');
+  assert.equal(b.peak, 3);
+  assert.equal(b.peakDate, 20250609);
+});
+
+test('buildTrajectories: quem não tem snapshot de 12m fica com rank12m null (não com 2000)', () => {
+  // caso Venus Williams: está no ranking hoje, não estava há 12 meses
+  const csv = ['ranking_date,rank,player,points', '20250609,3,222,6000', '20260608,465,999,123'].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  const v = t.get('999');
+  assert.equal(v.rank, 465);
+  assert.equal(v.rank12m, null);
+  assert.equal(v.points12m, null);
+});
+
+test('buildTrajectories: quem não está no snapshot de hoje fica fora', () => {
+  const csv = ['ranking_date,rank,player,points', '20250609,3,222,6000', '20260608,1,111,9000'].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  assert.equal(t.has('222'), false); // sumiu do ranking
+  assert.equal(t.has('111'), true);
+});
