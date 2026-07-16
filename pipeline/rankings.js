@@ -23,7 +23,10 @@ export function parseRankingRows(text) {
   return rows;
 }
 
-/** AAAAMMDD -> Date. */
+/** AAAAMMDD -> Date.
+ *  Construído no fuso horário local de propósito: as duas pontas de cada
+ *  subtração (minus12Months, nearestDate, ageFrom) usam essa mesma função,
+ *  então o fuso se cancela e não afeta o resultado. */
 const toDate = (int) => new Date(Math.floor(int / 10000), (Math.floor(int / 100) % 100) - 1, int % 100);
 /** Date -> AAAAMMDD. */
 const toInt = (d) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
@@ -35,33 +38,46 @@ export function latestDate(rows) {
   return max || null;
 }
 
-/** Mesma data, um ano antes. */
+/** Mesma data, um ano antes (ou null se `dateInt` for nulo/zero).
+ *  Caso especial: 29/fev de ano bissexto não existe um ano antes/depois em
+ *  anos não bissextos, então `setFullYear` rola para 1/mar (ex: 20240229 ->
+ *  20230301). Não há resposta certa aqui; o `nearestDate` absorve esse 1 dia
+ *  de desvio ao procurar o snapshot mais próximo. */
 export function minus12Months(dateInt) {
+  if (!dateInt) return null;
   const d = toDate(dateInt);
   d.setFullYear(d.getFullYear() - 1);
   return toInt(d);
 }
 
-/** A data disponível mais próxima do alvo (qualquer direção). */
+/** A data disponível mais próxima do alvo (qualquer direção).
+ *  Devolve null se `dates` estiver vazio ou `target` for nulo.
+ *  Em caso de empate (mesma distância para duas datas), fica com a mais
+ *  recente — mais perto do presente do jogador, que é o que interessa. */
 export function nearestDate(dates, target) {
+  if (!target) return null;
   let best = null;
   let bestDist = Infinity;
   const t = toDate(target);
   for (const d of dates) {
     const dist = Math.abs(toDate(d) - t);
-    if (dist < bestDist) { bestDist = dist; best = d; }
+    if (dist < bestDist || (dist === bestDist && d > best)) { bestDist = dist; best = d; }
   }
   return best;
 }
 
 /** Idade em anos (1 decimal) na data `whenInt`, a partir do dob AAAAMMDD.
- *  Rejeita o lixo do CSV: dob vazio, `19000000`, e qualquer idade fora de (0, 120). */
+ *  Rejeita o lixo do CSV: dob vazio, `19000000`, dob com mes/dia fora do
+ *  intervalo válido (ex: `19450000`, mes 0 e dia 0), e qualquer idade fora
+ *  de (0, 120). */
 export function ageFrom(dobInt, whenInt) {
   if (!dobInt || !whenInt) return null;
+  const dobMonth = Math.floor(dobInt / 100) % 100;
+  const dobDay = dobInt % 100;
+  if (dobMonth < 1 || dobMonth > 12 || dobDay < 1 || dobDay > 31) return null;
   const dob = toDate(dobInt);
   const when = toDate(whenInt);
-  if (Number.isNaN(dob.getTime()) || Number.isNaN(when.getTime())) return null;
-  const anos = (when - dob) / (365.2425 * 86400000);
-  if (!(anos > 0 && anos < 120)) return null;
-  return Math.round(anos * 10) / 10;
+  const years = (when - dob) / (365.2425 * 86400000); // 365.2425: dias do ano gregoriano médio
+  if (!(years > 0 && years < 120)) return null;
+  return Math.round(years * 10) / 10;
 }

@@ -76,3 +76,27 @@ test('ageFrom: rejeita o lixo do CSV (dob vazio, 19000000)', () => {
   assert.equal(ageFrom(19000000, 20260608), null); // daria 126 anos
   assert.equal(ageFrom(19870522, null), null);
 });
+
+test('ageFrom: rejeita dob com mes ou dia zerados (19450000 daria 81 anos plausiveis)', () => {
+  assert.equal(ageFrom(19450000, 20260608), null);
+  assert.equal(ageFrom(19871300, 20260608), null); // mes 13
+  assert.equal(ageFrom(19870532, 20260608), null); // dia 32
+});
+
+test('minus12Months: data nula devolve null', () => {
+  assert.equal(minus12Months(null), null);
+  assert.equal(minus12Months(0), null);
+});
+
+test('nearestDate: alvo nulo devolve null', () => {
+  assert.equal(nearestDate([20250602, 20250609], null), null);
+});
+
+test('nearestDate: no empate fica com a data mais recente', () => {
+  // buraco de 14 dias: o alvo cai exatamente no meio, a 7 dias das duas
+  assert.equal(nearestDate([20250602, 20250616], 20250609), 20250616);
+});
+
+test('minus12Months: 29/fev de ano bissexto cai em 1/mar (o nearestDate absorve)', () => {
+  assert.equal(minus12Months(20240229), 20230301);
+});
