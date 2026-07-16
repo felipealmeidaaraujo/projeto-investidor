@@ -16,6 +16,8 @@ Eram duas coisas. **Uma vai ser feita, a outra foi medida e não existe.**
 
 **De brinde, dois bugs somem.** O card mostra hoje o Djokovic como `#4` (ele é #7) e o Nadal com `38 anos` (ele tem 40) — ambos porque o app exibe dados congelados na data do último jogo do jogador. O mesmo download que traz a trajetória conserta os dois.
 
+**O download diário é de ~29,5 MB, não 66 MB.** O histórico de ranking de 2010–2019 (37 MB, 56% do total) **não é baixado todo dia**: ele é história, não muda mais. Vira um arquivo de 238 KB calculado uma vez e versionado. Cortá-lo de vez mudaria 0 rótulos na ATP, mas faria o card afirmar que o auge do Tomic foi #164 quando foi #17 — daí o cache em vez do corte.
+
 **A ressalva que precisa estar no card:** o momento **descreve o passado; não prevê o próximo jogo.** Isso foi medido, não suposto. O rótulo não antecipa vitórias além do que o Elo já sabe.
 
 ---
@@ -75,16 +77,36 @@ Ficam registrados para uma spec futura. Não entram aqui porque são **correçã
 Mirror já usado pelo projeto — [ingest-sackmann.js:5](../../../pipeline/ingest-sackmann.js):
 `https://raw.githubusercontent.com/Aneeshers/tennis-sackmann-archive/main`
 
+**Baixado todo dia pelo cron:**
+
 | arquivo | tamanho | papel |
 |---|---:|---|
 | `{atp,wta}/{atp,wta}_rankings_current.csv` | 1,8 MB | ranking de hoje |
-| `{atp,wta}/{atp,wta}_rankings_20s.csv` | 22,7 MB | janela de 12 meses |
-| `{atp,wta}/{atp,wta}_rankings_10s.csv` | 37,0 MB | pico de carreira |
+| `{atp,wta}/{atp,wta}_rankings_20s.csv` | 22,7 MB | janela de 12 meses + pico recente |
 | `{atp,wta}/{atp,wta}_players.csv` | 4,9 MB | `dob` (idade correta), nome completo |
 
-**Total: ~66 MB por execução do cron** (63,2 MiB — os dois tours somados). Medido no protótipo: **26,3s no total** (15,6s ATP + 10,7s WTA), downloads incluídos. O pipeline hoje já rebaixa todo o histórico a cada run — isso é um agravo, não uma novidade.
+**Total: ~29,5 MB por execução do cron.**
 
-**O `00s` fica fora:** quem teve pico nos anos 2000 tem 40+ anos hoje. `current` + `20s` + `10s` cobre 2010–2026, o que basta para o pico de qualquer jogador vivo no circuito.
+**Baixado UMA VEZ, versionado no repo:**
+
+| arquivo | tamanho | papel |
+|---|---:|---|
+| `data/peak-2010-2019.json` | **238 KB** | pico histórico, `{tour: {player_id: [rank, date]}}` |
+
+### Por que o `10s` sai do cron (medido, não suposto)
+
+O `atp/wta_rankings_10s.csv` pesa **37,0 MB — 56% do download original**. Medido sobre os 817 ativos ATP e 370 WTA:
+
+- **Cortá-lo muda 0 rótulos na ATP e 1 na WTA** (Aksu A., #277). Motivo: quem teve pico antigo está longe dele hoje de qualquer jeito (sai "Estável" com qualquer pico), e quem está *perto* do pico tem o pico recente por definição — Djokovic foi #1 até 2023, Osaka foi #1 em 2020.
+- **Mas o TEXTO ficaria errado em 18 casos ATP (6,9% dos que citam o pico) e 22 WTA (14,2%)**, alguns grosseiros: **Tomic B. (real #17 em 2016 → diria #164)**, Barthel M. (#23 em 2013 → #163), Lepchenko V. (#19 em 2012 → #117), Wawrinka S. (#3 em 2014 → #13). Isso viola `clareza-zero-duvida` — não é arredondamento, é afirmação falsa.
+
+**Solução: o pico de 2010–2019 é história e nunca muda.** Não há razão para rebaixar 37 MB por dia para recalcular um número congelado desde 2019. Calcula-se **uma vez**, grava-se `data/peak-2010-2019.json` (238 KB) e versiona-se — o projeto já commita dados de volta pelo cron (memória `publicacao-cron-commita-de-volta`).
+
+O `peak` final = `min(pico do 20s+current, pico do cache 2010-2019)`.
+
+**Sem filtro de "quem está ativo hoje".** Filtrar cairia para 86 KB, mas criaria fragilidade temporal: um jogador que sumiu e voltasse em 2027 ficaria sem pico. 152 KB não valem esse bug.
+
+**O `00s` fica fora:** quem teve pico nos anos 2000 tem 40+ anos hoje.
 
 **Formato (verificado, literal):**
 
@@ -109,7 +131,8 @@ Espelha o par que o projeto já usa (`patterns-ingest.js` [IO] / `patterns.js` [
 | peça | papel |
 |---|---|
 | `pipeline/rankings.js` | **puro**: parse, join, pico, spike. Testável. |
-| `pipeline/rankings-ingest.js` | **IO**: baixa, chama as puras, regrava o `model-*.json` |
+| `pipeline/rankings-ingest.js` | **IO**: baixa (current + 20s + players), lê o cache de pico, chama as puras, regrava o `model-*.json` |
+| `pipeline/peak-cache-build.js` | **one-shot**: baixa o `10s`, gera `data/peak-2010-2019.json`. Roda uma vez, na implementação. **Não entra no cron.** |
 | `web/src/career.js` | **puro, novo**: classificação + texto |
 
 **Ordem no workflow (load-bearing):** o `rankings-ingest.js` entra **depois** do `patterns-ingest.js` ([update-model.yml:37](../../../.github/workflows/update-model.yml)) e antes do `fixtures.js`. Os scripts reescrevem o mesmo arquivo em cadeia. O `git add` de `update-model.yml:50` já cobre `web/model-*.json`.
@@ -289,8 +312,9 @@ Funções com `fetch` **não são testadas** (não há mock no repo) — mantenh
 
 ## O que fica em aberto (registrado, não resolvido)
 
-1. **`partidas12m` não existe.** `matches` é total de carreira. É a medição de maior retorno por esforço: separaria lesão de declínio e retorno de ascensão. O projeto **tem** o histórico (`web/matches.json`, 3,54 MB) — é derivável, mas fora desta spec.
+0. **672 jogadores inativos (43%) no `model-atp.json` publicado** — 28% do peso do arquivo (0,52 → 0,38 MB), invisíveis: todas as listas filtram por `active` ([player-search.js:7](../../../web/src/player-search.js), [app.js:1030](../../../web/app.js), :1353, :1402). São necessários **no treino** (as partidas contra eles moldaram o Elo de quem joga hoje), não no JSON servido ao cliente. **Decisão de 2026-07-16: deixar quieto** — podar é otimização, não esta feature, e o problema-raiz é o `activeCutoff` frouxo (35 ATP `level:'tour'` com rank >500 seguem `active`). Tratar junto quando isso for atacado. Custo de podar: perde-se buscar/simular com aposentados (Nadal, Federer).
+1. **`partidas12m` não existe.** `matches` é total de carreira (Djokovic 773, Fruhvirtova 28) — e, pior, é "jogos desde 2013", não carreira real, o que já deixa o K-factor errado para veteranos. É a medição de **maior retorno por esforço** apontada pela auditoria: separaria lesão de declínio e retorno de ascensão, os casos que a regra hoje erra conscientemente. O projeto **tem** o histórico (`web/matches.json`, 3,54 MB) — é derivável, mas fora desta spec.
 2. **Nível dos torneios que geraram os pontos.** A série semanal só tem o total. Sem isso, "Em ascensão" não separa tendência de evento único — daí o aviso de spike ser um remendo, não uma solução.
 3. **Janela COVID.** 2020 tem 27 semanas de ranking ATP (vs ~47). Ranking congelado / melhor-de-24-meses quebra o significado da razão de pontos naquele período.
 4. **Estabilidade temporal do rótulo.** Deslocar a janela em 2/4/8 semanas troca 12,8%/21,3%/26,9% dos rótulos. Quanto disso é ruído e quanto é sinal, não sabemos.
-5. **O pico vem de séries que começam em 2010.** Para Federer/Nadal/Wawrinka o pico está errado. Aceito: são aposentados ou quase.
+5. **O pico vem de séries que começam em 2010.** Quem teve pico antes disso fica com o pico errado — mas teria 40+ anos hoje. Aceito.
