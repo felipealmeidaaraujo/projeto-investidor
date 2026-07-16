@@ -269,8 +269,14 @@ test('resolvePlayers: idade incompatível é recusada (identidade errada)', () =
   assert.equal(resolved.has('888'), false);
 });
 
-test('resolvePlayers: id sem meta ou sem jogador no modelo é ignorado', () => {
+test('resolvePlayers: id sem meta é ignorado', () => {
   const { resolved } = resolvePlayers(['000'], PLAYERS, new Map());
+  assert.equal(resolved.size, 0);
+});
+
+test('resolvePlayers: id com meta mas sem jogador correspondente no modelo é ignorado', () => {
+  const meta = new Map([['777777', { fullName: 'Fulano Inexistente Dasilvasauro', dob: 19900101 }]]);
+  const { resolved } = resolvePlayers(['777777'], PLAYERS, meta);
   assert.equal(resolved.size, 0);
 });
 

@@ -150,7 +150,7 @@ export function buildTrajectories(rows) {
   return out;
 }
 
-const GAP_IDADE_MAX = 2; // anos de tolerância entre o dob do Sackmann e o bio.age do modelo
+const MAX_AGE_GAP_YEARS = 2; // anos de tolerância entre o dob do Sackmann e o bio.age do modelo
 
 /** player_id -> jogador do modelo.
  *  1. bio.id quando existir (é o player_id do Sackmann — bate em 98,8% ATP / 97,7% WTA)
@@ -175,12 +175,15 @@ export function resolvePlayers(ids, players, meta) {
     // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
     if (p.bio && p.bio.age != null && m.dob && p.lastDate) {
       const idade = ageFrom(m.dob, p.lastDate);
-      if (idade != null && Math.abs(idade - p.bio.age) > GAP_IDADE_MAX) continue;
+      if (idade != null && Math.abs(idade - p.bio.age) > MAX_AGE_GAP_YEARS) continue;
     }
     // Registra em `hits` só DEPOIS do guarda-corpo, de propósito: o guarda-corpo
     // desambigua ANTES da detecção de colisão. Ser barrado por idade é evidência
-    // de que aquele id NÃO é aquele jogador (quem casa por bio.id nunca é barrado
-    // aqui, pois dob e bio.age vêm da mesma pessoa) — então esse id não deve
+    // de que aquele id NÃO é aquele jogador. Quem casa por bio.id normalmente passa
+    // aqui (o dob e o bio.age vêm do mesmo jogador), mas nem sempre: há 2 casos ATP
+    // e 9 WTA em que o próprio bio do modelo é de outra pessoa (matching fraco do
+    // patterns-ingest, pré-existente). Nesses, recusar é o certo: melhor ficar sem
+    // trajetória do que colar o ranking de um no Elo de outro. Então esse id não deve
     // sobrar como candidato "ambíguo" pra colisão abaixo.
     if (!hits.has(p.name)) hits.set(p.name, []);
     hits.get(p.name).push(id);
