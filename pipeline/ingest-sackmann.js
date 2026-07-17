@@ -27,15 +27,42 @@ export async function loadTourNameCounts(from, to, tour = 'ATP') {
   return counts;
 }
 
+/** Comparador da ordem cronológica REAL de uma partida.
+ *
+ *  `tourney_date` é a data de INÍCIO do torneio — todas as partidas dele têm a mesma.
+ *  Como o sort do JS é estável, ordenar só por data preserva a ordem das linhas do
+ *  arquivo, e essa ordem não é confiável: o Sackmann passou a listar a final PRIMEIRO
+ *  (ATP a partir de 2024, WTA a partir de 2022). Medido: 100% dos 533 torneios ATP de
+ *  2024+ e ~99% dos WTA de 2022+ vêm invertidos. O Elo processava a final antes das
+ *  rodadas que levaram a ela; o Elo do Challenger divergia até 34 pontos (ATP) e 73,5
+ *  (WTA — 42,9% das jogadoras acima de 25 pontos de erro).
+ *
+ *  O `match_num` cresce com o avanço do torneio e continuou íntegro nos dois regimes
+ *  (Q1 237-248 < Q2 249-254 < R32 270-285 < R16 286-293 < QF 294-297 < SF 298-299 < F 300),
+ *  então ele — e não a ordem do arquivo — é a fonte da verdade.
+ *
+ *  Partidas de tour (tennis-data) não têm `num` e não precisam: elas já trazem a data de
+ *  cada partida. O `?? 0` existe só para o sort não virar NaN. */
+export function byChronology(a, b) {
+  return a.dateInt - b.dateInt || (a.num ?? 0) - (b.num ?? 0);
+}
+
 /** Texto CSV → partidas de Challenger/125 (só level 'C'). Puro (testável). */
 export function challengerMatches(text) {
   const out = [];
   for (const row of parseCsv(text)) {
     if (row.tourney_level !== 'C') continue;
     const dateInt = parseInt(row.tourney_date, 10);
+    const num = parseInt(row.match_num, 10);
     const surface = (row.surface || '').toLowerCase() || null;
     if (!Number.isFinite(dateInt) || !surface || !row.winner_name || !row.loser_name) continue;
-    out.push({ dateInt, surface, winnerFull: row.winner_name, loserFull: row.loser_name });
+    out.push({
+      dateInt,
+      num: Number.isFinite(num) ? num : 0,
+      surface,
+      winnerFull: row.winner_name,
+      loserFull: row.loser_name,
+    });
   }
   return out;
 }
@@ -48,7 +75,7 @@ export async function fetchChallengerYear(year, tour = 'ATP') {
   return challengerMatches(await res.text());
 }
 
-/** Carrega um intervalo de anos, ordenado por data. Tolera ano faltando. */
+/** Carrega um intervalo de anos, em ordem cronológica. Tolera ano faltando. */
 export async function loadChallenger(from, to, tour = 'ATP') {
   const years = [];
   for (let y = from; y <= to; y++) years.push(y);
@@ -58,5 +85,5 @@ export async function loadChallenger(from, to, tour = 'ATP') {
       catch (e) { console.warn(`aviso: Challenger ${tour} ${y} ignorado (${e.message})`); return []; }
     })
   );
-  return chunks.flat().sort((a, b) => a.dateInt - b.dateInt);
+  return chunks.flat().sort(byChronology);
 }

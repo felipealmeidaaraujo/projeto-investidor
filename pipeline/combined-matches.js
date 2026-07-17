@@ -1,7 +1,7 @@
 // Fonte única das partidas combinadas (tennis-data tour + Challenger Sackmann) com nomes canônicos.
 // Usado por train.js (Elo) e matches.js (scouting) — garante nomes IDÊNTICOS nos dois.
 import { loadTennisData } from './ingest-tennisdata.js';
-import { loadChallenger, loadTourNameCounts } from './ingest-sackmann.js';
+import { loadChallenger, loadTourNameCounts, byChronology } from './ingest-sackmann.js';
 import { buildChallengerNames } from '../web/src/match-names.js';
 
 export const DEFAULT_FROM = 2013; // início da janela de treino/scouting — fonte única p/ nomes consistentes
@@ -25,11 +25,12 @@ export async function loadCombinedMatches(from, to, tour) {
   const canonMap = buildChallengerNames(challFullNames, tourPlayers, tourCounts);
   const chall = challRaw.map((m) => ({
     dateInt: m.dateInt,
+    num: m.num, // ordem dentro do torneio — ver byChronology
     surface: m.surface,
     winner: canonMap.get(m.winnerFull),
     loser: canonMap.get(m.loserFull),
     src: 'chall',
   }));
 
-  return [...tourMatches, ...chall].sort((a, b) => a.dateInt - b.dateInt);
+  return [...tourMatches, ...chall].sort(byChronology);
 }
