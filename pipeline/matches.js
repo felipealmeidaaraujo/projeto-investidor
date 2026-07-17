@@ -28,17 +28,19 @@ async function build() {
       if (!m.dateInt || !m.surface || !m.winner || !m.loser) continue;
       const lim = m.src === 'chall' ? challCutoff : cutoff;
       if (m.dateInt < lim) continue;
-      // `num` (match_num) só existe no Challenger, e só ele precisa: as partidas de um
-      // torneio compartilham a data, então é ele que ordena as rodadas entre si (ver
-      // byChronology em ingest-sackmann.js e o desempate em scouting.js:recentForm).
-      // Omitido no tour, que já tem data por partida — evita ~8% de peso à toa no JSON.
+      // `ord` (rodada) e `num` (match_num) só existem no Challenger, e só ele precisa:
+      // as partidas de um torneio compartilham a data, então são eles que as ordenam
+      // entre si (ver byChronology em ingest-sackmann.js e o desempate em
+      // scouting.js:recentForm — os dois lados precisam da MESMA régua, senão o card
+      // contradiz o Elo). Omitidos no tour, que já tem data por partida.
       const linha = { date: m.dateInt, surface: m.surface, tour, winner: m.winner, loser: m.loser };
+      if (m.ord != null) linha.ord = m.ord;
       if (m.num) linha.num = m.num;
       out.matches.push(linha);
     }
   }
 
-  out.matches.sort((a, b) => a.date - b.date || (a.num ?? 0) - (b.num ?? 0));
+  out.matches.sort((a, b) => a.date - b.date || (a.ord ?? 0) - (b.ord ?? 0) || (a.num ?? 0) - (b.num ?? 0));
   out.count = out.matches.length;
   if (out.count === 0) {
     console.warn('matches.json: 0 partidas — mantendo o arquivo anterior.');

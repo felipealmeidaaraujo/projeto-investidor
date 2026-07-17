@@ -25,7 +25,8 @@ export async function loadCombinedMatches(from, to, tour) {
   const canonMap = buildChallengerNames(challFullNames, tourPlayers, tourCounts);
   const chall = challRaw.map((m) => ({
     dateInt: m.dateInt,
-    num: m.num, // ordem dentro do torneio — ver byChronology
+    ord: m.ord, // rodada — ordena as partidas do torneio entre si (ver byChronology)
+    num: m.num,
     surface: m.surface,
     winner: canonMap.get(m.winnerFull),
     loser: canonMap.get(m.loserFull),

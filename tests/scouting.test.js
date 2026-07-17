@@ -55,10 +55,10 @@ test('headToHead: sem confrontos → total 0', () => {
 test('recentForm: no mesmo torneio, a partida mais avançada aparece primeiro', () => {
   // o array chega em ordem cronológica (como o matches.json grava): R32 → QF → SF → F
   const m = [
-    { date: 20240101, num: 270, surface: 'hard', winner: 'Sinner J.', loser: 'A B' },   // R32: venceu
-    { date: 20240101, num: 294, surface: 'hard', winner: 'Sinner J.', loser: 'C D' },   // QF: venceu
-    { date: 20240101, num: 298, surface: 'hard', winner: 'Sinner J.', loser: 'E F' },   // SF: venceu
-    { date: 20240101, num: 300, surface: 'hard', winner: 'G H', loser: 'Sinner J.' },   // F: PERDEU (a mais recente)
+    { date: 20240101, ord: 3, num: 270, surface: 'hard', winner: 'Sinner J.', loser: 'A B' },   // R32: venceu
+    { date: 20240101, ord: 5, num: 294, surface: 'hard', winner: 'Sinner J.', loser: 'C D' },   // QF: venceu
+    { date: 20240101, ord: 6, num: 298, surface: 'hard', winner: 'Sinner J.', loser: 'E F' },   // SF: venceu
+    { date: 20240101, ord: 7, num: 300, surface: 'hard', winner: 'G H', loser: 'Sinner J.' },   // F: PERDEU (a mais recente)
   ];
   const f = recentForm(m, 'Sinner J.', 10);
   // "recente à esquerda": a derrota na final vem primeiro, depois as vitórias que o levaram lá
