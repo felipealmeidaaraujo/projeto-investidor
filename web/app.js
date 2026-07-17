@@ -13,7 +13,7 @@ import { closingPatches } from './src/closings.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 import { careerText } from './src/career.js';
-import { ageAdjustText } from './src/age-curve.js';
+import { ageAdjustText, ageSuppressedText } from './src/age-curve.js';
 
 /* ---------------- Navegação ---------------- */
 const tabs = document.querySelectorAll('.tab');
@@ -778,7 +778,7 @@ function openReview(tradeId) {
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
 const anal = {
-  tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard',
+  tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard', level: null,
   explainOpen: false, moreOpen: false,
   live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null },
 };
@@ -849,6 +849,7 @@ function switchTour(t) {
   anal.tour = t;
   anal.a = null;
   anal.b = null;
+  anal.level = null;
   resetLive();
   anal.model = anal.models[t] || null;
   renderAnalise();
@@ -896,6 +897,7 @@ async function pickFixture(game) {
   if (m && !m.error) {
     anal.a = m.players.find((p) => p.name === game.a) || null;
     anal.b = m.players.find((p) => p.name === game.b) || null;
+    anal.level = game.level ?? null;
     resetLive();
     anal.surface = game.surface;
   }
@@ -943,8 +945,8 @@ function renderAnalise() {
   analiseEl.querySelectorAll('[data-fx]').forEach((b) =>
     b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
   );
-  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; resetLive(); renderAnalise(); }));
-  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; resetLive(); renderAnalise(); }));
+  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; anal.level = null; resetLive(); renderAnalise(); }));
+  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; anal.level = null; resetLive(); renderAnalise(); }));
   wireChips(analiseEl, anal, renderAnalise);
 
   analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
@@ -952,7 +954,7 @@ function renderAnalise() {
   analiseEl.querySelector('#btn-reg-conf')?.addEventListener('click', () => {
     reg = { ...defaultReg(), tour: anal.tour, surface: anal.surface, players: { a: anal.a.fullName || anal.a.name, b: anal.b.fullName || anal.b.name, tour: anal.tour } };
     if (anal.live.active) {
-      const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
+      const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level);
       reg.market = 'Match Odds';
       reg.entryType = 'live';
       reg.liveState = { setsA: anal.live.setsA, setsB: anal.live.setsB, gamesA: anal.live.gamesA, gamesB: anal.live.gamesB, serverIsA: anal.live.serverIsA, bestOf: anal.live.bestOf };
@@ -1256,7 +1258,7 @@ function renderTactics(r) {
 }
 
 function renderReading() {
-  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model);
+  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
   const fullA = anal.a.fullName || anal.a.name;
@@ -1281,6 +1283,12 @@ function renderReading() {
           if (!r.ageAdjust?.adjusted) return '';
           const maisNovoNome = r.ageAdjust.gap > 0 ? fullA : fullB;
           const txt = ageAdjustText(r.ageAdjust, maisNovoNome);
+          return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
+        })()}
+        ${(() => {
+          if (!r.ageSuppressed) return '';
+          const maisNovoNome = r.ageSuppressed.gap > 0 ? fullA : fullB;
+          const txt = ageSuppressedText(r.ageSuppressed, maisNovoNome);
           return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
         })()}
       </div>
