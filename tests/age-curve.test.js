@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ageAdjusted, ageAdjustText } from '../web/src/age-curve.js';
+import { ageAdjusted, ageAdjustText, ageSuppressedText } from '../web/src/age-curve.js';
 
 test('ageAdjusted: o mais novo GANHA probabilidade (o modelo o subestima)', () => {
   // Caso real medido: num par jovem≤23 × veterano≥30 do tour ATP, o modelo dá 49,4%
@@ -101,4 +101,22 @@ test('ageAdjustText: gap positivo (A mais novo) continua usando a base direto', 
   const aj = ageAdjusted(0.5, 20, 33, 'ATP');
   const t = ageAdjustText(aj, 'Jovem A.');
   assert.ok(t.includes('50,0%'), t);
+});
+
+test('ageSuppressedText: explica a supressão com anos e magnitude, nomeando o mais novo', () => {
+  const t = ageSuppressedText({ gap: 13, wouldDelta: 0.084 }, 'Fonseca J.');
+  assert.ok(t.includes('13 anos'), t);
+  assert.ok(t.includes('Fonseca J.'), t);
+  assert.ok(t.includes('8,4 pp'), t);
+  assert.ok(t.includes('Challenger'), t);
+});
+
+test('ageSuppressedText: usa a magnitude absoluta (gap e delta negativos)', () => {
+  const t = ageSuppressedText({ gap: -3, wouldDelta: -0.017 }, 'Merida D.');
+  assert.ok(t.includes('3 anos'), t);
+  assert.ok(t.includes('1,7 pp'), t);
+});
+
+test('ageSuppressedText: sem supressão não gera linha', () => {
+  assert.equal(ageSuppressedText(null, 'A B'), null);
 });

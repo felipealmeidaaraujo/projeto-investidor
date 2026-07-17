@@ -23,10 +23,9 @@
  *  WTA 0: o viés existe lá (+5,32pp) mas a correção NÃO paga fora da amostra
  *  (ganho −0,00025, IC95 [−0,00165; 0,00122] — cruza zero) e supercorrige os extremos.
  *  Viés existir e correção compensar são perguntas diferentes.
- *  ATENÇÃO — extrapolação conhecida: este 0,026 foi validado SÓ no nível TOUR (ATP principal).
- *  Como o flashscore.js rotula Challenger como "ATP" (descarta o nível — bug conhecido),
- *  o ajuste hoje também roda em partidas de Challenger, onde ele NUNCA foi medido nem validado.
- *  Gatear por nível (tour vs. challenger) assim que o campo de torneio trouxer essa informação. */
+ *  Validado SÓ no nível TOUR (ATP principal). O gate por nível vive em analyzeMatch
+ *  (web/src/analysis.js): em Challenger o ajuste é SUPRIMIDO, e a supressão é explicada
+ *  na tela (ageSuppressedText). Ver docs/superpowers/specs/2026-07-17-nivel-torneio-grade-design.md. */
 const AGE_COEF = { ATP: 0.026, WTA: 0 };
 
 /** Diferença de idade mínima para valer o ajuste (evita mexer por causa de arredondamento). */
@@ -73,4 +72,14 @@ export function ageAdjustText(ageAdjust, nomeMaisNovo) {
   // `base` e a prob de A; quando o mais novo e o B (gap < 0), usa 1 - base.
   const baseMaisNovo = ageAdjust.gap > 0 ? ageAdjust.base : 1 - ageAdjust.base;
   return `Ajustado por idade: ${anos} anos de diferença — medimos que o modelo subestima o mais novo em confrontos assim, e o ${nomeMaisNovo} leva a correção. Sem o ajuste: ${pct(baseMaisNovo)}.`;
+}
+
+/** A linha que explica por que o ajuste de idade NÃO foi aplicado (nível Challenger).
+ *  Simétrica a ageAdjustText: só existe quando o ajuste TERIA ocorrido (ATP + gap).
+ *  null quando não houve supressão. */
+export function ageSuppressedText(ageSuppressed, nomeMaisNovo) {
+  if (!ageSuppressed) return null;
+  const anos = Math.abs(Math.round(ageSuppressed.gap));
+  const pp = `${(Math.abs(ageSuppressed.wouldDelta) * 100).toFixed(1).replace('.', ',')} pp`;
+  return `Ajuste de idade não aplicado: ${anos} anos de diferença — no tour o modelo corrigiria a favor do ${nomeMaisNovo} em ~${pp}, mas este é um Challenger, nível onde a correção nunca foi validada (o Elo de Challenger é menos calibrado). A probabilidade acima está sem esse ajuste.`;
 }
