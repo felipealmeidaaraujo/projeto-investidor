@@ -4,7 +4,7 @@
 const SURFACE = { clay: 'clay', hard: 'hard', grass: 'grass', carpet: 'hard' };
 
 /** "CHALLENGER MEN - SINGLES: Bunschoten (Netherlands), clay"
- *  -> { tour, singles, surface, tournament }. */
+ *  -> { tour, level, singles, surface, tournament }. */
 export function parseTournamentHeader(za) {
   const colon = za.indexOf(':');
   const cat = colon >= 0 ? za.slice(0, colon) : za;
@@ -38,6 +38,7 @@ export function statusFromCode(ab) {
 }
 
 const ACTIVE = new Set(['SCHEDULED', 'IN_PROGRESS']);
+const GRADE_LEVELS = new Set(['tour', 'challenger']);
 
 /** Feed cru do Flashscore -> jogos de simples não-encerrados. */
 export function parseFeed(text) {
@@ -45,9 +46,9 @@ export function parseFeed(text) {
   let th = null;   // cabeçalho de torneio atual
   let cur = null;  // jogo atual
   const flush = () => {
-    if (cur && th && th.singles && ACTIVE.has(cur.status) && cur.a && cur.b) {
+    if (cur && th && th.singles && GRADE_LEVELS.has(th.level) && ACTIVE.has(cur.status) && cur.a && cur.b) {
       out.push({
-        tour: th.tour, tournament: th.tournament, surface: th.surface,
+        tour: th.tour, level: th.level, tournament: th.tournament, surface: th.surface,
         status: cur.status, commence: cur.commence, a: cur.a, b: cur.b,
       });
     }

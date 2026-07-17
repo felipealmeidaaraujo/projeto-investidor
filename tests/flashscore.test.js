@@ -86,3 +86,23 @@ test('parseTournamentHeader: o nível não atrapalha o gênero (Challenger/ITF W
   assert.equal(itf.tour, 'ATP');
   assert.equal(itf.level, 'itf');
 });
+
+const FEED_NIVEIS = [
+  '~ZA÷ATP - SINGLES: Gstaad (Switzerland), clay',
+  '~AA÷t1', 'AD÷1784106600', 'AB÷1', 'AE÷Tour A.', 'AF÷Tour B.',
+  '~ZA÷CHALLENGER MEN - SINGLES: Granby (Canada), hard',
+  '~AA÷c1', 'AD÷1784106600', 'AB÷1', 'AE÷Chall A.', 'AF÷Chall B.',
+  '~ZA÷ITF MEN - SINGLES: M15 Gubbio (Italy), clay',
+  '~AA÷i1', 'AD÷1784106600', 'AB÷1', 'AE÷Itf A.', 'AF÷Itf B.',
+  '~ZA÷EXHIBITION - MEN: UTS Championship (World), clay',
+  '~AA÷e1', 'AD÷1784106600', 'AB÷1', 'AE÷Exib A.', 'AF÷Exib B.',
+].join('¬');
+
+test('parseFeed: emite tour+challenger com o campo level, descarta ITF e exhibition', () => {
+  const jogos = parseFeed(FEED_NIVEIS);
+  assert.deepEqual(jogos.map((j) => j.level), ['tour', 'challenger']);
+  assert.deepEqual(
+    jogos.map((j) => `${j.a} vs ${j.b}`),
+    ['Tour A. vs Tour B.', 'Chall A. vs Chall B.']
+  );
+});
