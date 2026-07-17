@@ -46,3 +46,32 @@ test('headToHead: placar geral, por superfície e último', () => {
 test('headToHead: sem confrontos → total 0', () => {
   assert.equal(headToHead(M, 'Alcaraz C.', 'Fulano Y.').total, 0);
 });
+
+// Dentro de um torneio de Challenger, TODAS as partidas têm a mesma data (`tourney_date`
+// é a data de início). Sem desempate, a ordem exibida seria a ordem do array — e o card
+// diz "recente à esquerda". Até 2024 isso funcionava por acidente (o Sackmann listava a
+// final primeiro); quando o pipeline passou a ordenar cronologicamente para consertar o
+// Elo, o acidente virou bug: o card mostraria a 1ª rodada como a partida mais recente.
+test('recentForm: no mesmo torneio, a partida mais avançada aparece primeiro', () => {
+  // o array chega em ordem cronológica (como o matches.json grava): R32 → QF → SF → F
+  const m = [
+    { date: 20240101, ord: 3, num: 270, surface: 'hard', winner: 'Sinner J.', loser: 'A B' },   // R32: venceu
+    { date: 20240101, ord: 5, num: 294, surface: 'hard', winner: 'Sinner J.', loser: 'C D' },   // QF: venceu
+    { date: 20240101, ord: 6, num: 298, surface: 'hard', winner: 'Sinner J.', loser: 'E F' },   // SF: venceu
+    { date: 20240101, ord: 7, num: 300, surface: 'hard', winner: 'G H', loser: 'Sinner J.' },   // F: PERDEU (a mais recente)
+  ];
+  const f = recentForm(m, 'Sinner J.', 10);
+  // "recente à esquerda": a derrota na final vem primeiro, depois as vitórias que o levaram lá
+  assert.deepEqual(f.results.map((r) => (r.won ? 'V' : 'D')), ['D', 'V', 'V', 'V']);
+  assert.equal(f.wins, 3);
+  assert.equal(f.losses, 1);
+});
+
+test('recentForm: sem num (partidas de tour) continua ordenando pela data', () => {
+  const m = [
+    { date: 20240101, surface: 'hard', winner: 'Sinner J.', loser: 'A B' },
+    { date: 20240115, surface: 'hard', winner: 'C D', loser: 'Sinner J.' },
+  ];
+  const f = recentForm(m, 'Sinner J.', 10);
+  assert.deepEqual(f.results.map((r) => r.date), [20240115, 20240101]);
+});

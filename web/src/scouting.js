@@ -8,12 +8,16 @@ function daysBetween(a, b) {
   return Math.round(Math.abs((ymdToDate(a) - ymdToDate(b)) / 86400000));
 }
 
-/** Últimas n partidas do jogador (mais recente primeiro): vitórias, derrotas e a lista. */
+/** Últimas n partidas do jogador (mais recente primeiro): vitórias, derrotas e a lista.
+ *  Dentro de um torneio de Challenger todas as partidas têm a MESMA data (`tourney_date`
+ *  é a data de início), então o desempate é o `num` (match_num do Sackmann), que cresce
+ *  com o avanço das rodadas: a final vem antes da semifinal na lista "mais recente
+ *  primeiro". Partidas de tour não têm `num` e não precisam — já têm data por partida. */
 export function recentForm(matches, name, n = 10) {
   const mine = matches
     .filter((m) => m.winner === name || m.loser === name)
     .slice()
-    .sort((a, b) => b.date - a.date)
+    .sort((a, b) => b.date - a.date || (b.ord ?? 0) - (a.ord ?? 0) || (b.num ?? 0) - (a.num ?? 0))
     .slice(0, n)
     .map((m) => ({ date: m.date, won: m.winner === name, surface: m.surface, opp: m.winner === name ? m.loser : m.winner }));
   return {

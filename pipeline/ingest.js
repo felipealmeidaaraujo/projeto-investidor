@@ -3,7 +3,10 @@
 const BASE = 'https://raw.githubusercontent.com/Tennismylife/TML-Database/master';
 
 // Ordem cronológica aproximada das rodadas dentro de um torneio.
-const ROUND_ORDER = {
+// Exportada porque o Challenger (ingest-sackmann.js) precisa da MESMA régua: lá o
+// `tourney_date` é a data de início do torneio, então a rodada é o que ordena as
+// partidas entre si. Cobre 100% dos rounds vistos nos CSVs de Challenger 2013-2026.
+export const ROUND_ORDER = {
   Q1: 0, Q2: 0, Q3: 0, RR: 1, R128: 1, R64: 2, R32: 3, R16: 4, QF: 5, BR: 6, SF: 6, F: 7,
 };
 
