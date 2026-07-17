@@ -78,6 +78,7 @@ Capturar, por partida (dados já baixados, falta parsear): **placar por set** (`
 - Alvo/stop numérico e o motor de probabilidade por placar.
 - Registro de resultados de trades / medição de taxa de acerto / calibração.
 - Ajustar a probabilidade do modelo por forma/idade (o momento de carreira é **leitura**, não ajuste do modelo).
+  - ⚠️ **Exceção aberta em 2026-07-17, com evidência:** a probabilidade da ATP passa a levar um termo de idade. Não é palpite — é a correção de um viés **medido** do estimador (+8,16pp num par jovem≤23 × veterano≥30 no tour, N=1.976; placebo interno e externo nulos; ganho fora da amostra com IC que não cruza zero). A regra continua valendo para todo o resto, e o momento de carreira **segue sendo leitura** (medido como não-preditivo — ver o obituário do item 2 na spec de 16/07). Detalhes e os números: [2026-07-17-vies-idade-elo-design.md](2026-07-17-vies-idade-elo-design.md).
 - Calendário futuro / "vai se poupar". Ponto-a-ponto fora dos Grand Slams.
 
 ## Componentes (alto nível)
