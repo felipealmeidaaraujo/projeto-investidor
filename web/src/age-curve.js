@@ -55,3 +55,15 @@ export function ageAdjusted(prob, ageA, ageB, tour) {
   const ajustada = sigmoid(logit(clamp(prob)) + coef * gap);
   return { prob: ajustada, base: prob, delta: ajustada - prob, gap, adjusted: true };
 }
+
+/** 0.5837 -> "58,4%" (uma casa, vírgula decimal do pt-BR). */
+const pct = (p) => `${(p * 100).toFixed(1).replace('.', ',')}%`;
+
+/** A linha que explica o ajuste no card. null quando não houve ajuste.
+ *  A regra de clareza do projeto não deixa a probabilidade mudar em silêncio:
+ *  o número mexeu, então o card diz quanto, por quê, e qual era antes. */
+export function ageAdjustText(ageAdjust, nomeMaisNovo) {
+  if (!ageAdjust || !ageAdjust.adjusted) return null;
+  const anos = Math.abs(Math.round(ageAdjust.gap));
+  return `Ajustado por idade: ${anos} anos de diferença — medimos que o modelo subestima o mais novo em confrontos assim, e o ${nomeMaisNovo} leva a correção. Sem o ajuste: ${pct(ageAdjust.base)}.`;
+}

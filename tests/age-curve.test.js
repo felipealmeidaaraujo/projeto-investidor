@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ageAdjusted } from '../web/src/age-curve.js';
+import { ageAdjusted, ageAdjustText } from '../web/src/age-curve.js';
 
 test('ageAdjusted: o mais novo GANHA probabilidade (o modelo o subestima)', () => {
   // Caso real medido: num par jovem≤23 × veterano≥30 do tour ATP, o modelo dá 49,4%
@@ -65,4 +65,24 @@ test('ageAdjusted: a probabilidade corrigida nunca chega a 0% nem a 100%', () =>
 test('ageAdjusted: tour desconhecido não é ajustado', () => {
   const r = ageAdjusted(0.5, 20, 33, 'ITF');
   assert.equal(r.adjusted, false);
+});
+
+test('ageAdjustText: diz quanto ajustou e qual seria a probabilidade sem o ajuste', () => {
+  const a = ageAdjusted(0.5, 20, 33, 'ATP');
+  const t = ageAdjustText(a, 'Fonseca J.');
+  assert.ok(t.includes('13 anos'), t);
+  assert.ok(t.includes('Fonseca J.'), t);
+  assert.ok(t.includes('50,0%'), t); // a probabilidade sem o ajuste
+});
+
+test('ageAdjustText: sem ajuste não gera linha', () => {
+  assert.equal(ageAdjustText(ageAdjusted(0.5, 25, 25, 'ATP'), 'A B'), null);
+  assert.equal(ageAdjustText(ageAdjusted(0.5, 20, 33, 'WTA'), 'A B'), null);
+  assert.equal(ageAdjustText(null, 'A B'), null);
+});
+
+test('ageAdjustText: arredonda a idade — "13 anos", não "12,7 anos"', () => {
+  const t = ageAdjustText(ageAdjusted(0.5, 20.1, 32.8, 'ATP'), 'A B');
+  assert.ok(t.includes('13 anos'), t);
+  assert.ok(!t.includes('12,7'), t);
 });
