@@ -10,6 +10,7 @@ import {
   buildReadingExplanation,
   serveBand,
 } from '../web/src/analysis.js';
+import { ageAdjusted } from '../web/src/age-curve.js';
 
 const approx = (a, b, eps = 1e-6) =>
   assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
@@ -123,4 +124,52 @@ test('serveBand: bandas high/low e casos nulos', () => {
   assert.equal(serveBand('ATP', 'servePtsWonPct', 0), null);
   assert.equal(serveBand('ATP', 'chaveInexistente', 0.5), null);
   assert.equal(serveBand('XYZ', 'acePct', 0.1), null);
+});
+
+// Curva de idade ligada ao confronto (Task 2)
+const jovem = { name: 'Jovem A.', elo: 2000, hard: 2000, clay: 2000, grass: 2000, matches: 100, bio: { age: 20 } };
+const veterano = { name: 'Veterano B.', elo: 2000, hard: 2000, clay: 2000, grass: 2000, matches: 100, bio: { age: 33 } };
+
+test('analyzeMatch: aplica a curva de idade e conta que aplicou (ATP)', () => {
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15, tour: 'ATP' });
+  // Elos iguais -> 50% cru. Com 13 anos de gap, o mais novo sobe.
+  assert.ok(r.probA > 0.5, `esperava > 0,5, veio ${r.probA}`);
+  assert.equal(r.ageAdjust.adjusted, true);
+  assert.equal(r.ageAdjust.gap, 13);
+  assert.ok(r.ageAdjust.base < r.probA, 'a base tem que ser menor que a ajustada');
+});
+
+test('analyzeMatch: probA + probB continua 1 depois do ajuste', () => {
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15, tour: 'ATP' });
+  assert.ok(Math.abs(r.probA + r.probB - 1) < 1e-9, `soma deu ${r.probA + r.probB}`);
+});
+
+test('analyzeMatch: a odd justa acompanha a probabilidade ajustada', () => {
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15, tour: 'ATP' });
+  assert.ok(Math.abs(r.fairOddA - 1 / r.probA) < 1e-9);
+  assert.ok(Math.abs(r.fairOddB - 1 / r.probB) < 1e-9);
+});
+
+test('analyzeMatch: o favorito é decidido DEPOIS do ajuste', () => {
+  // Elos iguais: sem ajuste ninguém é favorito (50/50). Com o ajuste, o mais novo é.
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15, tour: 'ATP' });
+  assert.equal(r.favorite, 'Jovem A.');
+});
+
+test('analyzeMatch: WTA não é ajustada', () => {
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.25, tour: 'WTA' });
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.ok(Math.abs(r.probA - 0.5) < 1e-9, `WTA não devia mexer, veio ${r.probA}`);
+});
+
+test('analyzeMatch: jogador sem bio não estoura e não ajusta', () => {
+  const semBio = { name: 'Sem Bio C.', elo: 2000, hard: 2000, clay: 2000, grass: 2000, matches: 100 };
+  const r = analyzeMatch(semBio, veterano, 'hard', { calibrationT: 1.15, tour: 'ATP' });
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.ok(Number.isFinite(r.probA));
+});
+
+test('analyzeMatch: model sem tour não ajusta (não assume ATP)', () => {
+  const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15 });
+  assert.equal(r.ageAdjust.adjusted, false);
 });

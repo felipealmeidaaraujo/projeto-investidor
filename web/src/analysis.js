@@ -2,6 +2,7 @@
 // honesta (probabilidade calibrada, favorito, forças por superfície, confiança).
 // Funções puras sobre os objetos de jogador do model.json. Testado em tests/analysis.test.js.
 import { expectedScore, blendSurface, calibrate } from './model-math.js';
+import { ageAdjusted } from './age-curve.js';
 
 /** Rating combinado (geral + superfície) de um jogador numa superfície. */
 export function blendedRating(player, surface) {
@@ -83,7 +84,11 @@ export function playerTags(player, tour = 'ATP') {
 /** Leitura completa do confronto. */
 export function analyzeMatch(playerA, playerB, surface, model) {
   const T = model.calibrationT ?? 1;
-  const probA = matchProbability(playerA, playerB, surface, T);
+  const bruta = matchProbability(playerA, playerB, surface, T);
+  // Correção do viés de idade — DEPOIS do calibrationT, sobre a probabilidade servida.
+  // Só ATP; ver web/src/age-curve.js para os números e o porquê.
+  const ageAdjust = ageAdjusted(bruta, playerA.bio?.age, playerB.bio?.age, model.tour);
+  const probA = ageAdjust ? ageAdjust.prob : bruta;
   const probB = 1 - probA;
   const favA = probA >= 0.5;
 
@@ -105,6 +110,7 @@ export function analyzeMatch(playerA, playerB, surface, model) {
     },
     probA,
     probB,
+    ageAdjust,
     favorite: favA ? playerA.name : playerB.name,
     underdog: favA ? playerB.name : playerA.name,
     favoriteProb: favA ? probA : probB,
