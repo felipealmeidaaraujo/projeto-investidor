@@ -81,14 +81,35 @@ export function playerTags(player, tour = 'ATP') {
   return tags;
 }
 
-/** Leitura completa do confronto. */
-export function analyzeMatch(playerA, playerB, surface, model) {
+/** Leitura completa do confronto.
+ *  `level` (opcional) é o nível do torneio ('tour'|'challenger'); quando ausente,
+ *  deriva do nível dos jogadores. A curva de idade só roda em nível 'tour'. */
+export function analyzeMatch(playerA, playerB, surface, model, level) {
   const T = model.calibrationT ?? 1;
   const bruta = matchProbability(playerA, playerB, surface, T);
-  // Correção do viés de idade — DEPOIS do calibrationT, sobre a probabilidade servida.
-  // Só ATP; ver web/src/age-curve.js para os números e o porquê.
-  const ageAdjust = ageAdjusted(bruta, playerA.bio?.age, playerB.bio?.age, model.tour);
-  const probA = ageAdjust ? ageAdjust.prob : bruta;
+
+  // Nível efetivo: o do torneio quando informado (grade); senão, deriva do nível dos jogadores.
+  // Barra o ajuste só se ALGUM jogador for explicitamente 'challenger' — quem não tem o campo
+  // (fixture de teste, jogador custom) conta como tour, preservando o comportamento anterior.
+  const nivelEfetivo =
+    level ?? (playerA.level === 'challenger' || playerB.level === 'challenger' ? 'challenger' : 'tour');
+  const aplicaIdade = nivelEfetivo === 'tour';
+
+  // A "sombra": o ajuste que o modelo faria no tour. Calculado sempre, para explicar a supressão.
+  const shadow = ageAdjusted(bruta, playerA.bio?.age, playerB.bio?.age, model.tour);
+
+  let probA, ageAdjust, ageSuppressed;
+  if (aplicaIdade || !shadow?.adjusted) {
+    // Aplica normalmente (tour), ou não havia ajuste de qualquer forma (WTA, mesma idade, sem bio).
+    ageAdjust = shadow;
+    probA = shadow ? shadow.prob : bruta;
+    ageSuppressed = null;
+  } else {
+    // Havia ajuste (ATP + gap), mas o nível Challenger o barra: suprime e guarda a sombra.
+    probA = bruta;
+    ageAdjust = { prob: bruta, base: bruta, delta: 0, gap: shadow.gap, adjusted: false };
+    ageSuppressed = { gap: shadow.gap, wouldDelta: shadow.delta };
+  }
   const probB = 1 - probA;
   const favA = probA >= 0.5;
 
@@ -111,6 +132,7 @@ export function analyzeMatch(playerA, playerB, surface, model) {
     probA,
     probB,
     ageAdjust,
+    ageSuppressed,
     favorite: favA ? playerA.name : playerB.name,
     underdog: favA ? playerB.name : playerA.name,
     favoriteProb: favA ? probA : probB,

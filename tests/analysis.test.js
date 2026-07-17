@@ -173,3 +173,51 @@ test('analyzeMatch: model sem tour não ajusta (não assume ATP)', () => {
   const r = analyzeMatch(jovem, veterano, 'hard', { calibrationT: 1.15 });
   assert.equal(r.ageAdjust.adjusted, false);
 });
+
+test('analyzeMatch: level="challenger" barra o ajuste e registra a sombra', () => {
+  const m = { calibrationT: 1.15, tour: 'ATP' };
+  const r = analyzeMatch(jovem, veterano, 'hard', m, 'challenger');
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.ok(Math.abs(r.probA - 0.5) < 1e-9, `challenger não devia mexer, veio ${r.probA}`);
+  assert.ok(r.ageSuppressed, 'devia registrar a sombra');
+  assert.equal(r.ageSuppressed.gap, 13);
+  assert.ok(r.ageSuppressed.wouldDelta > 0, 'a sombra a favor do mais novo é positiva');
+});
+
+test('analyzeMatch: level="tour" mantém o ajuste (igual a hoje)', () => {
+  const m = { calibrationT: 1.15, tour: 'ATP' };
+  const r = analyzeMatch(jovem, veterano, 'hard', m, 'tour');
+  assert.equal(r.ageAdjust.adjusted, true);
+  assert.equal(r.ageSuppressed, null);
+  assert.ok(r.probA > 0.5);
+});
+
+test('analyzeMatch: sem level, um jogador challenger barra o ajuste', () => {
+  const m = { calibrationT: 1.15, tour: 'ATP' };
+  const r = analyzeMatch(jovem, { ...veterano, level: 'challenger' }, 'hard', m);
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.ok(r.ageSuppressed);
+  assert.equal(r.ageSuppressed.gap, 13);
+});
+
+test('analyzeMatch: sem level, jogadores de tour ajustam', () => {
+  const m = { calibrationT: 1.15, tour: 'ATP' };
+  const r = analyzeMatch({ ...jovem, level: 'tour' }, { ...veterano, level: 'tour' }, 'hard', m);
+  assert.equal(r.ageAdjust.adjusted, true);
+  assert.equal(r.ageSuppressed, null);
+});
+
+test('analyzeMatch: challenger sem gap de idade não gera sombra', () => {
+  const m = { calibrationT: 1.15, tour: 'ATP' };
+  const mesmaIdade = { ...veterano, bio: { age: 20 } }; // igual ao jovem
+  const r = analyzeMatch(jovem, mesmaIdade, 'hard', m, 'challenger');
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.equal(r.ageSuppressed, null);
+});
+
+test('analyzeMatch: challenger na WTA não gera sombra (WTA nunca ajusta)', () => {
+  const m = { calibrationT: 1.25, tour: 'WTA' };
+  const r = analyzeMatch(jovem, veterano, 'hard', m, 'challenger');
+  assert.equal(r.ageAdjust.adjusted, false);
+  assert.equal(r.ageSuppressed, null);
+});
