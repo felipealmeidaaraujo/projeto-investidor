@@ -72,8 +72,8 @@ async function buildToday() {
       b: pb.name,
       probA: r.probA,
       // Só quando houve ajuste — evita um campo null em todo jogo do JSON que o
-      // celular baixa. O card da grade usa isto para explicar por que a
-      // probabilidade mudou (ver ageAdjustText em web/src/age-curve.js).
+      // celular baixa. O card da grade sinaliza o ajuste (selo) e o card do
+      // confronto explica em detalhe (ver ageAdjustText em web/src/age-curve.js).
       ...(r.ageAdjust?.adjusted ? { ageAdjust: r.ageAdjust } : {}),
       favorite: r.favorite,
       favoriteProb: r.favoriteProb,

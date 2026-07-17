@@ -86,3 +86,19 @@ test('ageAdjustText: arredonda a idade — "13 anos", não "12,7 anos"', () => {
   assert.ok(t.includes('13 anos'), t);
   assert.ok(!t.includes('12,7'), t);
 });
+
+test('ageAdjustText: a probabilidade "sem o ajuste" e a do jogador NOMEADO (nao a do adversario)', () => {
+  // A=30 anos, B=27 -> gap -3, o mais novo e o B. base e a prob de A (0,367).
+  // O card nomeia o B, entao "sem o ajuste" tem que ser a prob do B = 1 - 0,367 = 0,633.
+  const aj = ageAdjusted(0.367, 30, 27, 'ATP');
+  const t = ageAdjustText(aj, 'Tsitsipas S.');
+  assert.ok(t.includes('63,3%'), 'esperava a prob do mais novo (63,3%), veio: ' + t);
+  assert.ok(!t.includes('36,7%'), 'nao pode mostrar a prob do adversario: ' + t);
+});
+
+test('ageAdjustText: gap positivo (A mais novo) continua usando a base direto', () => {
+  // A=20, B=33 -> gap +13, o mais novo e o A. base = prob de A = 0,5.
+  const aj = ageAdjusted(0.5, 20, 33, 'ATP');
+  const t = ageAdjustText(aj, 'Jovem A.');
+  assert.ok(t.includes('50,0%'), t);
+});

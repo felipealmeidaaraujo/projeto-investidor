@@ -872,9 +872,10 @@ function renderFixtures() {
         g.status === 'IN_PROGRESS' ? `<span class="fx-live">● AO VIVO</span> ` :
         g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span> ` : '';
       const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
+      const ageBadge = g.ageAdjust?.adjusted ? ` <span class="field-hint">⚖ ajuste de idade</span>` : '';
       return `<button class="fixture" data-fx="${i}">
         <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
-        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}</div>
+        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}</div>
         ${tourn}
       </button>`;
     })
@@ -1276,8 +1277,8 @@ function renderReading() {
         ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b', fullB)}
         ${(() => {
           if (!r.ageAdjust?.adjusted) return '';
-          const maisNovo = r.ageAdjust.gap > 0 ? r.a.name : r.b.name;
-          const txt = ageAdjustText(r.ageAdjust, maisNovo);
+          const maisNovoNome = r.ageAdjust.gap > 0 ? fullA : fullB;
+          const txt = ageAdjustText(r.ageAdjust, maisNovoNome);
           return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
         })()}
       </div>
