@@ -873,9 +873,11 @@ function renderFixtures() {
         g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span> ` : '';
       const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
       const ageBadge = g.ageAdjust?.adjusted ? ` <span class="field-hint">⚖ ajuste de idade</span>` : '';
+      const nivelLabel = g.level === 'challenger' ? ' · Challenger' : '';
+      const ageSuppressBadge = g.ageSuppressed ? ` <span class="field-hint">⚖ ajuste suspenso (Challenger)</span>` : '';
       return `<button class="fixture" data-fx="${i}">
-        <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
-        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}</div>
+        <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
+        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}${ageSuppressBadge}</div>
         ${tourn}
       </button>`;
     })
