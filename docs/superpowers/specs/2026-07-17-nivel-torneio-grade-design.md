@@ -40,7 +40,7 @@ Categorias de cabeçalho (a parte antes do `:`), verificadas ao vivo:
 
 1. **Capturar 3 níveis; excluir ITF (e o resto) da grade.** O parser reconhece `tour`/`challenger`/`itf`/`other` e emite **apenas** `tour` e `challenger`. ITF, exhibition e teams são descartados no parser — alinhado com a cobertura já decidida (tour + Challenger/125, sem ITF) e fechando o vazamento atual de ITF rotulado "ATP".
 2. **Selo "Challenger" no rótulo do circuito.** O tour principal continua `ATP · saibro` (o padrão, sem selo). O Challenger vira `ATP · Challenger · saibro`. Sinaliza só o que desvia do padrão.
-3. **Gate da curva de idade pelo nível.** O ajuste só roda em nível `tour`. Na grade e no fluxo grade→detalhe, manda o nível **real** do torneio (Flashscore). Na análise manual pura (sem torneio), o fallback deriva do `player.level`: aplica só se **ambos** os jogadores forem `'tour'`.
+3. **Gate da curva de idade pelo nível.** O ajuste só roda em nível `tour`. Na grade e no fluxo grade→detalhe, manda o nível **real** do torneio (Flashscore). Na análise manual pura (sem torneio), o fallback deriva do `player.level`: **barra o ajuste se algum dos jogadores for explicitamente `'challenger'`; senão aplica**. (Regra escolhida por retrocompatibilidade: jogadores sem o campo `level` — fixtures de teste, jogador custom — são tratados como tour, preservando o comportamento atual.)
 4. **Supressão explícita.** Quando o ajuste é barrado por ser Challenger — e só quando ele *teria* ocorrido (ATP, diferença de idade ≥ 0,5 ano) — o sistema calcula a "sombra" (o quanto a correção mexeria) e sinaliza que **não** foi aplicada, na grade e no card de detalhe.
 
 ---
@@ -69,24 +69,26 @@ A detecção de gênero (`tour`: ATP/WTA) é preservada — `CHALLENGER WOMEN` c
 Lógica do nível efetivo e do gate:
 
 ```
-nivelEfetivo = level ?? (playerA.level === 'tour' && playerB.level === 'tour' ? 'tour' : 'challenger')
+nivelEfetivo = level ?? (playerA.level === 'challenger' || playerB.level === 'challenger' ? 'challenger' : 'tour')
 aplicaIdade  = nivelEfetivo === 'tour'
 
 shadow = ageAdjusted(bruta, ageA, ageB, model.tour)   // computa sempre, para ter a sombra
-se aplicaIdade:
-    probA      = shadow?.adjusted ? shadow.prob : bruta
-    ageAdjust  = shadow?.adjusted ? shadow : null
+se aplicaIdade OU não shadow?.adjusted:
+    // aplica normalmente (tour) OU não havia ajuste de qualquer modo (WTA, mesma idade, sem bio)
+    ageAdjust     = shadow                        // mantém o contrato atual: objeto (adjusted true/false)
+    probA         = shadow ? shadow.prob : bruta
     ageSuppressed = null
 senão:
-    probA      = bruta
-    ageAdjust  = null
-    ageSuppressed = shadow?.adjusted ? { gap: shadow.gap, wouldDelta: shadow.delta } : null
+    // havia ajuste (ATP + gap) MAS o nível o barra: suprime e registra a sombra
+    probA         = bruta
+    ageAdjust     = { prob: bruta, base: bruta, delta: 0, gap: shadow.gap, adjusted: false }
+    ageSuppressed = { gap: shadow.gap, wouldDelta: shadow.delta }
 ```
 
-> `ageAdjusted` devolve `null` só quando a probabilidade é inválida (não é o caso de `bruta`, sempre finita aqui). O `?.` cobre isso por robustez.
+> **Contrato preservado.** Hoje `r.ageAdjust` é sempre um objeto (com `adjusted: true|false`) quando a probabilidade é válida — e os testes existentes leem `r.ageAdjust.adjusted` sem optional chaining. O design mantém isso: quando o ajuste é suprimido por nível, `ageAdjust` continua um objeto, com `adjusted: false` e efeito zerado; a "sombra" vai em `ageSuppressed`. `ageAdjusted` só devolve `null` com probabilidade inválida (não ocorre com `bruta`, sempre finita aqui); o `?.` cobre isso por robustez.
 
 - `shadow.adjusted` só é `true` quando ATP + |gap| ≥ `MIN_GAP_YEARS` (0,5). Logo `ageSuppressed` só nasce nos Challenger ATP com idade discrepante — WTA e pares de idade próxima não geram nota.
-- Sem `level` e com jogador sem `.level` (ex.: jogador custom da busca manual), o par não é `'tour'` × `'tour'` → não ajusta (conservador). Caso raro; aceitável.
+- Sem `level` e com jogador sem `.level` (ex.: jogador custom da busca manual), nenhum é `'challenger'` → trata como `'tour'` → ajusta (preserva o comportamento atual; ver a nota de retrocompatibilidade na decisão 3).
 - `ageAdjusted` permanece intacta (foco: o cálculo do ajuste). O **gate de nível vive em `analyzeMatch`**.
 
 ### 3. `pipeline/fixtures.js` — propagar ao `today.json`
@@ -134,7 +136,7 @@ O comentário de "extrapolação conhecida" no topo de `age-curve.js` (linhas 26
 - `parseFeed` emite tour + challenger e **descarta ITF e exhibition** mesmo quando marcados como singles; cada jogo emitido carrega `level`.
 
 **`tests/analysis.test.js`**
-- `analyzeMatch` com `level='challenger'`: par ATP jovem×veterano **não** ajusta (`ageAdjust` nulo) e devolve `ageSuppressed` com `gap` e `wouldDelta`.
+- `analyzeMatch` com `level='challenger'`: par ATP jovem×veterano **não** ajusta (`ageAdjust.adjusted === false`, `probA` = probabilidade crua) e devolve `ageSuppressed` com `gap` e `wouldDelta`.
 - `analyzeMatch` com `level='tour'`: ajusta como antes.
 - Sem `level`: dois jogadores `level:'tour'` → ajusta; um `level:'challenger'` → não ajusta, e (se ATP + gap) devolve `ageSuppressed`.
 - `level='challenger'` em par sem gap de idade (ou WTA): sem `ageAdjust` e **sem** `ageSuppressed` (nada a relatar).
