@@ -25,7 +25,7 @@ async function loadGrid() {
   for (const endpoint of ['atp', 'wta']) {
     try {
       const g = await fetchDayFixtures(endpoint, ymd);
-      jogos = jogos.concat(g.map((x) => ({ ...x, a: x.aFull, b: x.bFull })));
+      jogos = jogos.concat(g.map((x) => ({ ...x, a: x.aFull, b: x.bFull, level: 'tour' })));
     } catch (e) {
       console.warn(`ESPN ${endpoint}: ${e.message}`);
     }
@@ -61,9 +61,10 @@ async function buildToday() {
       out.unmatched.push(`${g.a} / ${g.b} [${g.tour} ${g.tournament}]`);
       continue;
     }
-    const r = analyzeMatch(pa, pb, g.surface, model);
+    const r = analyzeMatch(pa, pb, g.surface, model, g.level);
     out.matches.push({
       tour: g.tour,
+      level: g.level,
       tournament: g.tournament,
       surface: g.surface,
       status: g.status,
@@ -75,6 +76,7 @@ async function buildToday() {
       // celular baixa. O card da grade sinaliza o ajuste (selo) e o card do
       // confronto explica em detalhe (ver ageAdjustText em web/src/age-curve.js).
       ...(r.ageAdjust?.adjusted ? { ageAdjust: r.ageAdjust } : {}),
+      ...(r.ageSuppressed ? { ageSuppressed: r.ageSuppressed } : {}),
       favorite: r.favorite,
       favoriteProb: r.favoriteProb,
       marginLabel: r.marginLabel,
