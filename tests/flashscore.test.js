@@ -69,3 +69,20 @@ test('parseFeed: o jogo ao vivo vem com status IN_PROGRESS e tour WTA', () => {
   assert.equal(g.status, 'IN_PROGRESS');
   assert.equal(g.tour, 'WTA');
 });
+
+test('parseTournamentHeader: nível — challenger, itf, tour e outros', () => {
+  assert.equal(parseTournamentHeader('CHALLENGER MEN - SINGLES: Granby (Canada), hard').level, 'challenger');
+  assert.equal(parseTournamentHeader('ATP - SINGLES: Gstaad (Switzerland), clay').level, 'tour');
+  assert.equal(parseTournamentHeader('WTA - SINGLES: Athens (Greece), hard').level, 'tour');
+  assert.equal(parseTournamentHeader('ITF MEN - SINGLES: M15 Gubbio (Italy), clay').level, 'itf');
+  assert.equal(parseTournamentHeader('EXHIBITION - MEN: UTS Championship (World), clay').level, 'other');
+});
+
+test('parseTournamentHeader: o nível não atrapalha o gênero (Challenger/ITF WOMEN = WTA)', () => {
+  const ch = parseTournamentHeader('CHALLENGER WOMEN - SINGLES: Rome (Italy), clay');
+  assert.equal(ch.tour, 'WTA');
+  assert.equal(ch.level, 'challenger');
+  const itf = parseTournamentHeader('ITF MEN - SINGLES: M15 Gubbio (Italy), clay');
+  assert.equal(itf.tour, 'ATP');
+  assert.equal(itf.level, 'itf');
+});

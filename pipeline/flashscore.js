@@ -11,6 +11,11 @@ export function parseTournamentHeader(za) {
   const rest = colon >= 0 ? za.slice(colon + 1).trim() : '';
   const singles = /singles/i.test(cat);
   const tour = /women|wta|girls|ladies/i.test(cat) ? 'WTA' : 'ATP';
+  const level =
+    /challenger/i.test(cat) ? 'challenger' :
+    /itf/i.test(cat) ? 'itf' :
+    /\b(atp|wta)\b/i.test(cat) ? 'tour' :
+    'other';
   let surface = 'hard';
   let tournament = rest;
   const comma = rest.lastIndexOf(',');
@@ -21,7 +26,7 @@ export function parseTournamentHeader(za) {
       tournament = rest.slice(0, comma).trim();
     }
   }
-  return { tour, singles, surface, tournament };
+  return { tour, level, singles, surface, tournament };
 }
 
 /** Código de status do Flashscore -> rótulo. */
