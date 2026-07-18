@@ -16,6 +16,8 @@
 // ATENÇÃO: estes coeficientes são o ERRO DESTE MODELO, não constantes da natureza.
 // Se o K, o prior de entrada (1500) ou a fórmula do Elo mudarem, a medida precisa
 // ser REFEITA. Ver docs/superpowers/specs/2026-07-17-vies-idade-elo-design.md.
+// O teste tests/engine-fingerprint.test.js FALHA automaticamente se o motor mudar sem esta
+// medição ser refeita — não depende mais de boa-fé.
 
 /** Ganho de logit por ano de diferença de idade, a favor do mais novo.
  *  ATP 0,026: escolhido pelo melhor Brier FORA DA AMOSTRA (treino ≤2023, teste 2024-26,
@@ -27,6 +29,11 @@
  *  (web/src/analysis.js): em Challenger o ajuste é SUPRIMIDO, e a supressão é explicada
  *  na tela (ageSuppressedText). Ver docs/superpowers/specs/2026-07-17-nivel-torneio-grade-design.md. */
 const AGE_COEF = { ATP: 0.026, WTA: 0 };
+
+/** Fingerprint do motor Elo contra o qual o AGE_COEF acima foi medido. O guarda-corpo em
+ *  tests/engine-fingerprint.test.js falha se o motor mudar sem esta constante ser atualizada
+ *  (o que só deve acontecer DEPOIS de refazer a medição da spec 2026-07-17-vies-idade-elo). */
+export const ENGINE_FP_MEDIDO = '3dd5d0b4';
 
 /** Diferença de idade mínima para valer o ajuste (evita mexer por causa de arredondamento). */
 const MIN_GAP_YEARS = 0.5;

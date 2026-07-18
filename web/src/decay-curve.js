@@ -10,10 +10,18 @@
 //
 // ATENÇÃO: o coeficiente é o ERRO DESTE Elo, não uma constante da natureza. Se o K, o prior
 // 1500 ou a fórmula mudarem, a medição precisa ser REFEITA.
+// O teste tests/engine-fingerprint.test.js FALHA automaticamente se o motor mudar sem esta
+// medição ser refeita — não depende mais de boa-fé.
 
 /** Ganho de logit por unidade de "ferrugem", contra quem volta. Só ATP; WTA não paga fora
  *  da amostra (IC cruza zero). Aplicado SÓ em Challenger — o gate vive em analyzeMatch. */
 const DECAY_COEF = { ATP: 0.50, WTA: 0 };
+
+/** Fingerprint do motor Elo contra o qual o DECAY_COEF acima foi medido. O guarda-corpo em
+ *  tests/engine-fingerprint.test.js falha se o motor mudar sem esta constante ser atualizada
+ *  (o que só deve acontecer DEPOIS de refazer a medição da spec 2026-07-18-decay-inatividade). */
+export const ENGINE_FP_MEDIDO = '3dd5d0b4';
+
 const RAMP_START = 90;   // dias sem jogar antes de a ferrugem começar (o viés é nulo em 0-90)
 const RAMP_SPAN = 365;   // dias para a ferrugem ir de 0 a 1
 
