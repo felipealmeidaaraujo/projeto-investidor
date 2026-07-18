@@ -1,6 +1,6 @@
 // Service worker mínimo — estratégia "network-first" (durante o dev, sempre
 // pega a versão mais nova; se estiver offline, cai no cache).
-const CACHE = 'investidor-v2';
+const CACHE = 'investidor-v3';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
