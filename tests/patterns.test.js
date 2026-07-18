@@ -105,3 +105,55 @@ test('buildProfile: lista vazia devolve bio null', () => {
   assert.equal(p.games, 0);
   assert.equal(p.bio, null);
 });
+
+import { resolveSlotOwners } from '../pipeline/patterns.js';
+import { normName } from '../web/src/match-names.js';
+
+// entry mínima: resolveSlotOwners só olha entry.bio.id; bio.name serve pro invariante.
+const ent = (id, name) => ({ bio: { id, name } });
+
+test('resolveSlotOwners: sem ambiguidade — 1 candidato é usado', () => {
+  const players = [{ name: 'Sinner J.', fullName: 'Jannik Sinner' }];
+  const byName = new Map([['Jannik Sinner', [ent('207989', 'Jannik Sinner')]]]);
+  assert.deepEqual(resolveSlotOwners(byName, players).get('Sinner J.'), ['Jannik Sinner']);
+});
+
+test('resolveSlotOwners: ambíguo COM fullName escolhe a pessoa certa', () => {
+  const players = [{ name: 'Wang Y.', fullName: 'Yafan Wang' }];
+  const byName = new Map([
+    ['Yafan Wang', [ent('206374', 'Yafan Wang')]],
+    ['Yuhan Wang', [ent('264205', 'Yuhan Wang')]],
+    ['Yuping Wang', [ent('300000', 'Yuping Wang')]],
+  ]);
+  assert.deepEqual(resolveSlotOwners(byName, players).get('Wang Y.'), ['Yafan Wang']);
+});
+
+test('resolveSlotOwners: ambíguo SEM fullName, MESMO id → merge das variantes de grafia', () => {
+  const players = [{ name: 'Chung Y.' }]; // sem fullName
+  const byName = new Map([
+    ['Yunseong Chung', [ent('123', 'Yunseong Chung')]],
+    ['Yun Seong Chung', [ent('123', 'Yun Seong Chung')]],
+  ]);
+  const donos = resolveSlotOwners(byName, players).get('Chung Y.');
+  assert.deepEqual([...donos].sort(), ['Yun Seong Chung', 'Yunseong Chung']);
+});
+
+test('resolveSlotOwners: ambíguo SEM fullName, ids DISTINTOS (irmãos) → slot fica sem dono', () => {
+  const players = [{ name: 'Blanch D.' }];
+  const byName = new Map([
+    ['Darwin Blanch', [ent('111', 'Darwin Blanch')]],
+    ['Dali Blanch', [ent('222', 'Dali Blanch')]],
+  ]);
+  assert.equal(resolveSlotOwners(byName, players).has('Blanch D.'), false);
+});
+
+test('resolveSlotOwners: invariante — as entries do slot resolvido são todas do fullName', () => {
+  const players = [{ name: 'Wang Y.', fullName: 'Yafan Wang' }];
+  const byName = new Map([
+    ['Yafan Wang', [ent('206374', 'Yafan Wang')]],
+    ['Yuhan Wang', [ent('264205', 'Yuhan Wang')]],
+  ]);
+  const donos = resolveSlotOwners(byName, players).get('Wang Y.');
+  const entries = donos.flatMap((f) => byName.get(f));
+  assert.ok(entries.every((e) => normName(e.bio.name) === normName('Yafan Wang')));
+});
