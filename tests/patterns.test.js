@@ -147,6 +147,15 @@ test('resolveSlotOwners: ambíguo SEM fullName, ids DISTINTOS (irmãos) → slot
   assert.equal(resolveSlotOwners(byName, players).has('Blanch D.'), false);
 });
 
+test('resolveSlotOwners: sem fullName, um candidato SEM bio.id → não merge (sem dono)', () => {
+  const players = [{ name: 'Blanch D.' }];
+  const byName = new Map([
+    ['Darwin Blanch', [ent('111', 'Darwin Blanch')]],
+    ['Dali Blanch', [{ bio: { name: 'Dali Blanch' } }]], // id faltante
+  ]);
+  assert.equal(resolveSlotOwners(byName, players).has('Blanch D.'), false);
+});
+
 test('resolveSlotOwners: invariante — as entries do slot resolvido são todas do fullName', () => {
   const players = [{ name: 'Wang Y.', fullName: 'Yafan Wang' }];
   const byName = new Map([

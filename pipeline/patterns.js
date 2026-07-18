@@ -115,8 +115,12 @@ export function resolveSlotOwners(byName, players) {
       const dono = cs.find((f) => normName(f) === normName(p.fullName));
       if (dono) owners.set(name, [dono]);
     } else {
-      const ids = new Set(cs.map((f) => byName.get(f)?.[0]?.bio?.id).filter((x) => x != null));
-      if (ids.size === 1) owners.set(name, cs);
+      // Merge só se TODOS os candidatos têm bio.id E é o MESMO id. Um id faltante
+      // (dado comum no Sackmann) NÃO pode ser tratado como "confirmado igual": isso
+      // mergearia homônimos reais e recriaria a contaminação. Sem id em algum → sem dono.
+      const idsCand = cs.map((f) => byName.get(f)?.[0]?.bio?.id);
+      const ids = new Set(idsCand);
+      if (idsCand.every((x) => x != null) && ids.size === 1) owners.set(name, cs);
     }
   }
   return owners;
