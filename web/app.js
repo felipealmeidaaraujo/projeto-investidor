@@ -2,6 +2,7 @@ import { analyzeMatch, playerTags, buildReadingExplanation, serveBand } from './
 import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
 import { tacticalSuggestion } from './src/tactics.js';
 import { searchPlayers } from './src/player-search.js';
+import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction } from './src/inplay.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -537,6 +538,18 @@ function renderTactics(r) {
     </div>`;
 }
 
+function renderWatch(r) {
+  const favIsA = r.favorite === anal.a.name;
+  const fav = favIsA ? anal.a : anal.b;
+  const und = favIsA ? anal.b : anal.a;
+  const lines = whatToWatch(fav, und, anal.tour);
+  return `<div class="watch">
+      <div class="watch-head">👁️ O que observar</div>
+      ${lines.map((l) => `<p class="watch-line">${l}</p>`).join('')}
+      <p class="watch-foot">Leitura dos perfis — o que costuma mexer o mercado, não garantia.</p>
+    </div>`;
+}
+
 function renderReading() {
   const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
@@ -581,6 +594,7 @@ function renderReading() {
       ${renderH2H()}
       <div class="reading-note">${narrative(r)}</div>
       ${renderTactics(r)}
+      ${renderWatch(r)}
     </div>
     ${renderExplain(r)}
     <button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>

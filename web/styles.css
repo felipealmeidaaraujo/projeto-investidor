@@ -244,6 +244,10 @@ body {
 .or-odd-val { display: block; font-size: 22px; font-weight: 800; margin-top: 2px; }
 .or-note { font-size: 12.5px; color: var(--text-2); line-height: 1.4; }
 .or-card.or-neutral .or-note { color: var(--text-3); }
+.watch { margin-top: 12px; padding: 12px 14px; background: var(--hover); border-radius: 12px; }
+.watch-head { font-size: 13.5px; font-weight: 800; margin-bottom: 6px; }
+.watch-line { font-size: 13px; color: var(--text-1); line-height: 1.5; margin-top: 6px; }
+.watch-foot { font-size: 11.5px; color: var(--text-3); margin-top: 8px; }
 .dos-form { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 8px; }
 .form-pill { width: 20px; height: 20px; border-radius: 5px; color: #fff; font-size: 11px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; }
