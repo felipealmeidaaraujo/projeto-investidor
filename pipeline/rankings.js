@@ -213,9 +213,9 @@ export function resolvePlayers(ids, players, meta) {
     // de nome discordando são a única evidência disponível de que nada no bio é
     // confiável aqui. Não resolve, não registra em `hits`: cai em "sem trajetória", o
     // desfecho seguro que a regra de clareza do projeto exige.
-    // guarda-corpo de bio contaminado — exceto transliterações confirmadas do próprio id.
-    // Só afrouxa para ids na allowlist; nunca por heurística (a contaminação da Wang,
-    // id 264205, continua recusada — teste :275).
+    // Exceção do guard acima: transliterações confirmadas à mão não são recusadas — só
+    // afrouxa para ids na allowlist E que casaram por bio.id; nunca por heurística (a
+    // contaminação da Wang, id 264205, continua recusada — teste :275).
     const transliteracaoOk = porId && TRANSLIT_CONFIRMADO.has(String(id));
     if (!transliteracaoOk && p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
     // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
