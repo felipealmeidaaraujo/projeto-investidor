@@ -14,10 +14,22 @@ test('playerTags: saque forte + devolvedor forte viram forças', () => {
 });
 
 test('playerTags: especialista de saibro e rende menos na grama (relativo ao próprio nível)', () => {
-  const p = { elo: 2000, clay: 2080, hard: 2000, grass: 1900, matchesBySurface: {} };
+  // amostra suficiente nas duas superfícies (>= 15 jogos) para o selo ser sinal, não ruído
+  const p = { elo: 2000, clay: 2080, hard: 2000, grass: 1900, matchesBySurface: { clay: 40, hard: 60, grass: 20 } };
   const tags = playerTags(p);
   assert.ok(has(tags, 'Especialista no saibro'));
   assert.ok(has(tags, 'Rende menos na grama'));
+});
+
+test('playerTags: superfície com poucos jogos (<15) não vira selo — amostra é ruído', () => {
+  // caso real (tipo Blockx): Elo de grama despencado (delta -700) mas só 4 jogos de grama.
+  // O Elo cru fica preso perto do prior; sem amostra o selo não pode cravar "rende menos".
+  const p = { elo: 2100, clay: 2100, hard: 2100, grass: 1400, matchesBySurface: { clay: 50, hard: 50, grass: 4 } };
+  const tags = playerTags(p).map((t) => t.t);
+  assert.ok(!tags.includes('Rende menos na grama'));
+  // controle: com jogos suficientes, o mesmo delta VIRA selo (a trava é só de amostra)
+  const q = { ...p, matchesBySurface: { clay: 50, hard: 50, grass: 20 } };
+  assert.ok(playerTags(q).map((t) => t.t).includes('Rende menos na grama'));
 });
 
 test('playerTags: sem dados de saque → só tags de superfície (não quebra)', () => {

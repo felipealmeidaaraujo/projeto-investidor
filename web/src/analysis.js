@@ -26,11 +26,15 @@ export function marginLabel(favProb) {
 }
 
 /** Como o jogador se sai naquela superfície vs. o próprio nível geral. */
+// Abaixo disso a amostra da superfície é ruído, não sinal — vale para a leitura
+// (surfaceRead) E para os selos (playerTags), que precisam concordar.
+const MIN_SURFACE_MATCHES = 15;
+
 export function surfaceRead(player, surface) {
   const surfMatches = player.matchesBySurface?.[surface] ?? 0;
   const surfElo = player[surface] ?? player.elo;
   const delta = Math.round(surfElo - player.elo);
-  if (surfMatches < 15) return { tag: 'poucos dados', delta, surfMatches };
+  if (surfMatches < MIN_SURFACE_MATCHES) return { tag: 'poucos dados', delta, surfMatches };
   if (delta >= 40) return { tag: 'forte', delta, surfMatches };
   if (delta <= -40) return { tag: 'fraco', delta, surfMatches };
   return { tag: 'neutro', delta, surfMatches };
@@ -75,6 +79,9 @@ export function playerTags(player, tour = 'ATP') {
   for (const [surf, label] of [['clay', 'no saibro'], ['hard', 'na dura'], ['grass', 'na grama']]) {
     const e = player[surf];
     if (e == null) continue;
+    // Amostra pequena: o Elo da superfície fica preso perto do prior (ruído). O selo é
+    // uma afirmação categórica — sem jogos suficientes, não crava (mesma régua do surfaceRead).
+    if ((player.matchesBySurface?.[surf] ?? 0) < MIN_SURFACE_MATCHES) continue;
     const d = e - player.elo;
     if (d >= 60) tags.push({ t: `Especialista ${label}`, kind: 'strength' });
     else if (d <= -60) tags.push({ t: `Rende menos ${label}`, kind: 'relative' });
