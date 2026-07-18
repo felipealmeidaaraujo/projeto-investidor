@@ -347,3 +347,11 @@ test('buildTrajectories: o portão de recência é uma fronteira exata', () => {
   assert.equal(buildTrajectories(parseRankingRows(csv), { maxStaleDays: 158 }).has('222'), true);
   assert.equal(buildTrajectories(parseRankingRows(csv), { maxStaleDays: 157 }).has('222'), false);
 });
+
+test('resolvePlayers: transliteração confirmada por id (Shelbayh) resolve apesar de fullName != bio.name', () => {
+  // Abedallah (Sackmann) vs Abdullah (TML): mesma pessoa, só transliterada. id 209406 na allowlist.
+  const players = [{ name: 'Shelbayh A.', fullName: 'Abdullah Shelbayh', lastDate: 20260525, bio: { id: '209406', name: 'Abedallah Shelbayh', age: 22.5 } }];
+  const meta = new Map([['209406', { fullName: 'Abedallah Shelbayh', dob: 20031116 }]]);
+  const { resolved } = resolvePlayers(['209406'], players, meta);
+  assert.equal(resolved.get('209406').name, 'Shelbayh A.');
+});

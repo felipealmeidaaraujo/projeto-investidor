@@ -174,6 +174,15 @@ export function buildTrajectories(rows, { maxStaleDays = MAX_STALE_DAYS } = {}) 
 
 const MAX_AGE_GAP_YEARS = 2; // anos de tolerância entre o dob do Sackmann e o bio.age do modelo
 
+// Transliterações confirmadas à mão: o mesmo jogador escrito diferente entre o TML
+// (p.fullName) e o Sackmann (bio.name). NÃO é heurística — é uma allowlist por
+// player_id, porque de nome sozinho "Abdullah/Abedallah Shelbayh" (uma pessoa) é
+// indistinguível de "Yafan/Yuhan Wang" (duas). Só entra um id verificado; o check de
+// QA (bio.name != fullName na verificação) revela novos casos para curadoria futura.
+const TRANSLIT_CONFIRMADO = new Set([
+  '209406', // Abedallah Shelbayh (Sackmann) = Abdullah Shelbayh (TML)
+]);
+
 /** player_id -> jogador do modelo.
  *  1. bio.id quando existir (é o player_id do Sackmann — bate em 98,8% ATP / 97,7% WTA)
  *  2. cai para o nome via findModelPlayer
@@ -192,7 +201,8 @@ export function resolvePlayers(ids, players, meta) {
   for (const id of ids) {
     const m = meta.get(id);
     if (!m) continue;
-    const p = byBioId.get(String(id)) || findModelPlayer(m.fullName, players);
+    const porId = byBioId.get(String(id));
+    const p = porId || findModelPlayer(m.fullName, players);
     if (!p) continue;
     // guarda-corpo de bio contaminado: p.fullName (do serve-stats) e p.bio.name (do
     // patterns-ingest) são duas fontes independentes do mesmo dado. Quando discordam, o
@@ -203,7 +213,11 @@ export function resolvePlayers(ids, players, meta) {
     // de nome discordando são a única evidência disponível de que nada no bio é
     // confiável aqui. Não resolve, não registra em `hits`: cai em "sem trajetória", o
     // desfecho seguro que a regra de clareza do projeto exige.
-    if (p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
+    // guarda-corpo de bio contaminado — exceto transliterações confirmadas do próprio id.
+    // Só afrouxa para ids na allowlist; nunca por heurística (a contaminação da Wang,
+    // id 264205, continua recusada — teste :275).
+    const transliteracaoOk = porId && TRANSLIT_CONFIRMADO.has(String(id));
+    if (!transliteracaoOk && p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
     // guarda-corpo de identidade: bio.age é congelada em p.lastDate, então compare LÁ.
     // `> 0` (não `!= null`): bio.age igual a 0 é dado faltante virado zero, não uma
     // idade real — com `!= null` ele entraria na conta e um gap de ~idade-0 sempre
