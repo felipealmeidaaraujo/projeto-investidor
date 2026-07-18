@@ -27,7 +27,8 @@ export function engineFingerprint() {
   const amostras = [
     kFactor(0), kFactor(5), kFactor(20), kFactor(100), kFactor(500),
     expectedScore(1500, 1500), expectedScore(1600, 1500), expectedScore(2000, 1800), expectedScore(1500, 2000),
-    blendSurface(1800, 1900), // sem 3º arg: captura o surfaceWeight default (0,5)
+    blendSurface(1800, 1900),        // surfaceWeight default (0,5)
+    blendSurface(1800, 1900, 0.7),   // peso não-default: sensível à ordem dos args e ao surfaceWeight
     updateRating(1500, 1, 0.5, 32),
     INITIAL,
   ];
