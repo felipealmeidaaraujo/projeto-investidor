@@ -61,7 +61,8 @@ async function buildToday() {
       out.unmatched.push(`${g.a} / ${g.b} [${g.tour} ${g.tournament}]`);
       continue;
     }
-    const r = analyzeMatch(pa, pb, g.surface, model, g.level);
+    const refDate = g.commence ? Number(g.commence.slice(0, 10).replace(/-/g, '')) : null;
+    const r = analyzeMatch(pa, pb, g.surface, model, g.level, refDate);
     out.matches.push({
       tour: g.tour,
       level: g.level,
@@ -77,6 +78,7 @@ async function buildToday() {
       // confronto explica em detalhe (ver ageAdjustText em web/src/age-curve.js).
       ...(r.ageAdjust?.adjusted ? { ageAdjust: r.ageAdjust } : {}),
       ...(r.ageSuppressed ? { ageSuppressed: r.ageSuppressed } : {}),
+      ...(r.decayAdjust?.adjusted ? { decayAdjust: r.decayAdjust } : {}),
       favorite: r.favorite,
       favoriteProb: r.favoriteProb,
       marginLabel: r.marginLabel,
