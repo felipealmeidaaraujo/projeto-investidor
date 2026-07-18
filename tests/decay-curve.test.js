@@ -61,6 +61,15 @@ test('decayAdjustText: nomeia quem volta, os meses e a prob sem o ajuste', () =>
   assert.ok(t.includes('50,0%'), t);         // base do mais parado (A) = 0,5
   assert.ok(/inatividade/i.test(t), t);
 });
+test('decayAdjustText: quando B é o mais parado, mostra a prob de B (não a do adversário)', () => {
+  const r = decayAdjusted(0.7, 0, 240, 'ATP'); // A fresco, B parado 8 meses → B é o mais parado
+  const t = decayAdjustText(r, 'Beta B.');
+  assert.ok(t.includes('Beta B.'), t);
+  assert.ok(t.includes('8 meses'), t);
+  assert.ok(t.includes('30,0%'), t);   // 1 - base = 1 - 0,7 = a prob de B sem o ajuste
+  assert.ok(!t.includes('70,0%'), t);  // NÃO a prob do adversário
+});
+
 test('decayAdjustText: sem ajuste não gera linha', () => {
   assert.equal(decayAdjustText(decayAdjusted(0.5, 200, 200, 'ATP'), 'A'), null);
   assert.equal(decayAdjustText(null, 'A'), null);

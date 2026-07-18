@@ -23,7 +23,7 @@ const clamp = (p) => Math.min(0.9999, Math.max(0.0001, p));
 const pct = (p) => `${(p * 100).toFixed(1).replace('.', ',')}%`;
 const toDays = (i) => Date.UTC(Math.floor(i / 10000), (Math.floor(i / 100) % 100) - 1, i % 100) / 86400000;
 
-/** "Ferrugem" acumulada: 0 até 90 dias, sobe linearmente até 1 em ~1,4 ano. */
+/** "Ferrugem" acumulada: 0 até 90 dias, sobe linearmente até 1 em ~1,25 ano. */
 const ferrugem = (inat) => (inat == null || !Number.isFinite(inat)) ? 0 : Math.min(1, Math.max(0, (inat - RAMP_START) / RAMP_SPAN));
 
 /** Dias entre duas datas AAAAMMDD (referência − último jogo). null se faltar alguma. */
@@ -43,7 +43,7 @@ export function decayAdjusted(prob, inatA, inatB, tour) {
   const termo = ferrugem(inatB) - ferrugem(inatA); // positivo = B mais enferrujado → A ganha
   if (termo === 0) return semAjuste;
   const ajustada = sigmoid(logit(clamp(prob)) + coef * termo);
-  return { prob: ajustada, base: prob, delta: ajustada - prob, inatA, inatB, adjusted: true };
+  return { prob: ajustada, base: prob, delta: ajustada - prob, inatA: inatA ?? null, inatB: inatB ?? null, adjusted: true };
 }
 
 /** A linha que explica o ajuste no card. Nomeia quem volta (o mais parado). null sem ajuste. */
