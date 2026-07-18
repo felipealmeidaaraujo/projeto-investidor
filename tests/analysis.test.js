@@ -221,3 +221,32 @@ test('analyzeMatch: challenger na WTA não gera sombra (WTA nunca ajusta)', () =
   assert.equal(r.ageAdjust.adjusted, false);
   assert.equal(r.ageSuppressed, null);
 });
+
+// Fixtures de Challenger com lastDate (para o decay). refDate = 20260710.
+const challParado = { name: 'Parado P.', elo: 2000, hard: 2000, clay: 2000, grass: 2000, matches: 100, lastDate: 20260101, level: 'challenger' };
+const challFresco = { name: 'Fresco F.', elo: 2000, hard: 2000, clay: 2000, grass: 2000, matches: 100, lastDate: 20260701, level: 'challenger' };
+const mCh = { calibrationT: 1, tour: 'ATP' };
+
+test('analyzeMatch: Challenger + refDate → aplica decay em quem voltou de pausa', () => {
+  const r = analyzeMatch(challParado, challFresco, 'hard', mCh, 'challenger', 20260710);
+  assert.equal(r.decayAdjust.adjusted, true);
+  assert.ok(r.probA < 0.5, `o parado devia perder prob, veio ${r.probA}`);
+  assert.ok(Math.abs(r.probA + r.probB - 1) < 1e-9);
+  assert.equal(r.ageAdjust.adjusted, false); // idade não roda em challenger
+});
+
+test('analyzeMatch: sem refDate → decay não roda (compat com os testes antigos)', () => {
+  const r = analyzeMatch(challParado, challFresco, 'hard', mCh, 'challenger');
+  assert.equal(r.decayAdjust, null);
+  assert.ok(Math.abs(r.probA - 0.5) < 1e-9);
+});
+
+test('analyzeMatch: nível tour → decay não roda (só idade)', () => {
+  const r = analyzeMatch(challParado, challFresco, 'hard', mCh, 'tour', 20260710);
+  assert.equal(r.decayAdjust, null);
+});
+
+test('analyzeMatch: WTA Challenger → decay não roda (coef 0)', () => {
+  const r = analyzeMatch(challParado, challFresco, 'hard', { calibrationT: 1, tour: 'WTA' }, 'challenger', 20260710);
+  assert.equal(r.decayAdjust, null);
+});

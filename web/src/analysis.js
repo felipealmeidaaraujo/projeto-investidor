@@ -3,6 +3,7 @@
 // Funções puras sobre os objetos de jogador do model.json. Testado em tests/analysis.test.js.
 import { expectedScore, blendSurface, calibrate } from './model-math.js';
 import { ageAdjusted } from './age-curve.js';
+import { inatividadeDias, decayAdjusted } from './decay-curve.js';
 
 /** Rating combinado (geral + superfície) de um jogador numa superfície. */
 export function blendedRating(player, surface) {
@@ -84,7 +85,7 @@ export function playerTags(player, tour = 'ATP') {
 /** Leitura completa do confronto.
  *  `level` (opcional) é o nível do torneio ('tour'|'challenger'); quando ausente,
  *  deriva do nível dos jogadores. A curva de idade só roda em nível 'tour'. */
-export function analyzeMatch(playerA, playerB, surface, model, level) {
+export function analyzeMatch(playerA, playerB, surface, model, level, refDate) {
   const T = model.calibrationT ?? 1;
   const bruta = matchProbability(playerA, playerB, surface, T);
 
@@ -110,6 +111,17 @@ export function analyzeMatch(playerA, playerB, surface, model, level) {
     ageAdjust = { prob: bruta, base: bruta, delta: 0, gap: shadow.gap, adjusted: false };
     ageSuppressed = { gap: shadow.gap, wouldDelta: shadow.delta };
   }
+
+  // Decay por inatividade — só Challenger ATP; exclusivo com a idade (que só roda em tour).
+  // Sem refDate (chamada sem data do confronto) o decay não roda — a inatividade é indeterminada.
+  let decayAdjust = null;
+  if (nivelEfetivo === 'challenger' && refDate != null) {
+    const inatA = inatividadeDias(refDate, playerA.lastDate);
+    const inatB = inatividadeDias(refDate, playerB.lastDate);
+    const d = decayAdjusted(probA, inatA, inatB, model.tour);
+    if (d?.adjusted) { probA = d.prob; decayAdjust = d; }
+  }
+
   const probB = 1 - probA;
   const favA = probA >= 0.5;
 
@@ -133,6 +145,7 @@ export function analyzeMatch(playerA, playerB, surface, model, level) {
     probB,
     ageAdjust,
     ageSuppressed,
+    decayAdjust,
     favorite: favA ? playerA.name : playerB.name,
     underdog: favA ? playerB.name : playerA.name,
     favoriteProb: favA ? probA : probB,
