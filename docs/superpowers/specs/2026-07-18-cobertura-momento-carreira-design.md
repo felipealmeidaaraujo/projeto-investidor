@@ -36,6 +36,8 @@ O `p.bio.name` vem do **Sackmann** (patterns-ingest) e o `p.fullName` vem do **T
 
 O Sackmann é **internamente consistente** (`normName(bio.name) === normName(meta.fullName)` → `true`); só o TML escreve "Abdullah". A identidade já está confirmada pelo `bio.id` (casou por `byBioId`). É o **único** ativo com `bio.name != fullName` em toda a base (ATP e WTA).
 
+**Descoberta que decide a abordagem (verificada empiricamente):** *não existe* jeito automático seguro de afrouxar esse guarda-corpo. Uma transliteração legítima ("Abdullah/Abedallah Shelbayh", **uma** pessoa) e uma contaminação real ("Yafan/Yuhan Wang", **duas** pessoas — o caso do teste `rankings.test.js:275`) satisfazem **as mesmas** condições: mesmo sobrenome, mesma inicial, `bio.name == meta.fullName`, `bio.name != fullName`, e até distância de edição parecida. Dos nomes sozinhos são indistinguíveis, e o único âncora de identidade que cruzaria as fontes (o `wikidata_id`) existe no Sackmann mas **não no TML**. Simulado: qualquer regra de "consistência mesma-fonte" resolve os **dois** — logo readmitiria a contaminação da Wang. Por isso a correção é uma **allowlist curada por `player_id`**, não uma heurística.
+
 ### C — a trajetória exige o snapshot global mais recente
 
 `buildTrajectories` (`pipeline/rankings.js:113`) faz, por jogador:
@@ -61,21 +63,32 @@ Os "velhos demais" ficam de fora **de propósito**: rotular o Fognini com o #188
 
 ## A correção
 
-### A — guarda-corpo consciente da identidade por `bio.id` (`rankings.js`, `resolvePlayers`)
+### A — allowlist curada de transliterações por `player_id` (`rankings.js`, `resolvePlayers`)
 
-Quando o jogador casou por **`bio.id` exato** e o `bio.name` (Sackmann patterns) **bate com o `meta.fullName`** (Sackmann `players.csv` do mesmo id), a identidade está confirmada **dentro da fonte autoritativa** → não aplicar o guarda-corpo do nome-TML. Caso contrário, aplicar como hoje.
+Uma allowlist explícita e auditável de `player_id`s do Sackmann confirmados **à mão** como sendo a mesma pessoa que o slot, apesar de o TML transliterar o nome diferente. O guarda-corpo do nome só é **pulado** para um id que casou pelo próprio `bio.id` do slot **e** está na allowlist.
 
 ```js
-const porId = byBioId.get(String(id));          // casou por bio.id?
-const p = porId || findModelPlayer(m.fullName, players);
-if (!p) continue;
-// identidade confirmada pelo id + consistência interna do Sackmann:
-const idConfirmado = porId && p.bio && p.bio.name && normName(p.bio.name) === normName(m.fullName);
-// guarda-corpo de bio contaminado — só quando a identidade NÃO está confirmada por id:
-if (!idConfirmado && p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
+// Transliterações confirmadas à mão: o mesmo jogador escrito diferente entre o TML
+// (p.fullName) e o Sackmann (bio.name). NÃO é heurística — é uma allowlist por
+// player_id, porque de nome sozinho "Abdullah/Abedallah Shelbayh" (uma pessoa) é
+// indistinguível de "Yafan/Yuhan Wang" (duas). Só entra um id verificado; o check de
+// QA (bio.name != fullName) revela novos casos para curadoria futura.
+const TRANSLIT_CONFIRMADO = new Set([
+  '209406', // Abedallah Shelbayh (Sackmann) = Abdullah Shelbayh (TML)
+]);
 ```
 
-**Princípio:** A-α apenas **afrouxa** (deixa de recusar transliterações confirmadas por id); **não introduz novas recusas**. Um bio de fato contaminado (patterns colou a pessoa errada num slot cujo id resolveu certo) tem `bio.name != meta.fullName` → `idConfirmado` falso → o guarda-corpo continua valendo. Os guarda-corpos de idade (`MAX_AGE_GAP_YEARS`) e de colisão permanecem intactos como rede de segurança.
+No laço de `resolvePlayers`:
+```js
+const porId = byBioId.get(String(id));            // casou pelo próprio bio.id do slot?
+const p = porId || findModelPlayer(m.fullName, players);
+if (!p) continue;
+// guarda-corpo de bio contaminado — exceto transliterações confirmadas do próprio id:
+const transliteracaoOk = porId && TRANSLIT_CONFIRMADO.has(String(id));
+if (!transliteracaoOk && p.bio && p.bio.name && p.fullName && normName(p.bio.name) !== normName(p.fullName)) continue;
+```
+
+**Princípio:** a mudança apenas **afrouxa** para ids explicitamente listados; **não introduz novas recusas** e **não afrouxa nada por heurística**. A contaminação da Wang (id `264205`, fora da lista) continua sendo recusada — o teste `:275` segue verde. Os guarda-corpos de idade (`MAX_AGE_GAP_YEARS`) e de colisão permanecem intactos.
 
 ### C — âncora por jogador com portão de recência (`rankings.js`, `buildTrajectories`)
 
@@ -118,11 +131,10 @@ Todos os rótulos são coerentes e honestos (número sempre embutido, data de re
 - Fronteira do portão: exatamente `MAX_STALE_DAYS` entra; `MAX_STALE_DAYS + 1` não.
 - `date12m`/rank12m calculados relativos à âncora do jogador (não ao snapshot global).
 
-*A — `resolvePlayers` com guarda-corpo consciente por id:*
-- Casou por `bio.id`, `bio.name` normaliza igual ao `meta.fullName`, `fullName`(TML) diferente (transliteração) → **resolve** (não recusa). (Caso Shelbayh.)
-- Casou por `bio.id`, `bio.name` **diferente** do `meta.fullName` (bio de fato contaminado) → **recusa** (guarda-corpo ainda vale).
-- Casou **por nome** (sem `bio.id`), `bio.name != fullName` → **recusa** como hoje (sem id que confirme).
-- Colisão (2+ ids no mesmo slot) → continua excluindo os dois.
+*A — `resolvePlayers` com allowlist de transliteração:*
+- Id **na allowlist** (`209406`), casou por `bio.id`, `fullName`(TML) ≠ `bio.name`(Sackmann) → **resolve** (guarda-corpo pulado). (Caso Shelbayh.)
+- Id **fora da allowlist** com `bio.name != fullName` (bio contaminado, id `264205`) → **recusa** — o teste `:275` existente continua passando **sem alteração**.
+- Colisão (2+ ids no mesmo slot) → continua excluindo os dois (inalterado).
 
 O `rankings-ingest.js` (IO de rede) segue sem teste unitário; a lógica testável vive nas puras. Verificação de ponta a ponta = re-geração real (abaixo).
 
@@ -141,7 +153,8 @@ Rodar o pipeline na ordem do cron: `serve-stats.js` → `patterns-ingest.js` →
 
 ## Fora de escopo (YAGNI)
 
-- **Reconciliação estrutural TML×Sackmann por identidade global** (a "opção B"): hoje protege **0** casos ambíguos; over-engineering. A-α resolve a classe da transliteração com muito menos risco.
+- **Reconciliação estrutural TML×Sackmann por identidade global** (a "opção B"): hoje protege **0** casos ambíguos; over-engineering. A allowlist curada trata o único caso real com risco zero.
+- **Afrouxar o guarda-corpo por heurística** (distância de edição, sobrenome+inicial): readmitiria a contaminação da Wang (indistinguível do Shelbayh por nome). Descartado — só allowlist explícita.
 - **Ativos sem bio** (46 ATP + 8 WTA — classe do Kyrgios): causa diferente (janela de `MIN_GAMES` do patterns), não é nome/snapshot.
 - **Homônimos reais excluídos por colisão** (Suresh D., Tsitsipas P.…): exclusão correta, mantida.
 - **"Velhos demais" (>120d):** deixados sem rótulo de propósito — dado velho como se fosse atual seria mentira.
@@ -154,4 +167,5 @@ Rodar o pipeline na ordem do cron: `serve-stats.js` → `patterns-ingest.js` →
 - **Régua calibrada intacta:** a saída de `career.js` não muda para ninguém que já tem `career` (provado byte-a-byte na simulação). A mudança é aditiva.
 - **Portão de 120 dias é uma constante ajustável.** No corte de 120d entram Schwartzman/Koepfer/Escobedo (119d) e fica de fora Pouille (126d). Como o `as of` mostra a data, o portão é sobre "velho demais para valer a pena", não sobre honestidade — o texto nunca finge ser de hoje. Fácil de afinar (uma constante) se o Felipe quiser 90/150/180 depois.
 - **`bio.rank`/`bio.age` dos recuperados** passam a refletir a âncora deles (o `rankings-ingest` já conserta esses campos a partir do `career` — `rankings-ingest.js:76-81`), coerente com o rótulo.
-- **Ordem do pipeline:** inalterada. C não depende de fonte nova; A usa o `meta` (players.csv) que o `rankings-ingest` já carrega.
+- **Allowlist manual (A):** 1 entrada hoje (Shelbayh). É curadoria consciente, não escala automática — mas o volume é 1, e o check de QA `bio.name != fullName` (roda na verificação) revela qualquer caso novo para adicionar à mão. Trade-off aceito: manutenção mínima em troca de risco zero de readmitir contaminação.
+- **Ordem do pipeline:** inalterada. C não depende de fonte nova; A usa só o `id`/`meta` que o `rankings-ingest` já carrega.
