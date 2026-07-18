@@ -2,8 +2,7 @@
 // Uso: node pipeline/patterns-ingest.js
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseCsv } from './ingest.js';
-import { matchPlayer } from '../web/src/match-names.js';
-import { toEnrichedMatch, groupByPlayer, buildProfile } from './patterns.js';
+import { toEnrichedMatch, groupByPlayer, buildProfile, resolveSlotOwners } from './patterns.js';
 
 const BASE = 'https://raw.githubusercontent.com/Aneeshers/tennis-sackmann-archive/main';
 const MIN_GAMES = 10;
@@ -42,23 +41,30 @@ async function enrich(modelFile, tour) {
   const matches = await loadEnriched(from, to, tour);
   const byName = groupByPlayer(matches);
 
-  const byPlayer = new Map();
-  for (const [fullName, entries] of byName) {
-    const p = matchPlayer(fullName, model.players);
-    if (!p) continue;
-    if (!byPlayer.has(p.name)) byPlayer.set(p.name, []);
-    byPlayer.get(p.name).push(...entries);
-  }
+  // Resolve homônimos pelo player_id + fullName (serve-stats roda ANTES no pipeline e
+  // preenche p.fullName). Slots não resolvidos (homônimo real sem fullName) ficam sem
+  // enriquecimento — as entries misturadas contaminariam estilo/pressão/bio, não só o bio.
+  const owners = resolveSlotOwners(byName, model.players);
 
   let n = 0;
   for (const p of model.players) {
-    const entries = byPlayer.get(p.name);
-    if (!entries || entries.length < MIN_GAMES) continue;
-    const prof = buildProfile(entries);
-    p.style = prof.style;
-    p.pressure = prof.pressure;
-    p.bio = prof.bio;
-    n++;
+    const fulls = owners.get(p.name);
+    const entries = fulls ? fulls.flatMap((f) => byName.get(f)) : [];
+    if (entries.length >= MIN_GAMES) {
+      const prof = buildProfile(entries);
+      p.style = prof.style;
+      p.pressure = prof.pressure;
+      p.bio = prof.bio;
+      n++;
+    } else {
+      // Slot sem dono ou com poucos jogos: LIMPA style/pressure/bio de uma execução
+      // anterior. Sem isto, um bio velho (contaminado) sobreviveria quando o slot deixa
+      // de ser enriquecido — patterns-ingest tem que ser idempotente sobre um model já
+      // enriquecido (no cron o train.js zera; num re-run parcial, não).
+      delete p.style;
+      delete p.pressure;
+      delete p.bio;
+    }
   }
   await writeFile(url, JSON.stringify(model));
   console.log(`${modelFile}: ${n} jogadores com padrões (de ${matches.length} jogos, ${byName.size} nomes).`);

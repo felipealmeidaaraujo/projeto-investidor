@@ -1,6 +1,7 @@
 // Estruturação e agregação dos jogos enriquecidos do Sackmann para o motor de padrões.
 // Funções puras testadas em tests/patterns.test.js.
 import { stylePatterns, pressurePatterns } from './game-patterns.js';
+import { matchPlayer, normName } from '../web/src/match-names.js';
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const intOf = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
@@ -81,4 +82,46 @@ export function buildProfile(entries) {
     pressure: pressurePatterns(games),
     bio: recent ? recent.bio : null,
   };
+}
+
+/** Para cada slot do modelo, decide quais nomes do Sackmann (chaves de `byName`) são da
+ *  MESMA pessoa que o slot, resolvendo homônimos pelo player_id e pelo `p.fullName`.
+ *
+ *  Por que isto existe: `matchPlayer` casa por sobrenome + inicial, então "Yafan Wang",
+ *  "Yuhan Wang" e "Yuping Wang" caem todas no slot "Wang Y.". Concatenar as três (o que o
+ *  patterns-ingest fazia) colava o bio/estilo de uma pessoa arbitrária. Aqui:
+ *   - 1 candidato → usa ele (não revalida contra fullName: formatos diferem entre fontes).
+ *   - ≥2 candidatos, com p.fullName (resolvido pelo serve-stats, que roda antes) → o
+ *     candidato cujo nome normaliza igual ao fullName.
+ *   - ≥2 candidatos, sem fullName → merge se todos têm o MESMO bio.id (variantes de
+ *     grafia da mesma pessoa); ids distintos (homônimos reais) → slot sem dono (sem bio).
+ *  @param {Map<string, Array<{bio:{id:string}}>>} byName  nome Sackmann → entries
+ *  @param {Array<{name:string, fullName?:string}>} players  jogadores do modelo
+ *  @returns {Map<string, string[]>} p.name → [nomes Sackmann a usar]; slots sem dono ficam fora. */
+export function resolveSlotOwners(byName, players) {
+  const cand = new Map(); // p.name → [nome Sackmann]
+  for (const full of byName.keys()) {
+    const p = matchPlayer(full, players);
+    if (!p) continue;
+    if (!cand.has(p.name)) cand.set(p.name, []);
+    cand.get(p.name).push(full);
+  }
+  const byModelName = new Map(players.map((p) => [p.name, p]));
+  const owners = new Map();
+  for (const [name, cs] of cand) {
+    if (cs.length === 1) { owners.set(name, cs); continue; }
+    const p = byModelName.get(name);
+    if (p && p.fullName) {
+      const dono = cs.find((f) => normName(f) === normName(p.fullName));
+      if (dono) owners.set(name, [dono]);
+    } else {
+      // Merge só se TODOS os candidatos têm bio.id E é o MESMO id. Um id faltante
+      // (dado comum no Sackmann) NÃO pode ser tratado como "confirmado igual": isso
+      // mergearia homônimos reais e recriaria a contaminação. Sem id em algum → sem dono.
+      const idsCand = cs.map((f) => byName.get(f)?.[0]?.bio?.id);
+      const ids = new Set(idsCand);
+      if (idsCand.every((x) => x != null) && ids.size === 1) owners.set(name, cs);
+    }
+  }
+  return owners;
 }
