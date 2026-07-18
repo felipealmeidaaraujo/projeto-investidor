@@ -605,14 +605,17 @@ function renderLive(pre) {
   let orCard;
   if (withLevel.length) {
     const s = withLevel[0];
-    const dir = s.or.back ? `BACK no ${s.n}` : `LAY no ${s.n}`;
+    const titulo = s.or.divPct > 0 ? `Mercado esticado no ${s.n}` : `Mercado curto no ${s.n}`;
     orCard = `<div class="or-card">
-      <div class="or-head">⚡ SOBRE-REAÇÃO ${s.or.level.toUpperCase()} · ${formatSignedPct(s.or.divPct)}</div>
-      <div class="or-action">Valor em <strong>${dir}</strong></div>
-      <div class="or-sub">Betfair paga ${s.mkt.toFixed(2)}, o justo é ${s.fair.toFixed(2)}. Medido pelo modelo — confira o motivo (lesão? cansaço?).</div>
+      <div class="or-top"><span class="or-title">${titulo}</span><span class="or-mag">${formatSignedPct(s.or.divPct)}</span></div>
+      <div class="or-odds">
+        <div class="or-odd"><span class="or-odd-lbl">Betfair paga</span><span class="or-odd-val">${s.mkt.toFixed(2)}</span></div>
+        <div class="or-odd"><span class="or-odd-lbl">Âncora justa</span><span class="or-odd-val">${s.fair.toFixed(2)}</span></div>
+      </div>
+      <div class="or-note">Pode ser exagero — confira o motivo (lesão? cansaço?). Você decide.</div>
     </div>`;
   } else if (signals.length) {
-    orCard = `<div class="or-card or-neutral"><div class="or-head">Odd em linha com o justo</div><div class="or-sub">Sem exagero relevante do mercado nesse placar.</div></div>`;
+    orCard = `<div class="or-card or-neutral"><div class="or-title">Odd em linha com a âncora</div><div class="or-note">Sem esticão relevante do mercado neste placar.</div></div>`;
   } else {
     orCard = '';
   }
