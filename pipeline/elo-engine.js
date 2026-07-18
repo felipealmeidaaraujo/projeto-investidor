@@ -2,7 +2,7 @@
 // Construído sobre as funções puras de elo.js. Testado em tests/elo-engine.test.js.
 import { expectedScore, kFactor, updateRating, blendSurface } from './elo.js';
 
-const INITIAL = 1500;
+export const INITIAL = 1500;
 
 export class EloEngine {
   constructor({ surfaceWeight = 0.5 } = {}) {
