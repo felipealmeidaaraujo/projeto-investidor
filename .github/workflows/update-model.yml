@@ -39,8 +39,6 @@ jobs:
         run: node pipeline/rankings-ingest.js
       - name: Buscar os jogos do dia (grade Flashscore, ESPN de fallback)
         run: node pipeline/fixtures.js
-      - name: Gerar fechamentos (CLV pré-jogo, tennis-data)
-        run: node pipeline/closings.js
       - name: Gerar histórico de partidas (scouting)
         run: node pipeline/matches.js
       - name: Rodar os testes (segurança)
@@ -49,7 +47,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add web/model-atp.json web/model-wta.json web/today.json web/matches.json web/closings.json
+          git add web/model-atp.json web/model-wta.json web/today.json web/matches.json
           if git diff --staged --quiet; then
             echo "Sem mudanças nos dados — nada a commitar."
           else
