@@ -14,6 +14,7 @@ import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 import { careerText } from './src/career.js';
 import { ageAdjustText, ageSuppressedText } from './src/age-curve.js';
+import { decayAdjustText } from './src/decay-curve.js';
 
 /* ---------------- Navegação ---------------- */
 const tabs = document.querySelectorAll('.tab');
@@ -876,9 +877,10 @@ function renderFixtures() {
       const ageBadge = g.ageAdjust?.adjusted ? ` <span class="field-hint">⚖ ajuste de idade</span>` : '';
       const nivelLabel = g.level === 'challenger' ? ' · Challenger' : '';
       const ageSuppressBadge = g.ageSuppressed ? ` <span class="field-hint">⚖ ajuste suspenso (Challenger)</span>` : '';
+      const decayBadge = g.decayAdjust ? ` <span class="field-hint">⚖ ajuste de inatividade</span>` : '';
       return `<button class="fixture" data-fx="${i}">
         <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
-        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}${ageSuppressBadge}</div>
+        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}${ageSuppressBadge}${decayBadge}</div>
         ${tourn}
       </button>`;
     })
@@ -1258,7 +1260,8 @@ function renderTactics(r) {
 }
 
 function renderReading() {
-  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level);
+  const hojeInt = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
+  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt);
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
   const fullA = anal.a.fullName || anal.a.name;
@@ -1289,6 +1292,12 @@ function renderReading() {
           if (!r.ageSuppressed) return '';
           const maisNovoNome = r.ageSuppressed.gap > 0 ? fullA : fullB;
           const txt = ageSuppressedText(r.ageSuppressed, maisNovoNome);
+          return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
+        })()}
+        ${(() => {
+          if (!r.decayAdjust?.adjusted) return '';
+          const nomeMaisParado = (r.decayAdjust.inatA ?? 0) >= (r.decayAdjust.inatB ?? 0) ? fullA : fullB;
+          const txt = decayAdjustText(r.decayAdjust, nomeMaisParado);
           return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
         })()}
       </div>
