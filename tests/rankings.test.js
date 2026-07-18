@@ -307,3 +307,43 @@ test('resolvePlayers: ids, players ou meta nulos devolvem resultado vazio (não 
   assert.deepEqual(resolvePlayers(['206173'], null, meta), { resolved: new Map(), excluded: [] });
   assert.deepEqual(resolvePlayers(['206173'], PLAYERS, null), { resolved: new Map(), excluded: [] });
 });
+
+test('buildTrajectories: fora do snapshot global mas recente (dentro do portão) é recuperado, ancorado no próprio ranking', () => {
+  // 111 está no snapshot global (20260608). 222 saiu: último ranking 20260525 (14 dias antes).
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20250609,10,111,3000',
+    '20260608,8,111,3200',   // snapshot global
+    '20250526,300,222,120',  // ~12m antes do último ranking do 222
+    '20260525,673,222,50',   // último do 222, 14 dias antes do snapshot -> dentro do portão
+  ].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  const v = t.get('222');
+  assert.equal(v.rank, 673);
+  assert.equal(v.snapshotDate, 20260525); // âncora = o próprio último ranking (o careerText mostra como 'as of')
+  assert.equal(v.rank12m, 300);
+  assert.equal(v.points12m, 120);
+});
+
+test('buildTrajectories: fora do snapshot e velho demais (além do portão) fica de fora', () => {
+  // 222 último ranking 20250721, ~322 dias antes de 20260608: não entra (dado velho seria mentira).
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20260608,8,111,3200',
+    '20250721,188,222,900',
+  ].join('\n');
+  const t = buildTrajectories(parseRankingRows(csv));
+  assert.equal(t.has('222'), false);
+  assert.equal(t.has('111'), true);
+});
+
+test('buildTrajectories: o portão de recência é uma fronteira exata', () => {
+  // 20260101 -> 20260608 = 158 dias exatos.
+  const csv = [
+    'ranking_date,rank,player,points',
+    '20260608,1,111,9000',
+    '20260101,500,222,80',
+  ].join('\n');
+  assert.equal(buildTrajectories(parseRankingRows(csv), { maxStaleDays: 158 }).has('222'), true);
+  assert.equal(buildTrajectories(parseRankingRows(csv), { maxStaleDays: 157 }).has('222'), false);
+});

@@ -32,6 +32,10 @@ const toDate = (int) => new Date(Math.floor(int / 10000), (Math.floor(int / 100)
 /** Date -> AAAAMMDD. */
 const toInt = (d) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 
+/** Dias entre duas datas AAAAMMDD (valor absoluto). Usa o mesmo `toDate` do resto
+ *  do arquivo, então o fuso se cancela. */
+const daysBetween = (a, b) => Math.abs(toDate(a) - toDate(b)) / 86400000;
+
 /** Data do snapshot mais recente (ou null). */
 export function latestDate(rows) {
   let max = 0;
@@ -109,13 +113,17 @@ export function spikeOf(serie, from, to) {
   return { pct: Math.min(100, Math.round((100 * maior) / total)), date: quando, ganho: maior, total };
 }
 
-/** Rows -> trajetória por player_id. Só quem está no snapshot mais recente. */
-export function buildTrajectories(rows) {
+const MAX_STALE_DAYS = 120; // fora do snapshot global, quão velho pode ser o último ranking do jogador
+
+/** Rows -> trajetória por player_id. Ancorada no snapshot global quando o jogador está
+ *  nele (saída IDÊNTICA à âncora global de antes); senão no ranking mais recente DELE,
+ *  desde que dentro do portão de recência — rotular dado velho como se fosse de hoje
+ *  seria mentira. A mudança é aditiva: quem já tinha trajetória não muda. */
+export function buildTrajectories(rows, { maxStaleDays = MAX_STALE_DAYS } = {}) {
   if (!rows) return new Map(); // guarda: null/undefined não estoura em latestDate
   const snapshotDate = latestDate(rows);
   if (!snapshotDate) return new Map();
   const dates = [...new Set(rows.map((r) => r.date))];
-  const date12m = nearestDate(dates, minus12Months(snapshotDate));
 
   const byId = new Map();
   for (const r of rows) {
@@ -126,25 +134,34 @@ export function buildTrajectories(rows) {
 
   const out = new Map();
   for (const [id, serie] of byId) {
-    const hoje = serie.find((s) => s.date === snapshotDate);
-    if (!hoje) continue; // não está no ranking hoje: nem vale a pena ordenar a série
-    serie.sort((a, b) => a.date - b.date); // peak e spikeOf abaixo dependem da série ordenada
+    serie.sort((a, b) => a.date - b.date); // peak/spikeOf dependem da ordem; e precisamos do último
+    // Âncora: o snapshot global se o jogador está nele; senão o ranking mais recente
+    // DELE, se não estiver velho demais. Para quem está no snapshot, anchorDate ===
+    // snapshotDate e o date12m é o mesmo global -> saída idêntica à versão anterior.
+    let anchorRow = serie.find((s) => s.date === snapshotDate);
+    if (!anchorRow) {
+      const ultimo = serie[serie.length - 1];
+      if (daysBetween(snapshotDate, ultimo.date) > maxStaleDays) continue;
+      anchorRow = ultimo;
+    }
+    const anchorDate = anchorRow.date;
+    const date12m = nearestDate(dates, minus12Months(anchorDate));
     const antes = serie.find((s) => s.date === date12m) || null;
     let peak = Infinity;
     let peakDate = null;
     for (const s of serie) if (s.rank < peak) { peak = s.rank; peakDate = s.date; }
-    const spike = antes ? spikeOf(serie, date12m, snapshotDate) : null;
+    const spike = antes ? spikeOf(serie, date12m, anchorDate) : null;
     out.set(id, {
-      rank: hoje.rank,
-      points: hoje.points,
+      rank: anchorRow.rank,
+      points: anchorRow.points,
       rank12m: antes ? antes.rank : null,
       points12m: antes ? antes.points : null,
       peak: peak === Infinity ? null : peak,
       peakDate,
-      snapshotDate,
-      // date12m é a data de referência do DATASET (não do jogador): existe mesmo
-      // para quem não tinha ranking nela. rank12m/points12m continuam null nesse
-      // caso — só a data serve pro texto dizer QUANDO ele não tinha ranking.
+      // snapshotDate agora é a data da ÂNCORA do jogador (global para quem está no
+      // snapshot; o próprio último ranking para os recuperados). O careerText já publica
+      // isso como 'as of DD/MM/AAAA'.
+      snapshotDate: anchorDate,
       date12m,
       spikePct: spike ? spike.pct : null,
       spikeDate: spike ? spike.date : null,
