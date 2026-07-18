@@ -371,7 +371,7 @@ async function ensurePreProb() {
     if (m.error) return;
     const pa = findModelPlayer(reg.players.a, m.players);
     const pb = findModelPlayer(reg.players.b, m.players);
-    const prob = pa && pb ? analyzeMatch(pa, pb, reg.surface || 'hard', m).probA : null;
+    const prob = pa && pb ? analyzeMatch(pa, pb, reg.surface || 'hard', m, undefined, hojeInt()).probA : null;
     if (probKeyFor() === key && reg.entryType === 'live') {
       reg.preProbA = prob;
       reg.preProbKey = key;
@@ -825,6 +825,7 @@ async function loadToday() {
 }
 
 const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
+const hojeInt = () => Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
 
 async function loadModel() {
   const tour = anal.tour;
@@ -956,7 +957,7 @@ function renderAnalise() {
   analiseEl.querySelector('#btn-reg-conf')?.addEventListener('click', () => {
     reg = { ...defaultReg(), tour: anal.tour, surface: anal.surface, players: { a: anal.a.fullName || anal.a.name, b: anal.b.fullName || anal.b.name, tour: anal.tour } };
     if (anal.live.active) {
-      const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level);
+      const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
       reg.market = 'Match Odds';
       reg.entryType = 'live';
       reg.liveState = { setsA: anal.live.setsA, setsB: anal.live.setsB, gamesA: anal.live.gamesA, gamesB: anal.live.gamesB, serverIsA: anal.live.serverIsA, bestOf: anal.live.bestOf };
@@ -1260,8 +1261,7 @@ function renderTactics(r) {
 }
 
 function renderReading() {
-  const hojeInt = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
-  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt);
+  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
   const fullA = anal.a.fullName || anal.a.name;

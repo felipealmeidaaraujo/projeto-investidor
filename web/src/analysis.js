@@ -84,7 +84,8 @@ export function playerTags(player, tour = 'ATP') {
 
 /** Leitura completa do confronto.
  *  `level` (opcional) é o nível do torneio ('tour'|'challenger'); quando ausente,
- *  deriva do nível dos jogadores. A curva de idade só roda em nível 'tour'. */
+ *  deriva do nível dos jogadores. A curva de idade só roda em nível 'tour'.
+ *  `refDate` (AAAAMMDD, opcional) habilita o decay de inatividade em Challenger. */
 export function analyzeMatch(playerA, playerB, surface, model, level, refDate) {
   const T = model.calibrationT ?? 1;
   const bruta = matchProbability(playerA, playerB, surface, T);
