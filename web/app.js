@@ -70,7 +70,7 @@ function ring(frac, size, stroke, color, track, label, labelColor) {
 const analiseEl = document.getElementById('screen-analise');
 const anal = {
   tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard', level: null,
-  explainOpen: false, moreOpen: false,
+  explainOpen: false, moreOpen: false, fxFilter: 'todos',
   live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null },
 };
 // Zera o painel ao vivo (placar + odds de mercado) — chamado ao trocar de confronto.
@@ -147,6 +147,53 @@ function switchTour(t) {
   renderAnalise();
 }
 
+// Um botão de jogo. `i` é o índice na lista COMPLETA (todayData.matches) —
+// preservado mesmo quando a lista é filtrada, pra o pickFixture achar o jogo certo.
+function fixtureButtonHTML(g, i) {
+  const favPct = (g.favoriteProb * 100).toFixed(0);
+  const live = g.status === 'IN_PROGRESS';
+  const statusTag = live
+    ? `<span class="fx-live"><span class="fx-dot"></span>AO VIVO</span>`
+    : g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span>` : '';
+  const nivelLabel = g.level === 'challenger' ? ' · Challenger' : '';
+  const badges = [
+    g.ageAdjust?.adjusted ? 'ajuste de idade' : '',
+    g.ageSuppressed ? 'ajuste suspenso' : '',
+    g.decayAdjust ? 'ajuste de inatividade' : '',
+  ].filter(Boolean).map((t) => `<span class="fx-badge">⚖ ${t}</span>`).join('');
+  const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
+  return `<button class="fixture${live ? ' is-live' : ''}" data-fx="${i}">
+    <div class="fx-meta"><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span>${statusTag}</div>
+    <div class="fx-main"><span class="fx-players">${g.a} <span class="fx-vs">vs</span> ${g.b}</span><span class="fx-prob">${favPct}%</span></div>
+    <div class="fx-sub">Favorito <strong>${g.favorite}</strong> · ${g.marginLabel} · confiança ${g.confidence}</div>
+    ${badges ? `<div class="fx-badges">${badges}</div>` : ''}
+    ${tourn}
+  </button>`;
+}
+function fxCounts(list) {
+  return {
+    todos: list.length,
+    live: list.filter((m) => m.status === 'IN_PROGRESS').length,
+    ATP: list.filter((m) => m.tour === 'ATP').length,
+    WTA: list.filter((m) => m.tour === 'WTA').length,
+  };
+}
+// Aplica o filtro atual mantendo o índice original; quando "Todos", ao vivo primeiro.
+function fixtureRowsHTML(list) {
+  const f = anal.fxFilter || 'todos';
+  const rows = list
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => (f === 'todos' ? true : f === 'live' ? g.status === 'IN_PROGRESS' : g.tour === f))
+    .sort((a, b) => {
+      if (f !== 'todos') return 0;
+      const la = a.g.status === 'IN_PROGRESS' ? 0 : 1;
+      const lb = b.g.status === 'IN_PROGRESS' ? 0 : 1;
+      return la - lb;
+    })
+    .map(({ g, i }) => fixtureButtonHTML(g, i))
+    .join('');
+  return rows || `<div class="field-hint" style="padding:10px 2px">Nenhum jogo nesse filtro.</div>`;
+}
 function renderFixtures() {
   if (!todayData) {
     loadToday();
@@ -155,33 +202,24 @@ function renderFixtures() {
   const list = todayData.matches || [];
   if (!list.length) {
     return `<div class="section-title">Jogos de hoje</div>
-      <div class="notice" style="margin-bottom:18px"><p>Sem jogos de tour agora. A grade é montada <strong>automaticamente todo dia</strong> a partir do calendário ATP/WTA — se está vazia, não há jogos do circuito principal no momento (fora de temporada). Use a busca manual abaixo. 👇</p></div>`;
+      <div class="notice" style="margin-bottom:18px"><p>Sem jogos de tour agora. A grade é montada <strong>automaticamente todo dia</strong> a partir do calendário ATP/WTA — se está vazia, não há jogos do circuito principal no momento (fora de temporada). Use a busca manual acima. 👆</p></div>`;
   }
-  const liveCount = list.filter((m) => m.status === 'IN_PROGRESS').length;
-  const rows = list
-    .map((g, i) => {
-      const favPct = (g.favoriteProb * 100).toFixed(0);
-      const flag =
-        g.status === 'IN_PROGRESS' ? `<span class="fx-live">● AO VIVO</span> ` :
-        g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span> ` : '';
-      const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
-      const ageBadge = g.ageAdjust?.adjusted ? ` <span class="field-hint">⚖ ajuste de idade</span>` : '';
-      const nivelLabel = g.level === 'challenger' ? ' · Challenger' : '';
-      const ageSuppressBadge = g.ageSuppressed ? ` <span class="field-hint">⚖ ajuste suspenso (Challenger)</span>` : '';
-      const decayBadge = g.decayAdjust ? ` <span class="field-hint">⚖ ajuste de inatividade</span>` : '';
-      return `<button class="fixture" data-fx="${i}">
-        <div class="fx-top"><span class="fx-players">${flag}${g.a} vs ${g.b}</span><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span></div>
-        <div class="fx-sub">Favorito: <strong>${g.favorite}</strong> ${favPct}% · ${g.marginLabel} · confiança ${g.confidence}${ageBadge}${ageSuppressBadge}${decayBadge}</div>
-        ${tourn}
-      </button>`;
-    })
-    .join('');
-  const header = liveCount ? `Jogos de hoje (${list.length}) · ${liveCount} ao vivo` : `Jogos de hoje (${list.length})`;
-  return `<div class="section-title">${header}</div><div class="fixtures">${rows}</div>`;
+  const c = fxCounts(list);
+  const f = anal.fxFilter || 'todos';
+  const chip = (val, label, n) => `<button class="chip fxf${f === val ? ' selected' : ''}" data-fxf="${val}">${label}${n != null ? ` <span class="fxf-n">${n}</span>` : ''}</button>`;
+  return `<div class="section-title">Jogos de hoje</div>
+    <div class="chips fx-filter">
+      ${chip('todos', 'Todos', c.todos)}
+      ${c.live ? chip('live', '● Ao vivo', c.live) : ''}
+      ${chip('ATP', 'ATP', c.ATP)}
+      ${chip('WTA', 'WTA', c.WTA)}
+    </div>
+    <div class="fixtures" id="fx-list">${fixtureRowsHTML(list)}</div>`;
 }
 
 async function pickFixture(game) {
-  if (anal.tour !== game.tour) {
+  const tourChanged = anal.tour !== game.tour;
+  if (tourChanged) {
     anal.tour = game.tour;
     anal.model = anal.models[game.tour] || null;
   }
@@ -194,8 +232,10 @@ async function pickFixture(game) {
     resetLive();
     anal.surface = game.surface;
   }
-  renderAnalise();
-  document.querySelector('.app-main')?.scrollTo({ top: 220, behavior: 'smooth' });
+  // Se mudou de circuito, a grade precisa refletir o novo tour (reconstrói uma vez).
+  // No caso comum (mesmo tour), só os slots atualizam — a grade fica intacta, sem piscar.
+  if (tourChanged) renderAnalise(); else syncControls();
+  if (anal.a && anal.b) openReading();
 }
 
 function tourHeader() {
@@ -208,6 +248,62 @@ function tourHeader() {
 }
 function wireTour() {
   analiseEl.querySelectorAll('[data-tour]').forEach((b) => b.addEventListener('click', () => switchTour(b.dataset.tour)));
+}
+
+// Card "Montar confronto" (circuito + slots + ação). Fica num host próprio pra
+// atualizar sozinho, sem reconstruir a grade de jogos.
+function controlsHTML() {
+  const canRead = anal.a && anal.b;
+  return `
+    <div class="card build-card">
+      <div class="build-head">Montar confronto</div>
+      <div class="chips build-tour">
+        <button class="chip${anal.tour === 'ATP' ? ' selected' : ''}" data-tour="ATP">ATP</button>
+        <button class="chip${anal.tour === 'WTA' ? ' selected' : ''}" data-tour="WTA">WTA</button>
+      </div>
+      <div class="matchup-slots">
+        <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? (anal.a.fullName || anal.a.name) : '➕ Jogador A'}</button>
+        <span class="vs">vs</span>
+        <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? (anal.b.fullName || anal.b.name) : '➕ Jogador B'}</button>
+      </div>
+      ${canRead
+        ? `<button class="btn btn-primary" id="btn-analisar">Ver leitura do confronto</button>`
+        : `<p class="field-hint build-hint">Escolha os <strong>dois jogadores</strong> — ou toque num jogo abaixo.</p>`}
+    </div>`;
+}
+function wireControls() {
+  analiseEl.querySelectorAll('#controls-host [data-tour]').forEach((b) => b.addEventListener('click', () => switchTour(b.dataset.tour)));
+  analiseEl.querySelector('#slot-a')?.addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; anal.level = null; resetLive(); syncControls(); }));
+  analiseEl.querySelector('#slot-b')?.addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; anal.level = null; resetLive(); syncControls(); }));
+  analiseEl.querySelector('#btn-analisar')?.addEventListener('click', () => openReading());
+}
+// Atualiza só o card de montar confronto — a grade de jogos não é tocada.
+function syncControls() {
+  const host = analiseEl.querySelector('#controls-host');
+  if (!host) { renderAnalise(); return; }
+  host.innerHTML = controlsHTML();
+  wireControls();
+}
+
+function wireFixtureButtons() {
+  analiseEl.querySelectorAll('#fx-host [data-fx]').forEach((b) =>
+    b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
+  );
+}
+function wireFixtures() {
+  analiseEl.querySelectorAll('#fx-host [data-fxf]').forEach((b) =>
+    b.addEventListener('click', () => { anal.fxFilter = b.dataset.fxf; syncFixtures(); })
+  );
+  wireFixtureButtons();
+}
+// Troca o filtro re-renderizando SÓ a lista de jogos (não a tela, não os controles).
+function syncFixtures() {
+  const host = analiseEl.querySelector('#fx-host');
+  const listEl = host?.querySelector('#fx-list');
+  if (!listEl) return;
+  listEl.innerHTML = fixtureRowsHTML(todayData.matches || []);
+  host.querySelectorAll('[data-fxf]').forEach((b) => b.classList.toggle('selected', b.dataset.fxf === (anal.fxFilter || 'todos')));
+  wireFixtureButtons();
 }
 
 function renderAnalise() {
@@ -223,58 +319,11 @@ function renderAnalise() {
     wireTour();
     return;
   }
-  const canRead = anal.a && anal.b;
-  analiseEl.innerHTML = renderFixtures() + tourHeader() + `
-    <div class="matchup-slots">
-      <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? (anal.a.fullName || anal.a.name) : '➕ Jogador A'}</button>
-      <span class="vs">vs</span>
-      <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? (anal.b.fullName || anal.b.name) : '➕ Jogador B'}</button>
-    </div>
-    <div class="field"><div class="field-label"><span>Superfície</span></div>${chipsHTML(anal, 'surface', SURF_OPTS)}</div>
-    <div id="reading">${canRead ? renderReading() : `<div class="notice"><p>Escolha os <strong>dois jogadores</strong> e a superfície para ver a leitura do confronto.</p></div>`}</div>
-    <p class="field-hint" style="margin-top:14px">⚠️ Leitura do modelo pra você <strong>entender</strong> o jogo — não é recomendação de aposta. O modelo não bate o mercado; use como preparação.</p>`;
-
-  wireTour();
-  analiseEl.querySelectorAll('[data-fx]').forEach((b) =>
-    b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
-  );
-  analiseEl.querySelector('#slot-a').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; anal.level = null; resetLive(); renderAnalise(); }));
-  analiseEl.querySelector('#slot-b').addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; anal.level = null; resetLive(); renderAnalise(); }));
-  wireChips(analiseEl, anal, renderAnalise);
-
-  analiseEl.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; renderAnalise(); });
-  analiseEl.querySelector('#btn-more')?.addEventListener('click', () => { anal.moreOpen = !anal.moreOpen; renderAnalise(); });
-  analiseEl.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; renderAnalise(); });
-  analiseEl.querySelectorAll('[data-live]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const f = b.dataset.live;
-      const max = f.startsWith('sets') ? (anal.live.bestOf === 5 ? 3 : 2) : 7;
-      anal.live[f] = Math.min(max, Math.max(0, anal.live[f] + Number(b.dataset.d)));
-      renderAnalise();
-    })
-  );
-  analiseEl.querySelectorAll('[data-server]').forEach((b) =>
-    b.addEventListener('click', () => { anal.live.serverIsA = b.dataset.server === 'A'; renderAnalise(); })
-  );
-  analiseEl.querySelectorAll('[data-bestof]').forEach((b) =>
-    b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); renderAnalise(); })
-  );
-  analiseEl.querySelectorAll('[data-mkt]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const side = b.dataset.mkt;
-      openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; renderAnalise(); } });
-    })
-  );
-  analiseEl.querySelectorAll('[data-dossier]').forEach((el) =>
-    el.addEventListener('click', () => {
-      const p = el.dataset.dossier === 'a' ? anal.a : anal.b;
-      if (p) openDossier(p);
-    })
-  );
-  if (anal.a && anal.b) {
-    loadPhoto(anal.a, () => analiseEl.querySelector('.pl-avatar[data-photo="a"]'));
-    loadPhoto(anal.b, () => analiseEl.querySelector('.pl-avatar[data-photo="b"]'));
-  }
+  analiseEl.innerHTML = `<h1 class="screen-title">Análise</h1>`
+    + `<div id="controls-host">${controlsHTML()}</div>`
+    + `<div id="fx-host">${renderFixtures()}</div>`;
+  wireControls();
+  wireFixtures();
 }
 
 /* ================= Dossiê do jogador ================= */
@@ -352,9 +401,10 @@ function renderDossierExplain(st, hasServe) {
     </div>`;
 }
 
-function openDossier(player) {
+function openDossier(player, opts = {}) {
   const root = document.getElementById('modal-root');
   const st = { explainOpen: false };
+  const closeDossier = () => { root.innerHTML = ''; if (opts.onBack) opts.onBack(); };
 
   function draw() {
     const tags = playerTags(player, anal.tour);
@@ -388,6 +438,7 @@ function openDossier(player) {
     root.innerHTML = `
       <div class="modal-overlay" id="dos-overlay">
         <div class="modal-sheet">
+          <button class="modal-x" id="dos-x" aria-label="Fechar">✕</button>
           <div class="dossier">
             <div class="dos-photo" id="dos-photo"><span class="dos-avatar">${initials(player.name)}</span></div>
             <div class="dos-name">${player.name}</div>
@@ -424,12 +475,114 @@ function openDossier(player) {
           <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
         </div>
       </div>`;
-    root.querySelector('#dos-close').addEventListener('click', () => (root.innerHTML = ''));
-    root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') root.innerHTML = ''; });
+    root.querySelector('#dos-close').addEventListener('click', closeDossier);
+    root.querySelector('#dos-x').addEventListener('click', closeDossier);
+    root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') closeDossier(); });
     root.querySelector('#dos-explain')?.addEventListener('click', () => { st.explainOpen = !st.explainOpen; draw(); });
     loadPhoto(player);
   }
 
+  draw();
+}
+
+/* ================= Leitura do confronto (modal sobreposto) ================= */
+// Reusa o padrão do dossiê (#modal-root). Cada micro-interação atualiza SÓ o
+// bloco que mudou — a grade de jogos atrás nunca re-renderiza, e mexer no placar
+// ao vivo não recria o card (as fotos não piscam).
+function openReading() {
+  if (!(anal.a && anal.b && anal.model && !anal.model.error)) return;
+  const root = document.getElementById('modal-root');
+  const currentR = () => analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
+
+  function liveHTML(r) {
+    return `<button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>
+      <div id="rd-live-panel">${anal.live.active ? renderLive(r) : ''}</div>`;
+  }
+  // Só o painel ao vivo (botão + steppers). Não toca o card nem as fotos.
+  function drawLive() {
+    const host = root.querySelector('#rd-live-host');
+    if (!host) return;
+    host.innerHTML = liveHTML(currentR());
+    root.querySelector('#btn-live')?.addEventListener('click', () => { anal.live.active = !anal.live.active; drawLive(); });
+    root.querySelectorAll('[data-live]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const f = b.dataset.live;
+        const max = f.startsWith('sets') ? (anal.live.bestOf === 5 ? 3 : 2) : 7;
+        anal.live[f] = Math.min(max, Math.max(0, anal.live[f] + Number(b.dataset.d)));
+        drawLive();
+      })
+    );
+    root.querySelectorAll('[data-server]').forEach((b) =>
+      b.addEventListener('click', () => { anal.live.serverIsA = b.dataset.server === 'A'; drawLive(); })
+    );
+    root.querySelectorAll('[data-bestof]').forEach((b) =>
+      b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); drawLive(); })
+    );
+    root.querySelectorAll('[data-mkt]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const side = b.dataset.mkt;
+        // O teclado ocupa o #modal-root (some com a leitura); onClose redesenha a leitura de volta.
+        openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; }, onClose: draw });
+      })
+    );
+  }
+  // Só a faixa "O que significam esses números".
+  function drawExplain() {
+    const host = root.querySelector('#rd-explain');
+    if (!host) return;
+    host.innerHTML = renderExplain(currentR());
+    root.querySelector('#btn-explain')?.addEventListener('click', () => { anal.explainOpen = !anal.explainOpen; drawExplain(); });
+    root.querySelector('#btn-more')?.addEventListener('click', () => { anal.moreOpen = !anal.moreOpen; drawExplain(); });
+  }
+  // O card de leitura (favorito + jogadores + H2H + narrativa + táticas). As fotos vivem aqui.
+  function drawCard() {
+    const host = root.querySelector('#rd-card');
+    if (!host) return;
+    host.innerHTML = readingCardHTML(currentR());
+    host.querySelectorAll('[data-dossier]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const p = el.dataset.dossier === 'a' ? anal.a : anal.b;
+        if (p) openDossier(p, { onBack: draw });
+      })
+    );
+    loadPhoto(anal.a, () => host.querySelector('.pl-avatar[data-photo="a"]'));
+    loadPhoto(anal.b, () => host.querySelector('.pl-avatar[data-photo="b"]'));
+  }
+  function draw() {
+    const nomeA = anal.a.fullName || anal.a.name;
+    const nomeB = anal.b.fullName || anal.b.name;
+    root.innerHTML = `
+      <div class="modal-overlay" id="rd-overlay">
+        <div class="modal-sheet reading-sheet">
+          <div class="rd-head">
+            <div class="rd-head-titles">
+              <span class="rd-head-eyebrow">Leitura do confronto</span>
+              <span class="rd-head-players">${nomeA} <span class="rd-head-vs">vs</span> ${nomeB}</span>
+            </div>
+            <button class="rd-x" id="rd-close" aria-label="Fechar">✕</button>
+          </div>
+          <div class="rd-body">
+            <div class="field rd-surface"><div class="field-label"><span>Superfície</span></div>${chipsHTML(anal, 'surface', SURF_OPTS)}</div>
+            <div id="rd-card"></div>
+            <div id="rd-explain"></div>
+            <div id="rd-live-host"></div>
+            <p class="field-hint rd-disclaimer">⚠️ Leitura do modelo pra você <strong>entender</strong> o jogo — não é recomendação de aposta. Você decide.</p>
+          </div>
+        </div>
+      </div>`;
+    root.querySelector('#rd-close').addEventListener('click', () => (root.innerHTML = ''));
+    root.querySelector('#rd-overlay').addEventListener('click', (e) => { if (e.target.id === 'rd-overlay') root.innerHTML = ''; });
+    root.querySelectorAll('.chip[data-field="surface"]').forEach((chip) =>
+      chip.addEventListener('click', () => {
+        anal.surface = chip.dataset.value;
+        root.querySelectorAll('.chip[data-field="surface"]').forEach((c) => c.classList.toggle('selected', c.dataset.value === anal.surface));
+        drawCard(); drawExplain(); drawLive();
+      })
+    );
+    drawCard();
+    drawExplain();
+    drawLive();
+  }
   draw();
 }
 
@@ -550,8 +703,7 @@ function renderWatch(r) {
     </div>`;
 }
 
-function renderReading() {
-  const r = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
+function readingCardHTML(r) {
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
   const fullA = anal.a.fullName || anal.a.name;
@@ -595,10 +747,7 @@ function renderReading() {
       <div class="reading-note">${narrative(r)}</div>
       ${renderTactics(r)}
       ${renderWatch(r)}
-    </div>
-    ${renderExplain(r)}
-    <button class="btn" id="btn-live" style="margin-top:14px">${anal.live.active ? '⏱️ Ocultar trade ao vivo' : '⏱️ Trade ao vivo (odd por placar)'}</button>
-    ${anal.live.active ? renderLive(r) : ''}`;
+    </div>`;
 }
 
 function renderLive(pre) {
@@ -676,13 +825,22 @@ function openPlayerPicker(model, onPick, opts = {}) {
   let letter = null;
   let query = '';
   let observer = null;
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   function computeList() {
+    const q = query.trim();
+    // Busca varre o modelo INTEIRO (não só ativos) e ignora acentos — assim achar
+    // "Tabilo" ou "muller" funciona sem trocar pra "Todos". Limita a 100 por performance.
+    if (q) {
+      const nq = norm(q);
+      return model.players
+        .filter((p) => norm(p.fullName || p.name).includes(nq) || norm(p.name).includes(nq))
+        .sort((a, b) => (b.elo || 0) - (a.elo || 0))
+        .slice(0, 100);
+    }
     const base = showAll ? model.players : model.players.filter((p) => p.active);
-    const q = query.trim().toLowerCase();
-    if (q) return base.filter((p) => (p.fullName || p.name).toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 60);
     if (letter) return base.filter((p) => p.name[0].toUpperCase() === letter).sort((a, b) => a.name.localeCompare(b.name));
-    return base.slice(0, 40);
+    return base; // lista completa, rolável — sem corte em 40
   }
   function observePhotos() {
     if (observer) observer.disconnect();
@@ -701,6 +859,13 @@ function openPlayerPicker(model, onPick, opts = {}) {
   function renderList() {
     const list = computeList();
     const q = query.trim();
+    const countEl = root.querySelector('#pp-count');
+    if (countEl) {
+      const n = list.length;
+      const es = n > 1 ? 'es' : '';
+      const suffix = q ? (n > 1 ? 'encontrados' : 'encontrado') : showAll ? '(histórico)' : (n > 1 ? 'ativos' : 'ativo');
+      countEl.textContent = n ? `${n} jogador${es} ${suffix}` : '';
+    }
     const wrap = root.querySelector('.picker-list');
     const customRow = allowCustom && q
       ? `<button class="picker-row" data-custom="${encodeURIComponent(q)}"><span class="pp-avatar"><span>${initials(q)}</span></span><span class="pp-name">Usar “${q}”</span><span class="field-hint">digitado</span></button>`
@@ -739,6 +904,7 @@ function openPlayerPicker(model, onPick, opts = {}) {
             <button class="chip${showAll ? ' selected' : ''}" data-mode="todos">Todos (histórico)</button>
           </div>
           <div class="az-strip">${letters.map((L) => `<button class="az${letter === L ? ' sel' : ''}" data-l="${L}">${L}</button>`).join('')}</div>
+          <div class="pp-count" id="pp-count"></div>
           <div class="picker-list"></div>
           <div class="modal-actions"><button class="btn btn-ghost" id="pp-cancel">Cancelar</button></div>
         </div>
@@ -756,20 +922,8 @@ function openPlayerPicker(model, onPick, opts = {}) {
   draw();
 }
 
-/* ================= Chips (wiring compartilhado) ================= */
-function wireChips(container, obj, rerender) {
-  container.querySelectorAll('.chip[data-field]').forEach((chip) =>
-    chip.addEventListener('click', () => {
-      const raw = chip.dataset.value;
-      const num = Number(raw);
-      obj[chip.dataset.field] = raw === String(num) ? num : raw;
-      rerender();
-    })
-  );
-}
-
 /* ================= Teclado numérico ================= */
-function openKeypad({ title, value = 0, onConfirm, mode = 'money' }) {
+function openKeypad({ title, value = 0, onConfirm, onClose, mode = 'money' }) {
   const root = document.getElementById('modal-root');
   const isOdd = mode === 'odd';
   let buf = value ? (isOdd ? String(value) : String(Math.round(value))) : '';
@@ -805,6 +959,9 @@ function openKeypad({ title, value = 0, onConfirm, mode = 'money' }) {
   function close(result) {
     root.innerHTML = '';
     if (result != null) onConfirm(result);
+    // Sempre chamado (OK ou Cancelar): quem abriu o teclado por cima de outro
+    // modal (ex.: a leitura) usa isto pra se redesenhar de volta.
+    if (onClose) onClose();
   }
   draw();
 }

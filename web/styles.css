@@ -287,6 +287,12 @@ body {
 }
 @media (min-width: 640px) { .modal-sheet { border-radius: var(--r-xl); } }
 @keyframes slideup { from { transform: translateY(100%); } to { transform: none; } }
+.modal-sheet { position: relative; }
+/* Botão fechar (X) no canto — consistência de "fechar claro" entre os modais. */
+.modal-x { position: absolute; top: 12px; right: 12px; z-index: 3; width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: var(--hover); color: var(--text-2); font-size: 14px; font-family: inherit; cursor: pointer;
+  display: grid; place-items: center; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s; }
+.modal-x:hover { background: var(--border); color: var(--text-1); }
 .modal-title { text-align: center; font-size: 14px; color: var(--text-2); font-weight: 600; margin-bottom: 10px; }
 .keypad-display { text-align: center; font-size: 34px; font-weight: 800; padding: 8px 0 16px; font-variant-numeric: tabular-nums; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -334,6 +340,18 @@ body {
 .tr-review { color: var(--amber); }
 .tr-expand { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
 
+/* ===================== Análise: montar confronto (card do topo) ===================== */
+.build-card { display: flex; flex-direction: column; gap: 12px; }
+.build-head { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .06em; }
+.build-card .matchup-slots { margin-bottom: 0; }
+.build-tour { gap: 8px; }
+.build-hint { margin: 0; }
+
+/* ===================== Análise: filtro de jogos ===================== */
+.fx-filter { margin-bottom: 12px; }
+.chip.fxf { padding: 8px 13px; min-height: 38px; font-size: 13px; }
+.fxf-n { font-size: 11px; font-weight: 700; opacity: .65; margin-left: 1px; }
+
 /* ===================== Análise: slots ===================== */
 .matchup-slots { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .slot { flex: 1; min-height: 62px; padding: 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
@@ -364,14 +382,47 @@ body {
 .pl-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .reading-note { padding: 18px; font-size: 14px; line-height: 1.6; border-top: 1px solid var(--border-subtle); color: var(--text-1); }
 
+/* ===================== Modal de leitura (sheet com header fixo) ===================== */
+.reading-sheet { padding: 0; display: flex; flex-direction: column; max-height: 92vh; max-height: 92dvh; overflow: hidden; }
+.rd-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 15px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--elevated); }
+.rd-head-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rd-head-eyebrow { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
+.rd-head-players { font-size: 15.5px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-head-vs { color: var(--text-3); font-weight: 700; font-size: 12.5px; margin: 0 2px; }
+.rd-x { flex: none; width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--hover);
+  color: var(--text-2); font-size: 15px; font-family: inherit; cursor: pointer; display: grid; place-items: center;
+  -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s; }
+.rd-x:hover { background: var(--border); color: var(--text-1); }
+.rd-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 16px 0 calc(env(safe-area-inset-bottom) + 18px); }
+/* corpo sem padding lateral: o card de leitura sangra de ponta a ponta (full-bleed),
+   os demais blocos recebem a margem lateral individualmente. */
+.rd-body > .rd-surface, .rd-body > #rd-explain, .rd-body > #rd-live-host, .rd-body > .rd-disclaimer { padding-left: 18px; padding-right: 18px; }
+.rd-surface { margin-bottom: 16px; }
+.rd-disclaimer { margin-top: 16px; }
+/* fim do "card dentro de card": no modal o reading-card é flat, só com divisórias internas. */
+.reading-sheet .reading-card { border: none; box-shadow: none; border-radius: 0; border-top: 1px solid var(--border-subtle); }
+.reading-sheet #rd-explain, .reading-sheet #rd-live-host { margin-top: 14px; }
+
 /* ===================== Picker A–Z ===================== */
-.picker-sheet { max-height: 82vh; display: flex; flex-direction: column; }
-.az-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
-.az { min-width: 30px; min-height: 34px; padding: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+/* Altura fixa + overflow:hidden no sheet: só a .picker-list rola (antes o sheet
+   inteiro competia com a lista e a espremia a ~13px em telas baixas). */
+.picker-sheet { height: 86vh; height: 86dvh; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
+/* Só a lista flexiona; título/busca/chips/A-Z/ações mantêm o tamanho natural
+   (sem isto, o flex-shrink padrão espreme o A-Z a 0 quando a tela é baixa). */
+.picker-sheet > :not(.picker-list) { flex: none; }
+/* Faixa A–Z numa linha rolável na horizontal — não empilha em 3 linhas comendo altura. */
+.az-strip { display: flex; flex-wrap: nowrap; gap: 4px; margin: 4px 0; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.az-strip::-webkit-scrollbar { display: none; }
+.az { min-width: 30px; min-height: 34px; padding: 4px; flex: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text-2); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
 .az.sel { background: var(--accent-subtle); border-color: transparent; color: var(--accent); }
 .pp-search { margin-bottom: 10px; }
-.picker-list { overflow-y: auto; flex: 1; }
+.pp-count { font-size: 12px; color: var(--text-2); font-weight: 600; margin: 2px 2px 6px; }
+/* flex:1 + min-height:0 = a lista ocupa o resto e rola por dentro do sheet. */
+.picker-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .picker-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 8px; min-height: 52px;
   background: none; border: none; border-bottom: 1px solid var(--border-subtle); color: var(--text-1); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
 .picker-row:active { background: var(--hover); }
@@ -381,14 +432,24 @@ body {
 
 /* ===================== Jogos de hoje ===================== */
 .fixtures { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; }
-.fixture { text-align: left; background: var(--card); border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 13px 15px; cursor: pointer; font-family: inherit; color: var(--text-1); box-shadow: var(--shadow-sm); -webkit-tap-highlight-color: transparent; }
-.fixture:active { background: var(--hover); }
-.fx-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.fx-players { font-size: 15px; font-weight: 700; }
-.fx-tour { font-size: 11px; color: var(--text-2); white-space: nowrap; font-weight: 600; }
-.fx-sub { font-size: 12.5px; color: var(--text-2); margin-top: 4px; font-weight: 500; }
-.fx-tourn { font-size: 11px; color: var(--text-3, var(--text-2)); margin-top: 3px; font-weight: 500; }
-.fx-live { color: var(--green); font-weight: 800; font-size: 11px; letter-spacing: .3px; }
+.fixture { width: 100%; text-align: left; background: var(--card); border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 13px 16px; cursor: pointer; font-family: inherit; color: var(--text-1); box-shadow: var(--shadow-sm); -webkit-tap-highlight-color: transparent; transition: border-color .13s, background .13s, transform .1s; }
+.fixture:hover { border-color: var(--border); }
+.fixture:active { background: var(--hover); transform: scale(.995); }
+.fixture.is-live { border-left: 3px solid var(--green); }
+.fx-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 7px; }
+.fx-tour { font-size: 10.5px; color: var(--text-2); white-space: nowrap; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.fx-main { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.fx-players { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; min-width: 0; }
+.fx-vs { color: var(--text-3); font-weight: 600; font-size: 12.5px; margin: 0 1px; }
+.fx-prob { font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: -.02em; flex: none; }
+.fx-sub { font-size: 12.5px; color: var(--text-2); margin-top: 5px; font-weight: 500; }
+.fx-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.fx-badge { font-size: 10.5px; color: var(--text-3); background: var(--hover); padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+.fx-tourn { font-size: 11px; color: var(--text-3, var(--text-2)); margin-top: 7px; font-weight: 500; }
+.fx-live { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-weight: 800; font-size: 10.5px; letter-spacing: .4px; white-space: nowrap; }
+.fx-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: fxpulse 1.6s ease-in-out infinite; }
+@keyframes fxpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .fx-dot { animation: none; } }
 .fx-susp { color: var(--text-2); font-weight: 700; font-size: 11px; }
 .dos-bio { font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
 .dos-career { font-size: 12.5px; color: var(--text-1); margin-top: 6px; line-height: 1.45; }
@@ -411,12 +472,14 @@ body {
 /* ===================== Trade ao vivo ===================== */
 .live-panel { margin-top: 14px; padding: 16px; background: var(--card); border: 1px solid var(--border-subtle); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
 .live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.live-cell { display: flex; flex-direction: column; gap: 6px; }
+.live-cell { display: flex; flex-direction: column; gap: 7px; }
 .live-lbl { font-size: 12px; color: var(--text-2); font-weight: 600; }
-.livestep { display: flex; align-items: center; gap: 6px; }
-.lstep { width: 42px; min-height: 42px; font-size: 20px; font-weight: 800; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); color: var(--text-1); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
-.lstep:active { background: var(--hover); }
-.lstep-v { flex: 1; text-align: center; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Stepper como um controle único (− valor +) com moldura coesa e alvos de 46px. */
+.livestep { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.lstep { width: 46px; min-height: 46px; flex: none; font-size: 22px; font-weight: 800; background: transparent; border: none; color: var(--accent); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; transition: background .12s; }
+.lstep:hover { background: var(--hover); }
+.lstep:active { background: var(--accent-subtle); }
+.lstep-v { flex: 1; text-align: center; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* ===================== Dossiê ===================== */
 .dossier { text-align: center; }
