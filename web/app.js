@@ -187,7 +187,7 @@ function fixtureButtonHTML(g, i) {
   ].filter(Boolean).map((t) => `<span class="fx-badge">⚖ ${t}</span>`).join('');
   const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
   return `<button class="fixture surf-${g.surface}${live ? ' is-live' : ''}" data-fx="${i}">
-    <div class="fx-meta"><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span>${statusTag}</div>
+    <div class="fx-meta"><span class="fx-surf">${SURFACE_PT[g.surface] || g.surface}</span><span class="fx-tour">${g.tour}${nivelLabel}</span>${statusTag}</div>
     <div class="fx-main"><span class="fx-avs"><span class="fx-av" data-pname="${encodeURIComponent(g.a)}"><span>${initials(g.a)}</span></span><span class="fx-av" data-pname="${encodeURIComponent(g.b)}"><span>${initials(g.b)}</span></span></span><span class="fx-players">${g.a} <span class="fx-vs">vs</span> ${g.b}</span><span class="fx-prob">${favPct}%</span></div>
     <div class="fx-sub">Favorito <strong>${g.favorite}</strong> · ${g.marginLabel} · confiança ${g.confidence}</div>
     ${badges ? `<div class="fx-badges">${badges}</div>` : ''}

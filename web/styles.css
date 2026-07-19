@@ -41,12 +41,12 @@
    --surf (cor) e --surf-dim (fundo translúcido) mudam conforme o piso.
    Aplicado só onde a superfície é o assunto (header do modal, chips, borda do
    card) — NÃO compete com verde=força / vermelho=fraqueza / âmbar / índigo. */
-.surf-clay  { --surf: #C56A3A; --surf-dim: rgba(197,106,58,0.13); } /* saibro — terracota */
-.surf-hard  { --surf: #1596C7; --surf-dim: rgba(21,150,199,0.13); } /* dura — azul-ciano */
-.surf-grass { --surf: #5B9E3E; --surf-dim: rgba(91,158,62,0.15); }  /* grama — verde-oliva */
-:root[data-theme="dark"] .surf-clay  { --surf: #E08A54; --surf-dim: rgba(224,138,84,0.18); }
-:root[data-theme="dark"] .surf-hard  { --surf: #3AB0DC; --surf-dim: rgba(58,176,220,0.18); }
-:root[data-theme="dark"] .surf-grass { --surf: #7FBE5C; --surf-dim: rgba(127,190,92,0.18); }
+.surf-clay  { --surf: #C56A3A; --surf-dim: rgba(197,106,58,0.24); } /* saibro — terracota */
+.surf-hard  { --surf: #1596C7; --surf-dim: rgba(21,150,199,0.22); } /* dura — azul-ciano */
+.surf-grass { --surf: #5B9E3E; --surf-dim: rgba(91,158,62,0.26); }  /* grama — verde-oliva */
+:root[data-theme="dark"] .surf-clay  { --surf: #E08A54; --surf-dim: rgba(224,138,84,0.30); }
+:root[data-theme="dark"] .surf-hard  { --surf: #3AB0DC; --surf-dim: rgba(58,176,220,0.28); }
+:root[data-theme="dark"] .surf-grass { --surf: #7FBE5C; --surf-dim: rgba(127,190,92,0.32); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -445,8 +445,7 @@ body {
 .rd-head-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rd-head-eyebrow { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
 /* Acento de superfície no header do modal (a classe surf-* está no .reading-sheet). */
-.reading-sheet[class*="surf-"] .rd-head { border-bottom: 2px solid var(--surf);
-  background: linear-gradient(180deg, var(--surf-dim), transparent); }
+.reading-sheet[class*="surf-"] .rd-head { border-bottom: 3px solid var(--surf); background: var(--surf-dim); }
 .reading-sheet[class*="surf-"] .rd-head-eyebrow { color: var(--surf); }
 .reading-sheet[class*="surf-"] .chip[data-field="surface"].selected { background: var(--surf-dim); border-color: transparent; color: var(--surf); }
 /* Sem transição de cor: o `all .12s` do .chip prende a cor antiga quando --surf
@@ -501,8 +500,12 @@ body {
 .fixture:active { background: var(--hover); transform: scale(.995); }
 /* Borda-esquerda na cor da superfície — diferencia o piso na lista. O "ao vivo"
    é indicado pelo ponto pulsante + selo, então não precisa mais da borda verde. */
-.fixture[class*="surf-"] { border-left: 3px solid var(--surf, var(--border)); }
-.fx-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 7px; }
+.fixture[class*="surf-"] { border-left: 5px solid var(--surf, var(--border)); }
+.fx-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+/* Selo de superfície colorido — o marcador mais visível do piso no card. */
+.fx-surf { flex: none; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 9px; border-radius: 999px; background: var(--surf-dim); color: var(--surf); }
+.fx-meta .fx-live, .fx-meta .fx-susp { margin-left: auto; }
 .fx-tour { font-size: 10.5px; color: var(--text-2); white-space: nowrap; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .fx-main { display: flex; align-items: center; gap: 10px; }
 .fx-avs { display: inline-flex; flex: none; }
