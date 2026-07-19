@@ -186,7 +186,7 @@ function fixtureButtonHTML(g, i) {
     g.decayAdjust ? 'ajuste de inatividade' : '',
   ].filter(Boolean).map((t) => `<span class="fx-badge">⚖ ${t}</span>`).join('');
   const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
-  return `<button class="fixture${live ? ' is-live' : ''}" data-fx="${i}">
+  return `<button class="fixture surf-${g.surface}${live ? ' is-live' : ''}" data-fx="${i}">
     <div class="fx-meta"><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span>${statusTag}</div>
     <div class="fx-main"><span class="fx-avs"><span class="fx-av" data-pname="${encodeURIComponent(g.a)}"><span>${initials(g.a)}</span></span><span class="fx-av" data-pname="${encodeURIComponent(g.b)}"><span>${initials(g.b)}</span></span></span><span class="fx-players">${g.a} <span class="fx-vs">vs</span> ${g.b}</span><span class="fx-prob">${favPct}%</span></div>
     <div class="fx-sub">Favorito <strong>${g.favorite}</strong> · ${g.marginLabel} · confiança ${g.confidence}</div>
@@ -614,10 +614,10 @@ function openReading() {
     const nomeB = anal.b.fullName || anal.b.name;
     root.innerHTML = `
       <div class="modal-overlay" id="rd-overlay">
-        <div class="modal-sheet reading-sheet">
+        <div class="modal-sheet reading-sheet surf-${anal.surface}">
           <div class="rd-head">
             <div class="rd-head-titles">
-              <span class="rd-head-eyebrow">Leitura do confronto</span>
+              <span class="rd-head-eyebrow">Leitura · ${SURFACE_PT[anal.surface]}</span>
               <span class="rd-head-players">${nomeA} <span class="rd-head-vs">vs</span> ${nomeB}</span>
             </div>
             <button class="rd-x" id="rd-close" aria-label="Fechar">✕</button>
@@ -637,12 +637,23 @@ function openReading() {
       chip.addEventListener('click', () => {
         anal.surface = chip.dataset.value;
         root.querySelectorAll('.chip[data-field="surface"]').forEach((c) => c.classList.toggle('selected', c.dataset.value === anal.surface));
+        applySurf();
         drawCard(); drawExplain(); drawLive();
       })
     );
     drawCard();
     drawExplain();
     drawLive();
+  }
+  // Sincroniza o acento de superfície (classe do sheet + etiqueta) ao abrir e ao trocar de piso.
+  function applySurf() {
+    const sheet = root.querySelector('.reading-sheet');
+    if (sheet) {
+      sheet.classList.remove('surf-clay', 'surf-hard', 'surf-grass');
+      sheet.classList.add(`surf-${anal.surface}`);
+    }
+    const eb = root.querySelector('.rd-head-eyebrow');
+    if (eb) eb.textContent = `Leitura · ${SURFACE_PT[anal.surface]}`;
   }
   draw();
 }
