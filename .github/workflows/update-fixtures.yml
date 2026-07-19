@@ -1,0 +1,58 @@
+name: Atualizar jogos do dia (grade)
+
+# Regenera SÓ a grade de jogos (web/today.json) de forma frequente, pra o status
+# (ao vivo / agendado) não ficar defasado. NÃO re-treina os modelos — usa os
+# web/model-*.json já commitados pelo robô diário (update-model.yml). Por isso é
+# leve e barato o suficiente pra rodar de hora em hora.
+#
+# Faz o deploy ele mesmo (configure/upload/deploy-pages), como o update-model:
+# um push feito com o GITHUB_TOKEN NÃO dispara o deploy.yml (proteção anti-loop),
+# então não dá pra depender do push pra publicar.
+
+on:
+  schedule:
+    - cron: '0 * * * *' # de hora em hora
+  workflow_dispatch: # botão "Run workflow" pra rodar na hora
+
+permissions:
+  contents: write # commitar web/today.json de volta (fonte única)
+  pages: write # publicar no GitHub Pages
+  id-token: write
+
+concurrency:
+  group: pages # mesmo grupo do deploy/update-model — serializa as publicações
+  cancel-in-progress: false
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Buscar os jogos do dia (Flashscore; usa os modelos já commitados)
+        run: node pipeline/fixtures.js
+      - name: Commitar a grade se mudou ([skip ci] — o deploy é feito abaixo)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/today.json
+          if git diff --staged --quiet; then
+            echo "Grade sem mudanças — nada a commitar."
+          else
+            git commit -m "chore(grade): jogos do dia atualizados [skip ci]"
+            git pull --rebase --autostash origin main || true
+            git push
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4

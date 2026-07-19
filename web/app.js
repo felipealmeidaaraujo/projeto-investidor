@@ -140,11 +140,24 @@ function switchTour(t) {
   renderAnalise();
 }
 
+// "Ao vivo" de verdade: além do status do snapshot (que é regenerado de hora em
+// hora), exige que o jogo tenha começado há pouco. Um jogo que começou há mais de
+// ~4h30 certamente já acabou — não mostramos "AO VIVO" mesmo se o dado ainda disser,
+// cobrindo a defasagem residual entre atualizações da grade. (Date.now e commence
+// são ambos UTC → a comparação é honesta em qualquer fuso.)
+const LIVE_MAX_MS = 4.5 * 60 * 60 * 1000;
+function isLive(g) {
+  if (g.status !== 'IN_PROGRESS') return false;
+  const started = g.commence ? Date.parse(g.commence) : NaN;
+  if (Number.isNaN(started)) return true; // sem horário confiável: confia no status
+  return Date.now() - started < LIVE_MAX_MS;
+}
+
 // Um botão de jogo. `i` é o índice na lista COMPLETA (todayData.matches) —
 // preservado mesmo quando a lista é filtrada, pra o pickFixture achar o jogo certo.
 function fixtureButtonHTML(g, i) {
   const favPct = (g.favoriteProb * 100).toFixed(0);
-  const live = g.status === 'IN_PROGRESS';
+  const live = isLive(g);
   const statusTag = live
     ? `<span class="fx-live"><span class="fx-dot"></span>AO VIVO</span>`
     : g.status === 'SUSPENDED' ? `<span class="fx-susp">interrompido</span>` : '';
@@ -166,7 +179,7 @@ function fixtureButtonHTML(g, i) {
 function fxCounts(list) {
   return {
     todos: list.length,
-    live: list.filter((m) => m.status === 'IN_PROGRESS').length,
+    live: list.filter(isLive).length,
     ATP: list.filter((m) => m.tour === 'ATP').length,
     WTA: list.filter((m) => m.tour === 'WTA').length,
   };
@@ -176,12 +189,10 @@ function fixtureRowsHTML(list) {
   const f = anal.fxFilter || 'todos';
   const rows = list
     .map((g, i) => ({ g, i }))
-    .filter(({ g }) => (f === 'todos' ? true : f === 'live' ? g.status === 'IN_PROGRESS' : g.tour === f))
+    .filter(({ g }) => (f === 'todos' ? true : f === 'live' ? isLive(g) : g.tour === f))
     .sort((a, b) => {
       if (f !== 'todos') return 0;
-      const la = a.g.status === 'IN_PROGRESS' ? 0 : 1;
-      const lb = b.g.status === 'IN_PROGRESS' ? 0 : 1;
-      return la - lb;
+      return (isLive(a.g) ? 0 : 1) - (isLive(b.g) ? 0 : 1);
     })
     .map(({ g, i }) => fixtureButtonHTML(g, i))
     .join('');
