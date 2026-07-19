@@ -72,13 +72,28 @@ function resetLive() {
 }
 
 // Histórico de partidas (scouting) — carregado sob demanda ao abrir a Análise.
+// Funde o histórico (matches.json, tennis-data/Sackmann, com lag de ~1-2 semanas)
+// com os resultados frescos do Flashscore (recent-results.json, atualizado de hora
+// em hora) — assim forma recente, descanso e H2H ficam em dia. Dedup na borda.
 let scoutMatches = null;
 async function loadScoutMatches() {
   if (scoutMatches) return;
   try {
-    const res = await fetch('matches.json');
-    if (!res.ok) return;
-    scoutMatches = (await res.json()).matches || [];
+    const [histRes, recentRes] = await Promise.all([
+      fetch('matches.json'),
+      fetch('recent-results.json').catch(() => null),
+    ]);
+    if (!histRes.ok) return;
+    const hist = (await histRes.json()).matches || [];
+    let recent = [];
+    if (recentRes && recentRes.ok) { try { recent = (await recentRes.json()).matches || []; } catch {} }
+    const seen = new Set(hist.map((m) => `${m.date}|${m.winner}|${m.loser}`));
+    const merged = hist.slice();
+    for (const m of recent) {
+      const k = `${m.date}|${m.winner}|${m.loser}`;
+      if (!seen.has(k)) { seen.add(k); merged.push(m); }
+    }
+    scoutMatches = merged;
     renderScreen(currentScreen);
   } catch { /* sem scouting se o fetch falhar */ }
 }

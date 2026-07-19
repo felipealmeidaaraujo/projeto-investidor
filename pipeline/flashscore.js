@@ -71,16 +71,67 @@ export function parseFeed(text) {
   return out;
 }
 
+const ymdFromUnix = (sec) => {
+  const d = new Date(Number(sec) * 1000);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+};
+
+/** Feed cru do Flashscore -> resultados de simples ENCERRADOS (tour+challenger).
+ *  {date (YYYYMMDD), surface, tour, winner, loser}. Vencedor = mais sets (AG do jogador A
+ *  vs AH do jogador B). Ignora sem placar de sets ou empatado (sem vencedor claro). */
+export function parseResults(text) {
+  const out = [];
+  let th = null;   // cabeçalho de torneio atual
+  let cur = null;  // jogo atual
+  const flush = () => {
+    if (!cur || !th || !th.singles || !GRADE_LEVELS.has(th.level)) return;
+    if (cur.status !== 'FINISHED' || !cur.a || !cur.b) return;
+    const sa = Number(cur.setsA), sb = Number(cur.setsB);
+    if (!Number.isFinite(sa) || !Number.isFinite(sb) || sa === sb) return; // sem vencedor claro
+    const aWon = sa > sb;
+    out.push({
+      date: ymdFromUnix(cur.commence),
+      surface: th.surface, tour: th.tour,
+      winner: aWon ? cur.a : cur.b,
+      loser: aWon ? cur.b : cur.a,
+    });
+  };
+  for (const reg of text.split('¬')) {
+    const i = reg.indexOf('÷');
+    if (i < 0) continue;
+    const key = reg.slice(0, i).replace(/^~/, '');
+    const val = reg.slice(i + 1);
+    if (key === 'ZA') { flush(); cur = null; th = parseTournamentHeader(val); }
+    else if (key === 'AA') { flush(); cur = { status: null, commence: null, a: null, b: null, setsA: null, setsB: null }; }
+    else if (cur) {
+      if (key === 'AB' && cur.status == null) cur.status = statusFromCode(val);
+      else if (key === 'AD' && cur.commence == null) cur.commence = val;
+      else if (key === 'AE' && cur.a == null) cur.a = val;
+      else if (key === 'AF' && cur.b == null) cur.b = val;
+      else if (key === 'AG' && cur.setsA == null) cur.setsA = val;
+      else if (key === 'AH' && cur.setsB == null) cur.setsB = val;
+    }
+  }
+  flush();
+  return out;
+}
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+const fsHeaders = { 'x-fsign': 'SW9D1eZo', Referer: 'https://www.flashscore.com/', 'User-Agent': UA };
 
 /** Baixa e parseia a grade de tênis do dia do Flashscore (IO). Lança se o feed vier vazio. */
 export async function fetchGrid() {
-  const r = await fetch('https://www.flashscore.com/x/feed/f_2_0_3_en_1', {
-    headers: { 'x-fsign': 'SW9D1eZo', Referer: 'https://www.flashscore.com/', 'User-Agent': UA },
-  });
+  const r = await fetch('https://www.flashscore.com/x/feed/f_2_0_3_en_1', { headers: fsHeaders });
   if (!r.ok) throw new Error(`Flashscore HTTP ${r.status}`);
   const text = await r.text();
   const jogos = parseFeed(text);
   if (!jogos.length) throw new Error('Flashscore: feed sem jogos (formato mudou?)');
   return jogos;
+}
+
+/** Resultados encerrados de um dia (dayOffset: 0 hoje, -1 ontem, ...). */
+export async function fetchResults(dayOffset = 0) {
+  const r = await fetch(`https://www.flashscore.com/x/feed/f_2_${dayOffset}_3_en_1`, { headers: fsHeaders });
+  if (!r.ok) throw new Error(`Flashscore HTTP ${r.status}`);
+  return parseResults(await r.text());
 }

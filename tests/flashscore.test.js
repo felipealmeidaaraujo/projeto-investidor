@@ -106,3 +106,42 @@ test('parseFeed: emite tour+challenger com o campo level, descarta ITF e exhibit
     ['Tour A. vs Tour B.', 'Chall A. vs Chall B.']
   );
 });
+
+import { parseResults } from '../pipeline/flashscore.js';
+
+const RESULTS_FEED = [
+  '~ZA÷ATP - SINGLES: Bastad (Sweden), clay',
+  '~AA÷r1', 'AD÷1784106600', 'AB÷3', 'AE÷Rublev A.', 'AF÷Darderi L.', 'AG÷2', 'AH÷0',
+  '~AA÷r2', 'AD÷1784106600', 'AB÷3', 'AE÷Jacquet K.', 'AF÷Daniel T.', 'AG÷1', 'AH÷2',
+  '~ZA÷WTA - SINGLES: Athens (Greece), hard',
+  '~AA÷r3', 'AD÷1784106600', 'AB÷2', 'AE÷AoVivo A.', 'AF÷AoVivo B.', 'AG÷1', 'AH÷0',
+  '~AA÷r4', 'AD÷1784106600', 'AB÷1', 'AE÷Agendado A.', 'AF÷Agendado B.',
+  '~ZA÷ITF MEN - SINGLES: M15 Gubbio (Italy), clay',
+  '~AA÷r5', 'AD÷1784106600', 'AB÷3', 'AE÷Itf A.', 'AF÷Itf B.', 'AG÷2', 'AH÷1',
+].join('¬');
+
+test('parseResults: só encerrados de tour/challenger; vencedor = mais sets', () => {
+  const res = parseResults(RESULTS_FEED);
+  assert.equal(res.length, 2); // ao vivo, agendado e ITF ficam de fora
+  assert.equal(res[0].winner, 'Rublev A.');
+  assert.equal(res[0].loser, 'Darderi L.');
+  assert.equal(res[1].winner, 'Daniel T.'); // AH (2) > AG (1)
+  assert.equal(res[1].loser, 'Jacquet K.');
+  assert.equal(res[0].surface, 'clay');
+  assert.equal(res[0].tour, 'ATP');
+});
+
+test('parseResults: data em YYYYMMDD (UTC) a partir do timestamp', () => {
+  const [r] = parseResults(RESULTS_FEED);
+  const d = new Date(1784106600 * 1000);
+  assert.equal(r.date, d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate());
+});
+
+test('parseResults: sem placar de sets ou empate → descarta', () => {
+  const feed = [
+    '~ZA÷ATP - SINGLES: Bastad (Sweden), clay',
+    '~AA÷x1', 'AD÷1784106600', 'AB÷3', 'AE÷Sem A.', 'AF÷Placar B.',
+    '~AA÷x2', 'AD÷1784106600', 'AB÷3', 'AE÷Empate A.', 'AF÷Empate B.', 'AG÷1', 'AH÷1',
+  ].join('¬');
+  assert.equal(parseResults(feed).length, 0);
+});

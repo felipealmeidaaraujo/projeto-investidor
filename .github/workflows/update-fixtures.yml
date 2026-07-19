@@ -38,15 +38,17 @@ jobs:
       - run: npm ci
       - name: Buscar os jogos do dia (Flashscore; usa os modelos já commitados)
         run: node pipeline/fixtures.js
-      - name: Commitar a grade se mudou ([skip ci] — o deploy é feito abaixo)
+      - name: Buscar resultados recentes (forma/descanso frescos, últimos ~14 dias)
+        run: node pipeline/recent-results.js
+      - name: Commitar grade + resultados se mudaram ([skip ci] — o deploy é feito abaixo)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add web/today.json
+          git add web/today.json web/recent-results.json
           if git diff --staged --quiet; then
-            echo "Grade sem mudanças — nada a commitar."
+            echo "Sem mudanças — nada a commitar."
           else
-            git commit -m "chore(grade): jogos do dia atualizados [skip ci]"
+            git commit -m "chore(grade): jogos e resultados atualizados [skip ci]"
             git pull --rebase --autostash origin main || true
             git push
           fi
