@@ -125,7 +125,10 @@ async function loadModel() {
   anal.loadingTour = null;
   if (anal.tour === tour) {
     anal.model = anal.models[tour];
-    if (currentScreen === 'analise') renderAnalise();
+    // Re-renderiza a tela ATUAL (Análise OU Jogadores). Antes só re-renderizava a
+    // Análise, então a lista de Jogadores ficava presa em "Carregando o modelo…"
+    // quando o modelo era baixado a partir dela (ex.: ao trocar pra WTA).
+    renderScreen(currentScreen);
   }
 }
 
