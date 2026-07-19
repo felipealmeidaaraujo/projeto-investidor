@@ -444,10 +444,24 @@ body {
   padding: 15px 18px; border-bottom: 1px solid var(--border-subtle); background: var(--elevated); }
 .rd-head-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rd-head-eyebrow { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
-/* Acento de superfície no header do modal (a classe surf-* está no .reading-sheet). */
-.reading-sheet[class*="surf-"] .rd-head { border-bottom: 3px solid var(--surf); background: var(--surf-dim); }
-.reading-sheet[class*="surf-"] .rd-head-eyebrow { color: var(--surf); }
-.reading-sheet[class*="surf-"] .chip[data-field="surface"].selected { background: var(--surf-dim); border-color: transparent; color: var(--surf); }
+/* Acento de superfície no header do modal (a classe surf-* está no .reading-sheet):
+   faixa SÓLIDA da cor do piso no topo, com texto branco. */
+.reading-sheet[class*="surf-"] .rd-head { background: var(--surf); border-bottom: none; }
+.reading-sheet[class*="surf-"] .rd-head-eyebrow { color: rgba(255,255,255,0.85); }
+.reading-sheet[class*="surf-"] .rd-head-players { color: #fff; }
+.reading-sheet[class*="surf-"] .rd-head-vs { color: rgba(255,255,255,0.62); }
+.reading-sheet[class*="surf-"] .rd-x { background: rgba(255,255,255,0.22); color: #fff; }
+.reading-sheet[class*="surf-"] .rd-x:hover { background: rgba(255,255,255,0.34); color: #fff; }
+.reading-sheet[class*="surf-"] .chip[data-field="surface"].selected { background: var(--surf); border-color: transparent; color: #fff; }
+/* No escuro as cores da superfície são mais claras → texto ESCURO nos fundos sólidos
+   (branco daria contraste baixo, ~2.7:1). */
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .rd-head-eyebrow { color: rgba(11,15,26,0.72); }
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .rd-head-players,
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .rd-head-vs { color: #0B0F1A; }
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .rd-x { background: rgba(0,0,0,0.18); color: #0B0F1A; }
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .rd-x:hover { background: rgba(0,0,0,0.28); color: #0B0F1A; }
+:root[data-theme="dark"] .reading-sheet[class*="surf-"] .chip[data-field="surface"].selected { color: #0B0F1A; }
+:root[data-theme="dark"] .fx-surf { color: #0B0F1A; }
 /* Sem transição de cor: o `all .12s` do .chip prende a cor antiga quando --surf
    muda no ancestral (troca de piso). Anima só o transform (feedback de clique). */
 .reading-sheet .chip[data-field="surface"] { transition: transform .12s; }
@@ -500,11 +514,12 @@ body {
 .fixture:active { background: var(--hover); transform: scale(.995); }
 /* Borda-esquerda na cor da superfície — diferencia o piso na lista. O "ao vivo"
    é indicado pelo ponto pulsante + selo, então não precisa mais da borda verde. */
-.fixture[class*="surf-"] { border-left: 5px solid var(--surf, var(--border)); }
+.fixture[class*="surf-"] { border-left: 5px solid var(--surf, var(--border));
+  background: color-mix(in srgb, var(--surf) 10%, var(--card)); }
 .fx-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-/* Selo de superfície colorido — o marcador mais visível do piso no card. */
+/* Selo de superfície SÓLIDO com texto branco — o marcador mais visível do piso no card. */
 .fx-surf { flex: none; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
-  padding: 2px 9px; border-radius: 999px; background: var(--surf-dim); color: var(--surf); }
+  padding: 3px 10px; border-radius: 999px; background: var(--surf); color: #fff; }
 .fx-meta .fx-live, .fx-meta .fx-susp { margin-left: auto; }
 .fx-tour { font-size: 10.5px; color: var(--text-2); white-space: nowrap; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .fx-main { display: flex; align-items: center; gap: 10px; }
