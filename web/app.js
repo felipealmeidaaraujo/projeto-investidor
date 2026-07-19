@@ -410,6 +410,15 @@ function openDossier(player, opts = {}) {
   const st = { explainOpen: false };
   const closeDossier = () => { root.innerHTML = ''; if (opts.onBack) opts.onBack(); };
 
+  // Re-render escopado do "O que significam esses números?": reescreve SÓ o bloco,
+  // sem recriar o modal — assim o scroll não volta pro topo ao abrir/fechar.
+  function drawExplain() {
+    const host = root.querySelector('#dos-explain-host');
+    if (!host) return;
+    host.innerHTML = renderDossierExplain(st, !!player.serve);
+    host.querySelector('#dos-explain')?.addEventListener('click', () => { st.explainOpen = !st.explainOpen; drawExplain(); });
+  }
+
   function draw() {
     const tags = playerTags(player, anal.tour);
     const s = player.serve;
@@ -474,7 +483,7 @@ function openDossier(player, opts = {}) {
               <div class="dos-patterns">${styleLines(player.style).map((l) => `<div class="dos-srow"><span>${l.label}</span><span class="dos-pat-detail">${l.detail}</span></div>`).join('')}</div>` : ''}
             ${pressureLines(player.pressure).length ? `<div class="dos-section">Pressão nos games</div>
               <div class="dos-patterns">${pressureLines(player.pressure).map((l) => `<div class="dos-srow"><span>${l.label}</span><span class="dos-pat-detail">${l.detail}</span></div>`).join('')}</div>` : ''}
-            ${renderDossierExplain(st, !!s)}
+            <div id="dos-explain-host">${renderDossierExplain(st, !!s)}</div>
           </div>
           <div class="modal-actions"><button class="btn btn-ghost" id="dos-close">Fechar</button></div>
         </div>
@@ -482,7 +491,7 @@ function openDossier(player, opts = {}) {
     root.querySelector('#dos-close').addEventListener('click', closeDossier);
     root.querySelector('#dos-x').addEventListener('click', closeDossier);
     root.querySelector('#dos-overlay').addEventListener('click', (e) => { if (e.target.id === 'dos-overlay') closeDossier(); });
-    root.querySelector('#dos-explain')?.addEventListener('click', () => { st.explainOpen = !st.explainOpen; draw(); });
+    root.querySelector('#dos-explain')?.addEventListener('click', () => { st.explainOpen = !st.explainOpen; drawExplain(); });
     loadPhoto(player);
   }
 
