@@ -173,7 +173,7 @@ function fixtureButtonHTML(g, i) {
   const tourn = g.tournament ? `<div class="fx-tourn">${g.tournament}</div>` : '';
   return `<button class="fixture${live ? ' is-live' : ''}" data-fx="${i}">
     <div class="fx-meta"><span class="fx-tour">${g.tour}${nivelLabel} · ${SURFACE_PT[g.surface] || g.surface}</span>${statusTag}</div>
-    <div class="fx-main"><span class="fx-players">${g.a} <span class="fx-vs">vs</span> ${g.b}</span><span class="fx-prob">${favPct}%</span></div>
+    <div class="fx-main"><span class="fx-avs"><span class="fx-av" data-pname="${encodeURIComponent(g.a)}"><span>${initials(g.a)}</span></span><span class="fx-av" data-pname="${encodeURIComponent(g.b)}"><span>${initials(g.b)}</span></span></span><span class="fx-players">${g.a} <span class="fx-vs">vs</span> ${g.b}</span><span class="fx-prob">${favPct}%</span></div>
     <div class="fx-sub">Favorito <strong>${g.favorite}</strong> · ${g.marginLabel} · confiança ${g.confidence}</div>
     ${badges ? `<div class="fx-badges">${badges}</div>` : ''}
     ${tourn}
@@ -257,6 +257,13 @@ function wireTour() {
   analiseEl.querySelectorAll('[data-tour]').forEach((b) => b.addEventListener('click', () => switchTour(b.dataset.tour)));
 }
 
+// Um slot (Jogador A/B): foto + nome quando preenchido; placeholder quando vazio.
+function slotHTML(key, player, placeholder) {
+  if (!player) return `<button class="slot" id="slot-${key}">${placeholder}</button>`;
+  const nm = player.fullName || player.name;
+  return `<button class="slot filled" id="slot-${key}"><span class="pl-avatar slot-ava" data-photo="slot-${key}"><span>${initials(nm)}</span></span><span class="slot-name">${nm}</span></button>`;
+}
+
 // Card "Montar confronto" (circuito + slots + ação). Fica num host próprio pra
 // atualizar sozinho, sem reconstruir a grade de jogos.
 function controlsHTML() {
@@ -269,9 +276,9 @@ function controlsHTML() {
         <button class="chip${anal.tour === 'WTA' ? ' selected' : ''}" data-tour="WTA">WTA</button>
       </div>
       <div class="matchup-slots">
-        <button class="slot ${anal.a ? 'filled' : ''}" id="slot-a">${anal.a ? (anal.a.fullName || anal.a.name) : '➕ Jogador A'}</button>
+        ${slotHTML('a', anal.a, '➕ Jogador A')}
         <span class="vs">vs</span>
-        <button class="slot ${anal.b ? 'filled' : ''}" id="slot-b">${anal.b ? (anal.b.fullName || anal.b.name) : '➕ Jogador B'}</button>
+        ${slotHTML('b', anal.b, '➕ Jogador B')}
       </div>
       ${canRead
         ? `<button class="btn btn-primary" id="btn-analisar">Ver leitura do confronto</button>`
@@ -283,6 +290,8 @@ function wireControls() {
   analiseEl.querySelector('#slot-a')?.addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.a = p; anal.level = null; resetLive(); syncControls(); }));
   analiseEl.querySelector('#slot-b')?.addEventListener('click', () => openPlayerPicker(anal.model, (p) => { anal.b = p; anal.level = null; resetLive(); syncControls(); }));
   analiseEl.querySelector('#btn-analisar')?.addEventListener('click', () => openReading());
+  if (anal.a) loadPhoto(anal.a, () => analiseEl.querySelector('.slot-ava[data-photo="slot-a"]'));
+  if (anal.b) loadPhoto(anal.b, () => analiseEl.querySelector('.slot-ava[data-photo="slot-b"]'));
 }
 // Atualiza só o card de montar confronto — a grade de jogos não é tocada.
 function syncControls() {
@@ -297,11 +306,31 @@ function wireFixtureButtons() {
     b.addEventListener('click', () => pickFixture(todayData.matches[Number(b.dataset.fx)]))
   );
 }
+// Carrega as fotos dos jogadores nos cards da grade sob demanda (só as visíveis;
+// o resto conforme rola). Muitos challengers não têm foto → cai nas iniciais.
+let fxObserver = null;
+function observeFxPhotos() {
+  if (fxObserver) fxObserver.disconnect();
+  const host = analiseEl.querySelector('#fx-host');
+  if (!host) return;
+  const load = (el) => loadPhoto({ name: decodeURIComponent(el.dataset.pname) }, () => el);
+  const avatars = [...host.querySelectorAll('.fx-av[data-pname]')];
+  avatars.slice(0, 12).forEach(load); // os primeiros já
+  fxObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      fxObserver.unobserve(e.target);
+      load(e.target);
+    }
+  }, { rootMargin: '300px' });
+  avatars.slice(12).forEach((el) => fxObserver.observe(el)); // o resto conforme rola
+}
 function wireFixtures() {
   analiseEl.querySelectorAll('#fx-host [data-fxf]').forEach((b) =>
     b.addEventListener('click', () => { anal.fxFilter = b.dataset.fxf; syncFixtures(); })
   );
   wireFixtureButtons();
+  observeFxPhotos();
 }
 // Troca o filtro re-renderizando SÓ a lista de jogos (não a tela, não os controles).
 function syncFixtures() {
@@ -311,6 +340,7 @@ function syncFixtures() {
   listEl.innerHTML = fixtureRowsHTML(todayData.matches || []);
   host.querySelectorAll('[data-fxf]').forEach((b) => b.classList.toggle('selected', b.dataset.fxf === (anal.fxFilter || 'todos')));
   wireFixtureButtons();
+  observeFxPhotos();
 }
 
 function renderAnalise() {
