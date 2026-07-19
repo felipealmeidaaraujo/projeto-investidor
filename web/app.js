@@ -59,13 +59,6 @@ function toast(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2400);
 }
-
-function ring(frac, size, stroke, color, track, label, labelColor) {
-  const r = size / 2 - stroke / 2 - 1, c = 2 * Math.PI * r;
-  const dash = Math.max(0, Math.min(1, frac)) * c;
-  const txt = label != null ? `<text x="${size / 2}" y="${size / 2}" dy="0.34em" text-anchor="middle" fill="${labelColor || color}" font-size="${Math.round(size * 0.26)}" font-weight="800" font-family="inherit">${label}</text>` : '';
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${track || 'var(--hover)'}" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>${txt}</svg>`;
-}
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
 const anal = {
@@ -586,23 +579,6 @@ function openReading() {
   draw();
 }
 
-function tagPill(tag) {
-  const map = { forte: 'pill-green', fraco: 'pill-red', neutro: 'pill-muted', 'poucos dados': 'pill-amber' };
-  return `<span class="pill ${map[tag] || 'pill-muted'}">${tag}</span>`;
-}
-
-function playerRow(side, prob, fairOdd, isFav, dossierKey, fullName) {
-  const nm = fullName || side.name;
-  return `<div class="pl-row ${isFav ? 'fav' : ''}" data-dossier="${dossierKey}" role="button">
-    <div class="pl-avatar" data-photo="${dossierKey}"><span>${initials(nm)}</span></div>
-    <div class="pl-body">
-      <div class="pl-top"><span class="pl-name">${nm}${isFav ? ' 👑' : ''}</span><span class="pl-prob"${isFav ? ' style="color:var(--green)"' : ''}>${pct(prob)}</span></div>
-      <div class="pl-sub">Elo ${side.elo} · piso ${side.surfaceElo ?? '—'} · força ${side.blended} ${tagPill(side.surfaceRead.tag)}${side.surfaceRead.delta ? ` (${side.surfaceRead.delta > 0 ? '+' : ''}${side.surfaceRead.delta})` : ''}</div>
-      <div class="pl-sub">odd justa <strong>${fairOdd.toFixed(2)}</strong> <span class="field-hint">· toque p/ dossiê 🃏</span></div>
-    </div>
-  </div>`;
-}
-
 function narrative(r) {
   const s = SURFACE_PT[r.surface];
   const phrase = (side) => {
@@ -703,46 +679,94 @@ function renderWatch(r) {
     </div>`;
 }
 
+// Uma linha comparativa A × B: números nas pontas + BARRA DE DIFERENÇA — sai do
+// centro pro lado de quem leva, proporcional ao Δ (opts.full = Δ que enche o lado).
+// Valor faltando vira "—" sem barra.
+function versusRow(label, a, b, opts = {}) {
+  const fmt = opts.fmt || ((x) => x);
+  if (a == null || b == null) {
+    return `<div class="vs-row"><div class="vs-top"><span class="vs-a">${a != null ? fmt(a) : '—'}</span><span class="vs-lbl">${label}</span><span class="vs-b">${b != null ? fmt(b) : '—'}</span></div></div>`;
+  }
+  const aWins = a > b, bWins = b > a;
+  const w = (Math.min(1, Math.abs(a - b) / (opts.full || 1)) * 100).toFixed(1); // % da metade
+  return `<div class="vs-row">
+    <div class="vs-top"><span class="vs-a${aWins ? ' vs-win' : ''}">${fmt(a)}</span><span class="vs-lbl">${label}</span><span class="vs-b${bWins ? ' vs-win' : ''}">${fmt(b)}</span></div>
+    <div class="vs-bar"><div class="vs-half vs-half-l">${aWins ? `<i style="width:${w}%"></i>` : ''}</div><div class="vs-half vs-half-r">${bWins ? `<i style="width:${w}%"></i>` : ''}</div></div>
+  </div>`;
+}
+
+// Linhas do raio-x (saque, devolução, nível, forma) — perfil comparativo pré-jogo
+// com o que o modelo já tem. Os nomes ficam no header comparativo acima.
+function renderVersus(r) {
+  const A = anal.a, B = anal.b;
+  const sA = A.serve, sB = B.serve;
+  const p = (x) => `${Math.round(x * 100)}%`;
+  const serveBlock = (sA && sB)
+    ? [
+        versusRow('Aces (por saque)', sA.acePct, sB.acePct, { fmt: p, full: 0.06 }),
+        versusRow('1º serviço dentro', sA.firstInPct, sB.firstInPct, { fmt: p, full: 0.12 }),
+        versusRow('Ganhos no 1º saque', sA.firstWonPct, sB.firstWonPct, { fmt: p, full: 0.10 }),
+        versusRow('Ganhos no 2º saque', sA.secondWonPct, sB.secondWonPct, { fmt: p, full: 0.12 }),
+        versusRow('Break points salvos', sA.bpSavedPct, sB.bpSavedPct, { fmt: p, full: 0.10 }),
+        `<div class="vs-sec">Devolução</div>`,
+        versusRow('Pontos na devolução', sA.returnPtsWonPct, sB.returnPtsWonPct, { fmt: p, full: 0.10 }),
+      ].join('')
+    : `<div class="vs-empty">Sem dados de saque para um dos jogadores (base Challenger).</div>`;
+  // Forma recente (V/D) — reusa o histórico do scouting.
+  const sm = scoutForTour();
+  let formaRow = '';
+  if (sm) {
+    const pills = (name) => {
+      const f = recentForm(sm, name, 5);
+      return f.results.length ? f.results.map((rr) => `<span class="vs-form-pill ${rr.won ? 'w' : 'l'}">${rr.won ? 'V' : 'D'}</span>`).join('') : '<span class="field-hint">—</span>';
+    };
+    formaRow = `<div class="vs-row"><div class="vs-top"><span class="vs-form">${pills(A.name)}</span><span class="vs-lbl">Forma (últimos 5)</span><span class="vs-form">${pills(B.name)}</span></div></div>`;
+  }
+  return `
+    <div class="versus">
+      <div class="vs-sec">Saque</div>
+      ${serveBlock}
+      <div class="vs-sec">Nível &amp; forma</div>
+      ${versusRow('Elo (força geral)', r.a.elo, r.b.elo, { full: 150 })}
+      ${versusRow(`Piso no ${SURFACE_PT[anal.surface]}`, r.a.surfaceElo, r.b.surfaceElo, { full: 150 })}
+      ${formaRow}
+    </div>`;
+}
+
+// Coluna de um jogador no header comparativo (foto + nome + prob + odd justa).
+function versusPlayer(key, name, prob, odd, isFav) {
+  return `<button class="vs-player${isFav ? ' fav' : ''}" data-dossier="${key}">
+    <span class="pl-avatar vs-ava" data-photo="${key}"><span>${initials(name)}</span></span>
+    <span class="vs-pname">${name}${isFav ? ' 👑' : ''}</span>
+    <span class="vs-pprob">${pct(prob)}</span>
+    <span class="vs-podd">odd justa ${odd.toFixed(2)}</span>
+  </button>`;
+}
+
 function readingCardHTML(r) {
   const confPill = { alta: 'pill-green', 'média': 'pill-amber', baixa: 'pill-red' }[r.confidence.level];
   const favIsA = r.favorite === anal.a.name;
   const fullA = anal.a.fullName || anal.a.name;
   const fullB = anal.b.fullName || anal.b.name;
-  const favFull = favIsA ? fullA : fullB;
+  const adjustNotes = [
+    (() => { if (!r.ageAdjust?.adjusted) return ''; const nm = r.ageAdjust.gap > 0 ? fullA : fullB; const t = ageAdjustText(r.ageAdjust, nm); return t ? `<div class="field-hint vs-note">${t}</div>` : ''; })(),
+    (() => { if (!r.ageSuppressed) return ''; const nm = r.ageSuppressed.gap > 0 ? fullA : fullB; const t = ageSuppressedText(r.ageSuppressed, nm); return t ? `<div class="field-hint vs-note">${t}</div>` : ''; })(),
+    (() => { if (!r.decayAdjust?.adjusted) return ''; const nm = (r.decayAdjust.inatA ?? 0) >= (r.decayAdjust.inatB ?? 0) ? fullA : fullB; const t = decayAdjustText(r.decayAdjust, nm); return t ? `<div class="field-hint vs-note">${t}</div>` : ''; })(),
+  ].join('');
   return `
     <div class="reading-card">
-      <div class="reading-fav">
-        <div class="reading-fav-head">
-          ${ring(r.favoriteProb, 92, 9, 'var(--accent)', 'var(--hover)', Math.round(r.favoriteProb * 100) + '%', 'var(--text-1)')}
-          <div class="reading-fav-info">
-            <span class="field-hint">Favorito no ${SURFACE_PT[anal.surface]}</span>
-            <div class="reading-fav-name">${favFull}</div>
-            <div class="reading-pills"><span class="pill pill-green">${r.marginLabel}</span><span class="pill ${confPill}">confiança ${r.confidence.level}</span></div>
-          </div>
-        </div>
+      <div class="vs-players">
+        ${versusPlayer('a', fullA, r.probA, r.fairOddA, favIsA)}
+        <div class="vs-mid"><span class="vs-vs">VS</span></div>
+        ${versusPlayer('b', fullB, r.probB, r.fairOddB, !favIsA)}
       </div>
-      <div class="reading-players">
-        ${playerRow(r.a, r.probA, r.fairOddA, favIsA, 'a', fullA)}
-        ${playerRow(r.b, r.probB, r.fairOddB, !favIsA, 'b', fullB)}
-        ${(() => {
-          if (!r.ageAdjust?.adjusted) return '';
-          const maisNovoNome = r.ageAdjust.gap > 0 ? fullA : fullB;
-          const txt = ageAdjustText(r.ageAdjust, maisNovoNome);
-          return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
-        })()}
-        ${(() => {
-          if (!r.ageSuppressed) return '';
-          const maisNovoNome = r.ageSuppressed.gap > 0 ? fullA : fullB;
-          const txt = ageSuppressedText(r.ageSuppressed, maisNovoNome);
-          return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
-        })()}
-        ${(() => {
-          if (!r.decayAdjust?.adjusted) return '';
-          const nomeMaisParado = (r.decayAdjust.inatA ?? 0) >= (r.decayAdjust.inatB ?? 0) ? fullA : fullB;
-          const txt = decayAdjustText(r.decayAdjust, nomeMaisParado);
-          return txt ? `<div class="field-hint" style="margin-top:8px">${txt}</div>` : '';
-        })()}
+      <div class="vs-context">
+        <span class="field-hint">no ${SURFACE_PT[anal.surface]}:</span>
+        <span class="pill pill-green">${r.marginLabel}</span>
+        <span class="pill ${confPill}">confiança ${r.confidence.level}</span>
       </div>
+      ${adjustNotes}
+      ${renderVersus(r)}
       ${renderH2H()}
       <div class="reading-note">${narrative(r)}</div>
       ${renderTactics(r)}

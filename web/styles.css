@@ -382,6 +382,48 @@ body {
 .pl-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .reading-note { padding: 18px; font-size: 14px; line-height: 1.6; border-top: 1px solid var(--border-subtle); color: var(--text-1); }
 
+/* ===================== Raio-x do confronto (cara a cara) ===================== */
+/* Header comparativo: os dois jogadores lado a lado (foto + prob + odd). */
+.vs-players { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 18px 12px 12px; }
+.vs-player { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+  background: none; border: none; font-family: inherit; color: var(--text-1); cursor: pointer; padding: 10px 6px; border-radius: var(--r-lg);
+  -webkit-tap-highlight-color: transparent; transition: background .12s; }
+.vs-player:hover { background: var(--hover); }
+.vs-player.fav { background: var(--accent-subtle); }
+.vs-ava { width: 56px; height: 56px; margin-bottom: 5px; font-size: 18px; }
+.vs-pname { font-size: 13px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+.vs-pprob { font-size: 25px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.vs-player.fav .vs-pprob { color: var(--accent); }
+.vs-podd { font-size: 11.5px; color: var(--text-2); font-weight: 600; }
+.vs-mid { flex: none; }
+.vs-vs { font-size: 11px; font-weight: 800; color: var(--text-3); letter-spacing: .12em; }
+.vs-context { display: flex; align-items: center; justify-content: center; gap: 7px; flex-wrap: wrap; padding: 0 16px 16px; }
+.vs-note { padding: 0 16px 12px; text-align: center; }
+
+/* Linhas de stats + barra de diferença (sai do centro pro lado de quem leva). */
+.versus { padding: 16px 18px 6px; border-top: 1px solid var(--border-subtle); }
+.vs-sec { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 15px 0 9px; }
+.vs-row { margin-bottom: 11px; }
+.vs-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.vs-a, .vs-b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); min-width: 46px; flex: none; }
+.vs-a { text-align: left; }
+.vs-b { text-align: right; }
+.vs-a.vs-win { color: var(--accent); }
+.vs-b.vs-win { color: var(--violet); }
+.vs-lbl { font-size: 12px; color: var(--text-2); font-weight: 500; text-align: center; flex: 1; min-width: 0; }
+.vs-bar { display: flex; height: 7px; margin-top: 6px; gap: 2px; }
+.vs-half { flex: 1; display: flex; height: 100%; background: var(--hover); border-radius: 99px; overflow: hidden; }
+.vs-half-l { justify-content: flex-end; }
+.vs-half-r { justify-content: flex-start; }
+.vs-half i { display: block; height: 100%; border-radius: 99px; }
+.vs-half-l i { background: var(--accent); }
+.vs-half-r i { background: var(--violet); }
+.vs-empty { font-size: 12.5px; color: var(--text-3); padding: 6px 0; }
+.vs-form { display: inline-flex; gap: 3px; }
+.vs-form-pill { width: 18px; height: 18px; border-radius: 5px; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.vs-form-pill.w { background: var(--green); }
+.vs-form-pill.l { background: var(--red); }
+
 /* ===================== Modal de leitura (sheet com header fixo) ===================== */
 .reading-sheet { padding: 0; display: flex; flex-direction: column; max-height: 92vh; max-height: 92dvh; overflow: hidden; }
 .rd-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
