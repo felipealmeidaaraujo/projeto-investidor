@@ -110,12 +110,15 @@ function analyzeBestOf() {
 }
 
 function verdict(rows) {
+  // "Passa" só se o sinal ALTO prevê MAIS set perdido (a direção útil pra swing).
   const valid = rows.filter((r) => r.diff != null && r.nHi >= MIN_CELL && r.nLo >= MIN_CELL);
   if (valid.length < 2) return 'INCONCLUSIVO (amostra insuficiente)';
-  const pos = valid.filter((r) => r.diff >= 0.05).length;
-  const neg = valid.filter((r) => r.diff <= -0.05).length;
-  const strong = Math.max(pos, neg);
-  return strong >= Math.ceil(valid.length / 2) ? `PASSA (${strong}/${valid.length} celulas >=5pp)` : `NAO PASSA (${strong}/${valid.length} celulas >=5pp)`;
+  const need = Math.ceil(valid.length / 2);
+  const swing = valid.filter((r) => r.diff >= 0.05).length;    // alto -> mais swing
+  const inverse = valid.filter((r) => r.diff <= -0.05).length; // aponta o contrario
+  if (swing >= need) return `PASSA (${swing}/${valid.length} celulas +>=5pp na direcao de swing)`;
+  if (inverse >= need) return `NAO PASSA — aponta o CONTRARIO (${inverse}/${valid.length} celulas ->=5pp)`;
+  return `NAO PASSA (sem separacao consistente; swing ${swing}, inverso ${inverse} de ${valid.length})`;
 }
 
 let out = `# Medição de swing (Frente C, Fase 1) — ATP\n\n`;
