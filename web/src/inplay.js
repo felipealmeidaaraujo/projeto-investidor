@@ -11,8 +11,42 @@ export function holdProb(p) {
   return p ** 4 * (1 + 4 * q + 10 * q * q) + 20 * p ** 3 * q ** 3 * deuce;
 }
 
-/** P(A vence o tiebreak) — primeiro a 7, vantagem de 2. aFirst = A saca o 1º ponto. */
-function tiebreakProb(pA, pB, aFirst) {
+/**
+ * P(o SACADOR vencer o game a partir de um placar de pontos qualquer.
+ * pts em "pontos ganhos" (0,1,2,3,4…), não em 15/30/40 — 3×3 é o deuce.
+ * Generaliza holdProb(), que é este mesmo cálculo a partir de 0-0.
+ *
+ * Existe porque a nossa justa só sabia o placar ENTRE games, enquanto o preço da Betfair
+ * já embute 15-40. Isso fabricava divergência falsa exatamente no break point.
+ */
+export function gameWinProb(p, sPts = 0, rPts = 0) {
+  if (!Number.isFinite(p) || p < 0 || p > 1) return null;
+  const s = Math.max(0, Math.trunc(sPts));
+  const r = Math.max(0, Math.trunc(rPts));
+  const q = 1 - p;
+  const denom = p * p + q * q;
+  const deuce = denom > 0 ? (p * p) / denom : 0; // daqui em diante, vantagem alterna
+
+  const memo = new Map();
+  function rec(a, b) {
+    if (a >= 4 && a - b >= 2) return 1;
+    if (b >= 4 && b - a >= 2) return 0;
+    if (a >= 3 && b >= 3) {
+      if (a === b) return deuce;              // deuce
+      return a > b ? p + q * deuce : p * deuce; // vantagem do sacador / do devolvedor
+    }
+    const key = a * 10 + b;
+    if (memo.has(key)) return memo.get(key);
+    const v = p * rec(a + 1, b) + q * rec(a, b + 1);
+    memo.set(key, v);
+    return v;
+  }
+  return rec(s, r);
+}
+
+/** P(A vence o tiebreak) — primeiro a 7, vantagem de 2. aFirst = A saca o 1º ponto.
+ *  startA/startB permitem entrar com o tiebreak já em andamento. */
+function tiebreakProb(pA, pB, aFirst, startA = 0, startB = 0) {
   const winBoth = pA * (1 - pB);
   const loseBoth = (1 - pA) * pB;
   const deuceA = winBoth + loseBoth > 0 ? winBoth / (winBoth + loseBoth) : 0.5;
@@ -34,7 +68,7 @@ function tiebreakProb(pA, pB, aFirst) {
     memo.set(key, r);
     return r;
   }
-  return rec(0, 0);
+  return rec(startA, startB);
 }
 
 /** P(A vence o SET) a partir de um placar de games, com o sacador do próximo game conhecido. */
@@ -64,11 +98,15 @@ function setWinFromStart(pA, pB) {
 
 /**
  * P(A vencer a PARTIDA) a partir de um estado ao vivo.
- * state = { setsA, setsB, gamesA, gamesB, serverIsA }. bestOf = 3 ou 5.
+ * state = { setsA, setsB, gamesA, gamesB, serverIsA, ptsA, ptsB }. bestOf = 3 ou 5.
+ *
+ * ptsA/ptsB são os pontos do game EM ANDAMENTO (0,1,2,3,4… — 3×3 é deuce; no tiebreak,
+ * os pontos do tiebreak). Omitidos ou 0-0, o cálculo é o de sempre: fronteira de game.
+ * Com eles, o número passa a valer NO MEIO do game — que é onde o preço da Betfair vive.
  */
 export function winProbFromState(state, pA, pB, bestOf = 3) {
   const setsToWin = bestOf === 5 ? 3 : 2;
-  const { setsA = 0, setsB = 0, gamesA = 0, gamesB = 0, serverIsA = true } = state;
+  const { setsA = 0, setsB = 0, gamesA = 0, gamesB = 0, serverIsA = true, ptsA = 0, ptsB = 0 } = state;
   if (setsA >= setsToWin) return 1;
   if (setsB >= setsToWin) return 0;
 
@@ -83,7 +121,26 @@ export function winProbFromState(state, pA, pB, bestOf = 3) {
     memo.set(key, r);
     return r;
   }
-  const curSet = setWinProb(pA, pB, gamesA, gamesB, serverIsA);
+
+  const pts = Math.max(0, Math.trunc(ptsA)) + Math.max(0, Math.trunc(ptsB)) > 0;
+  let curSet;
+  if (!pts) {
+    curSet = setWinProb(pA, pB, gamesA, gamesB, serverIsA);
+  } else if (gamesA === 6 && gamesB === 6) {
+    // No 6-6 os pontos são do TIEBREAK, e vencê-lo já fecha o set.
+    curSet = tiebreakProb(pA, pB, serverIsA, Math.trunc(ptsA), Math.trunc(ptsB));
+  } else {
+    // Game em andamento: resolve o game pelos pontos e segue do placar de games resultante.
+    const sp = serverIsA ? pA : pB;                       // força de saque de quem saca
+    const hold = gameWinProb(sp, serverIsA ? ptsA : ptsB, serverIsA ? ptsB : ptsA);
+    const seSegura = serverIsA
+      ? setWinProb(pA, pB, gamesA + 1, gamesB, false)
+      : setWinProb(pA, pB, gamesA, gamesB + 1, true);
+    const seQuebra = serverIsA
+      ? setWinProb(pA, pB, gamesA, gamesB + 1, false)
+      : setWinProb(pA, pB, gamesA + 1, gamesB, true);
+    curSet = hold * seSegura + (1 - hold) * seQuebra;
+  }
   return curSet * fromSets(setsA + 1, setsB) + (1 - curSet) * fromSets(setsA, setsB + 1);
 }
 

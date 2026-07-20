@@ -682,3 +682,77 @@ body {
 .auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-2); }
 .auth-switch button { background: none; border: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
 .auth-forgot { background: none; border: none; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+/* ================= MODO OPERAÇÃO =================
+   Tela cheia dedicada a operar. Regra do desenho: o veredito é a primeira coisa que o olho
+   bate; o laço (registrar game / ajustar odd) fica no alcance do polegar; nada rola.
+   Funciona igual no celular e no computador — o mesmo layout, só respirando mais. */
+.op-overlay { align-items: stretch; justify-content: center; padding: 0; }
+.op-sheet { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 560px;
+  margin: auto; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); background: var(--bg);
+  max-height: 100vh; overflow-y: auto; }
+@media (min-width: 600px) { .op-sheet { max-height: 92vh; border-radius: 20px; margin: auto; } }
+
+.op-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.op-players { font-size: 14px; font-weight: 700; }
+.op-players em { font-style: normal; color: var(--text-3); font-weight: 500; margin: 0 4px; }
+.op-head-acts { display: flex; gap: 6px; }
+.op-ico { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text-2); font-size: 15px; cursor: pointer; }
+.op-ico:hover { color: var(--text-1); border-color: var(--text-3); }
+
+/* Veredito: o bloco que decide. Grande, colorido, sem concorrência visual. */
+.op-verd { border-radius: 16px; padding: 18px 16px; text-align: center; display: flex;
+  flex-direction: column; gap: 3px; border: 1px solid transparent; }
+.op-verd-txt { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; }
+.op-verd-num { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.op-verd-sub { font-size: 12px; opacity: .8; }
+.op-verd.back { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+.op-verd.lay { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.op-verd.morta { background: var(--hover); color: var(--text-2); border-color: var(--border); }
+.op-verd.falta { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber); border-color: color-mix(in srgb, var(--amber) 38%, transparent); }
+.op-verd.neutra { background: var(--hover); color: var(--text-3); }
+
+.op-placar { display: flex; gap: 10px; }
+.op-placar > div { flex: 1; background: var(--card); border: 1px solid var(--border-subtle); border-radius: 14px;
+  padding: 10px; text-align: center; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.op-placar span { color: var(--text-3); margin: 0 6px; }
+.op-placar em { display: block; font-style: normal; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-top: 3px; }
+.op-saca { text-align: center; font-size: 13px; color: var(--text-2); margin-top: -4px; }
+
+.op-cols { display: flex; gap: 10px; }
+.op-col { flex: 1; background: var(--card); border: 1.5px solid var(--border-subtle); border-radius: 14px;
+  padding: 11px 8px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; text-align: center; }
+.op-col.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.op-nome { font-size: 12.5px; font-weight: 700; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-fair { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.op-fair-lbl { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+
+.op-odd { background: var(--card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 10px 12px; }
+.op-odd-lbl { font-size: 11.5px; font-weight: 700; color: var(--text-3); }
+.op-odd-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.op-tick { width: 52px; height: 46px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--hover); color: var(--text-1); font-size: 22px; font-weight: 700; cursor: pointer; }
+.op-tick:disabled { opacity: .35; cursor: default; }
+.op-odd-val { flex: 1; height: 46px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-1); font-size: 24px; font-weight: 800;
+  font-variant-numeric: tabular-nums; cursor: pointer; }
+
+.op-escada { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px;
+  color: var(--text-2); padding: 0 4px; }
+.op-escada strong { font-variant-numeric: tabular-nums; color: var(--text-1); }
+
+.op-acoes { display: flex; gap: 10px; }
+.op-btn { flex: 1; height: 58px; border-radius: 14px; border: 1px solid transparent;
+  font-size: 14.5px; font-weight: 800; letter-spacing: .02em; cursor: pointer; }
+.op-btn.hold { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); border-color: color-mix(in srgb, var(--green) 38%, transparent); }
+.op-btn.brk { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border-color: color-mix(in srgb, var(--red) 38%, transparent); }
+.op-btn.undo { flex: 0 0 58px; background: var(--hover); color: var(--text-2); border-color: var(--border); font-size: 20px; }
+.op-btn:disabled { opacity: .35; cursor: default; }
+
+.op-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.op-link { background: none; border: none; color: var(--text-2); font-size: 12.5px; cursor: pointer; padding: 4px 0; }
+.op-link:hover { color: var(--accent); }
+.op-regra { font-size: 11.5px; color: var(--text-3); }
+.op-entrar { margin-bottom: 14px; }

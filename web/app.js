@@ -6,7 +6,8 @@ import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction, netEdge, devigPair } from './src/inplay.js';
 import { correctFavProb } from './src/live-correction.js';
 import { gridStatus, isLiveMatch, humanAge } from './src/freshness.js';
-import { nextGameStates, ticksBetween, gamesEndSet } from './src/ladder.js';
+import { nextGameStates, ticksBetween, gamesEndSet, stepGame, matchOver } from './src/ladder.js';
+import { oddTick, opKey, saveOp, loadOp, clearOp } from './src/operar.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -744,6 +745,7 @@ function openReading() {
             <button class="rd-x" id="rd-close" aria-label="Fechar">✕</button>
           </div>
           <div class="rd-body">
+            <button class="btn btn-primary op-entrar" id="btn-operar">⚡ Operar este jogo</button>
             <div class="field rd-surface"><div class="field-label"><span>Superfície</span></div>${chipsHTML(anal, 'surface', SURF_OPTS)}</div>
             <div id="rd-card"></div>
             <div id="rd-explain"></div>
@@ -752,6 +754,7 @@ function openReading() {
           </div>
         </div>
       </div>`;
+    root.querySelector('#btn-operar')?.addEventListener('click', () => { anal.live.active = true; openOperar(); });
     root.querySelector('#rd-close').addEventListener('click', () => (root.innerHTML = ''));
     root.querySelector('#rd-overlay').addEventListener('click', (e) => { if (e.target.id === 'rd-overlay') root.innerHTML = ''; });
     root.querySelectorAll('.chip[data-field="surface"]').forEach((chip) =>
@@ -1231,6 +1234,230 @@ function renderLive(pre) {
       </div>
     </div>`;
 }
+
+/* ================= MODO OPERAÇÃO =================
+ * Tela cheia dedicada a operar: o laço é game → registra → lê o preço → decide, e tudo
+ * aqui existe pra esse laço custar dois toques. A leitura (raio-x, H2H, táticas) é
+ * preparação e fica de fora — durante o jogo ela só atrapalha.
+ */
+function openOperar() {
+  if (!(anal.a && anal.b && anal.model && !anal.model.error)) return;
+  const root = document.getElementById('modal-root');
+  const aN = anal.a.name;
+  const bN = anal.b.name;
+  const chave = opKey(aN, bN);
+  const historico = []; // pra desfazer: no ritmo do jogo, errar de botão é normal
+
+  // Retoma o que já estava em curso nesta partida (fechar e voltar não perde nada).
+  const salvo = loadOp(localStorage, chave);
+  if (salvo) anal.live = { ...anal.live, ...salvo, active: true };
+  if (!anal.live.side) anal.live.side = null; // qual lado você opera
+
+  const persistir = () => saveOp(localStorage, chave, { ...anal.live, active: undefined }, Date.now());
+
+  function calcular() {
+    const base = anal.tour === 'WTA' ? 0.56 : 0.64;
+    const L = anal.live;
+    const pre = analyzeMatch(anal.a, anal.b, anal.surface, anal.model, anal.level, hojeInt());
+    const ancora = devigPair(L.preA, L.preB);
+    const probPreA = ancora ?? pre.probA;
+    const favIsA = probPreA >= 0.5;
+    const estado = { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA };
+    const fairAt = (st) => {
+      const cru = liveFairOdds(probPreA, st, { base, bestOf: L.bestOf });
+      const corr = correctFavProb({
+        tour: anal.tour,
+        favPreProb: favIsA ? probPreA : 1 - probPreA,
+        favSets: favIsA ? st.setsA : st.setsB,
+        dogSets: favIsA ? st.setsB : st.setsA,
+        bestOf: L.bestOf,
+        modelProbFav: favIsA ? cru.probA : cru.probB,
+      });
+      const pa = favIsA ? corr.prob : 1 - corr.prob;
+      return { oddA: 1 / pa, oddB: 1 / (1 - pa), corr };
+    };
+    const agora = fairAt(estado);
+    const prox = nextGameStates(estado, L.bestOf);
+    return {
+      ancorado: ancora != null,
+      probPreA,
+      fim: matchOver(estado, L.bestOf),
+      agora,
+      hold: prox ? fairAt(prox.hold) : null,
+      brk: prox ? fairAt(prox.broken) : null,
+      tiebreak: !!prox?.tiebreak,
+    };
+  }
+
+  function draw() {
+    const L = anal.live;
+    const c = calcular();
+    const comissao = getCommission();
+    const lado = L.side;
+    const fairLado = lado === 'A' ? c.agora.oddA : lado === 'B' ? c.agora.oddB : null;
+    const mkt = lado === 'A' ? L.mktA : lado === 'B' ? L.mktB : null;
+    const net = fairLado != null && mkt != null ? netEdge(fairLado, mkt, comissao) : null;
+    const nomeLado = lado === 'A' ? aN : lado === 'B' ? bN : null;
+
+    // A FAIXA DE VEREDITO — é o que você bate o olho. Sempre no topo, sempre grande.
+    let veredito;
+    if (c.fim) veredito = `<div class="op-verd neutra"><span class="op-verd-txt">Partida encerrada</span></div>`;
+    else if (!c.ancorado) veredito = `<div class="op-verd falta"><span class="op-verd-txt">Informe as odds de abertura</span><span class="op-verd-sub">sem elas o número não é confiável</span></div>`;
+    else if (!lado) veredito = `<div class="op-verd falta"><span class="op-verd-txt">Escolha o lado que você opera</span><span class="op-verd-sub">toque no jogador abaixo</span></div>`;
+    else if (mkt == null) veredito = `<div class="op-verd falta"><span class="op-verd-txt">Informe a odd da Betfair</span><span class="op-verd-sub">no ${nomeLado}</span></div>`;
+    else if (!net) veredito = `<div class="op-verd neutra"><span class="op-verd-txt">—</span></div>`;
+    else if (!net.covers)
+      veredito = `<div class="op-verd morta"><span class="op-verd-txt">ZONA MORTA</span><span class="op-verd-sub">a comissão come a diferença — não entra</span></div>`;
+    else
+      veredito = `<div class="op-verd ${net.back ? 'back' : 'lay'}">
+          <span class="op-verd-txt">${net.back ? 'BACK' : 'LAY'} ${nomeLado}</span>
+          <span class="op-verd-num">${formatSignedPct(net.ev * 100)}</span>
+          <span class="op-verd-sub">líquido, já com ${(comissao * 100).toFixed(1).replace('.', ',')}% de comissão</span>
+        </div>`;
+
+    const col = (k, nome, odd) => `
+      <button class="op-col${L.side === k ? ' sel' : ''}" data-lado="${k}">
+        <span class="op-nome">${nome}${(k === 'A') === (c.probPreA >= 0.5) ? ' 👑' : ''}</span>
+        <span class="op-fair">${Number.isFinite(odd) ? odd.toFixed(2) : '—'}</span>
+        <span class="op-fair-lbl">justa</span>
+      </button>`;
+
+    const campoOdd = lado
+      ? `<div class="op-odd">
+           <span class="op-odd-lbl">Betfair · ${nomeLado}</span>
+           <div class="op-odd-row">
+             <button class="op-tick" data-tick="-1" ${mkt == null ? 'disabled' : ''}>−</button>
+             <button class="op-odd-val" id="op-odd-kb">${mkt != null ? mkt.toFixed(2) : 'informar'}</button>
+             <button class="op-tick" data-tick="1" ${mkt == null ? 'disabled' : ''}>+</button>
+           </div>
+         </div>`
+      : '';
+
+    const escada =
+      c.hold && c.brk && lado
+        ? `<div class="op-escada">
+             <span>${c.tiebreak ? 'vence o TB' : 'segurou'} → <strong>${fmtO(lado === 'A' ? c.hold.oddA : c.hold.oddB)}</strong></span>
+             <span>${c.tiebreak ? 'perde o TB' : 'quebrou'} → <strong>${fmtO(lado === 'A' ? c.brk.oddA : c.brk.oddB)}</strong></span>
+           </div>`
+        : '';
+
+    const sacador = L.serverIsA ? aN : bN;
+    root.innerHTML = `
+      <div class="modal-overlay op-overlay" id="op-overlay">
+        <div class="op-sheet">
+          <div class="op-head">
+            <span class="op-players">${aN} <em>vs</em> ${bN}</span>
+            <span class="op-head-acts">
+              <button class="op-ico" id="op-reset" title="Zerar operação">⟲</button>
+              <button class="op-ico" id="op-close" aria-label="Fechar">✕</button>
+            </span>
+          </div>
+
+          ${veredito}
+
+          <div class="op-placar">
+            <div class="op-sets">${L.setsA} <span>–</span> ${L.setsB}<em>sets</em></div>
+            <div class="op-games">${L.gamesA} <span>–</span> ${L.gamesB}<em>games</em></div>
+          </div>
+          <div class="op-saca">saca <strong>${sacador}</strong>${c.tiebreak ? ' · tie-break' : ''}</div>
+
+          <div class="op-cols">${col('A', aN, c.agora.oddA)}${col('B', bN, c.agora.oddB)}</div>
+          ${campoOdd}
+          ${escada}
+
+          <div class="op-acoes">
+            <button class="op-btn hold" data-game="hold" ${c.fim ? 'disabled' : ''}>${c.tiebreak ? 'VENCEU O TB' : 'SEGUROU'}</button>
+            <button class="op-btn brk" data-game="brk" ${c.fim ? 'disabled' : ''}>${c.tiebreak ? 'PERDEU O TB' : 'QUEBROU'}</button>
+            <button class="op-btn undo" id="op-undo" ${historico.length ? '' : 'disabled'}>↶</button>
+          </div>
+
+          <div class="op-rodape">
+            <button class="op-link" id="op-ancora">⚓ ${c.ancorado ? `${(L.preA ?? 0).toFixed(2)} / ${(L.preB ?? 0).toFixed(2)}` : 'definir abertura'}</button>
+            <span class="op-regra">só compare entre games</span>
+          </div>
+        </div>
+      </div>`;
+
+    // — ações —
+    const fechar = () => { root.innerHTML = ''; };
+    root.querySelector('#op-close').addEventListener('click', fechar);
+    root.querySelector('#op-overlay').addEventListener('click', (e) => { if (e.target.id === 'op-overlay') fechar(); });
+
+    root.querySelectorAll('[data-lado]').forEach((b) =>
+      b.addEventListener('click', () => { anal.live.side = b.dataset.lado; persistir(); draw(); })
+    );
+
+    root.querySelectorAll('[data-game]').forEach((b) =>
+      b.addEventListener('click', () => {
+        historico.push({ ...anal.live });
+        const st = stepGame(
+          { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA },
+          b.dataset.game === 'hold'
+        );
+        Object.assign(anal.live, st);
+        // O preço morre junto com o game: era a foto de um instante que passou.
+        anal.live.mktA = null;
+        anal.live.mktB = null;
+        persistir();
+        draw();
+      })
+    );
+    root.querySelector('#op-undo')?.addEventListener('click', () => {
+      const ant = historico.pop();
+      if (ant) { anal.live = ant; persistir(); draw(); }
+    });
+
+    root.querySelectorAll('[data-tick]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const atual = anal.live.side === 'A' ? anal.live.mktA : anal.live.mktB;
+        const nova = oddTick(atual, Number(b.dataset.tick));
+        if (nova == null) return;
+        if (anal.live.side === 'A') anal.live.mktA = nova; else anal.live.mktB = nova;
+        persistir();
+        draw();
+      })
+    );
+    root.querySelector('#op-odd-kb')?.addEventListener('click', () => {
+      const s = anal.live.side;
+      openKeypad({
+        title: `Odd Betfair · ${s === 'A' ? aN : bN}`,
+        value: s === 'A' ? anal.live.mktA : anal.live.mktB,
+        mode: 'odd',
+        onConfirm: (v) => { if (s === 'A') anal.live.mktA = v; else anal.live.mktB = v; persistir(); },
+        onClose: draw,
+      });
+    });
+
+    root.querySelector('#op-ancora').addEventListener('click', () => abrirAncora());
+    root.querySelector('#op-reset').addEventListener('click', () => {
+      resetLive();
+      clearOp(localStorage, chave);
+      historico.length = 0;
+      draw();
+    });
+  }
+
+  // Âncora: dois teclados em sequência, só uma vez por jogo.
+  function abrirAncora() {
+    openKeypad({
+      title: `Odd de ABERTURA · ${aN}`,
+      value: anal.live.preA,
+      mode: 'odd',
+      onConfirm: (v) => { anal.live.preA = v; },
+      onClose: () =>
+        openKeypad({
+          title: `Odd de ABERTURA · ${bN}`,
+          value: anal.live.preB,
+          mode: 'odd',
+          onConfirm: (v) => { anal.live.preB = v; anal.live.mktA = null; anal.live.mktB = null; persistir(); },
+          onClose: draw,
+        }),
+    });
+  }
+
+  draw();
+}
+const fmtO = (o) => (Number.isFinite(o) ? o.toFixed(2) : '—');
 
 function openPlayerPicker(model, onPick, opts = {}) {
   const root = document.getElementById('modal-root');

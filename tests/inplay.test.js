@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction, commissionZone, netEdge, devigPair } from '../web/src/inplay.js';
+import { holdProb, gameWinProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction, commissionZone, netEdge, devigPair } from '../web/src/inplay.js';
 
 const approx = (a, b, eps = 1e-3) =>
   assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
@@ -181,4 +181,80 @@ test('lay curto: dividir pela responsabilidade AUMENTA o retorno (liability < 1)
 test('o veredito de valor não muda com o denominador (só a magnitude)', () => {
   assert.equal(netEdge(2.0, 1.85, 0.065).covers, true);
   assert.equal(netEdge(2.0, 1.98, 0.065).covers, false);
+});
+
+// --- probabilidade do game a partir do placar de PONTOS ---
+test('gameWinProb de 0-0 é exatamente o holdProb (consistência do motor)', () => {
+  for (const p of [0.5, 0.6, 0.64, 0.7, 0.75]) approx(gameWinProb(p, 0, 0), holdProb(p), 1e-12);
+});
+
+test('deuce: 3-3 é a fórmula clássica p²/(p²+q²)', () => {
+  const p = 0.64, q = 0.36;
+  approx(gameWinProb(p, 3, 3), (p * p) / (p * p + q * q), 1e-12);
+});
+
+test('vantagem: sacador à frente vale mais que deuce; devolvedor à frente, menos', () => {
+  const p = 0.64;
+  const d = gameWinProb(p, 3, 3);
+  assert.ok(gameWinProb(p, 4, 3) > d, 'vantagem do sacador');
+  assert.ok(gameWinProb(p, 3, 4) < d, 'vantagem do devolvedor');
+});
+
+test('game já decidido devolve 1 ou 0', () => {
+  assert.equal(gameWinProb(0.64, 4, 0), 1);
+  assert.equal(gameWinProb(0.64, 4, 2), 1);
+  assert.equal(gameWinProb(0.64, 0, 4), 0);
+  assert.equal(gameWinProb(0.64, 2, 4), 0);
+});
+
+test('0-40 é MUITO pior que 0-0 — é o buraco que isso conserta', () => {
+  const p = 0.64;
+  const zero = gameWinProb(p, 0, 0);
+  const breakPoint = gameWinProb(p, 0, 3);
+  assert.ok(breakPoint < zero * 0.5, `0-40 (${breakPoint}) deveria ser bem pior que 0-0 (${zero})`);
+});
+
+test('mais pontos pro sacador nunca piora a chance dele', () => {
+  const p = 0.64;
+  for (const b of [0, 1, 2, 3]) {
+    for (let a = 0; a < 3; a++) {
+      assert.ok(gameWinProb(p, a + 1, b) >= gameWinProb(p, a, b), `quebrou em ${a}->${a + 1} x ${b}`);
+    }
+  }
+});
+
+test('entrada inválida devolve null', () => {
+  assert.equal(gameWinProb(NaN, 0, 0), null);
+  assert.equal(gameWinProb(1.5, 0, 0), null);
+});
+
+// --- pontos dentro do cálculo da PARTIDA ---
+test('sem pontos, o resultado é idêntico ao de antes (não quebrou nada)', () => {
+  const st = { setsA: 0, setsB: 1, gamesA: 3, gamesB: 2, serverIsA: true };
+  approx(winProbFromState(st, 0.64, 0.62, 3), winProbFromState({ ...st, ptsA: 0, ptsB: 0 }, 0.64, 0.62, 3), 1e-12);
+});
+
+test('0-40 no saque de A derruba a chance de A na PARTIDA', () => {
+  const base = { setsA: 0, setsB: 0, gamesA: 3, gamesB: 3, serverIsA: true };
+  const neutro = winProbFromState(base, 0.64, 0.64, 3);
+  const contra = winProbFromState({ ...base, ptsA: 0, ptsB: 3 }, 0.64, 0.64, 3);
+  const favor = winProbFromState({ ...base, ptsA: 3, ptsB: 0 }, 0.64, 0.64, 3);
+  assert.ok(contra < neutro, 'break point contra tem que baixar');
+  assert.ok(favor > neutro, 'game point a favor tem que subir');
+  assert.ok(neutro - contra > 0.05, `a queda tem que ser material, veio ${(neutro - contra).toFixed(3)}`);
+});
+
+test('pontos no 6-6 são tratados como TIEBREAK', () => {
+  const st = { setsA: 0, setsB: 0, gamesA: 6, gamesB: 6, serverIsA: true };
+  const neutro = winProbFromState(st, 0.64, 0.64, 3);
+  const bem = winProbFromState({ ...st, ptsA: 5, ptsB: 0 }, 0.64, 0.64, 3);
+  const mal = winProbFromState({ ...st, ptsA: 0, ptsB: 5 }, 0.64, 0.64, 3);
+  assert.ok(bem > neutro && mal < neutro);
+  assert.ok(bem - mal > 0.2, 'no tiebreak avançado a diferença tem que ser grande');
+});
+
+test('game point convertido leva ao mesmo estado que o game já ganho', () => {
+  const emJogo = winProbFromState({ setsA: 0, setsB: 0, gamesA: 2, gamesB: 2, serverIsA: true, ptsA: 4, ptsB: 0 }, 0.64, 0.62, 3);
+  const jaGanho = winProbFromState({ setsA: 0, setsB: 0, gamesA: 3, gamesB: 2, serverIsA: false }, 0.64, 0.62, 3);
+  approx(emJogo, jaGanho, 1e-12);
 });
