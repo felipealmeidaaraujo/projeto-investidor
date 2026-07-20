@@ -8,7 +8,8 @@ import { correctFavProb } from './src/live-correction.js';
 import { gridStatus, isLiveMatch, humanAge } from './src/freshness.js';
 import { nextGameStates, ticksBetween, gamesEndSet, stepGame, matchOver } from './src/ladder.js';
 import { oddTick, opKey, saveOp, loadOp, clearOp } from './src/operar.js';
-import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
+import { buildSnapshot, addCapture, loadCaptures, saveCaptures, toCSV } from './src/capture.js';
+import { resolveCaptures, outcomeStats } from './src/outcome.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 import { careerText } from './src/career.js';
@@ -95,7 +96,17 @@ function exportCaptures() {
   link.download = `investidor-observacoes-${todayLocal()}.csv`;
   link.click();
   URL.revokeObjectURL(url);
-  toast(`${rows.length} observações exportadas.`);
+  const com = rows.filter((r) => r.won).length;
+  toast(`${rows.length} observações exportadas — ${com} já com o desfecho.`);
+}
+// Frase do contador de captura. Diz o total e quantas já sabem quem venceu; quando
+// nenhuma sabe ainda, explica o motivo em vez de deixar o zero no ar.
+function capturaResumo(total) {
+  if (!total) return '';
+  const obs = `${total} ${total === 1 ? 'observação gravada' : 'observações gravadas'}`;
+  return capStats.comDesfecho
+    ? `${obs} · ${capStats.comDesfecho} já com o desfecho`
+    : `${obs} · o desfecho entra sozinho quando o resultado sair`;
 }
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
@@ -132,8 +143,25 @@ async function loadScoutMatches() {
       if (!seen.has(k)) { seen.add(k); merged.push(m); }
     }
     scoutMatches = merged;
+    resolverDesfechos();
     renderScreen(currentScreen);
   } catch { /* sem scouting se o fetch falhar */ }
+}
+
+// Cola o desfecho ("e no fim quem ganhou?") nas observações ao vivo já capturadas.
+// Roda sozinho, sem digitação: o resultado chega no dia seguinte pelo Flashscore e o
+// histórico completa o que for mais antigo. Só linhas ainda sem desfecho são tocadas,
+// então repetir a cada carregamento é barato e nunca reescreve o passado.
+let capStats = { total: 0, comDesfecho: 0, semDesfecho: 0 };
+function resolverDesfechos() {
+  const rows = loadCaptures(localStorage);
+  capStats = outcomeStats(rows);
+  if (!rows.length || !scoutMatches) return;
+  const n = resolveCaptures(rows, scoutMatches);
+  if (n) {
+    saveCaptures(localStorage, rows);
+    capStats = outcomeStats(rows);
+  }
 }
 // Partidas só do circuito atual (evita misturar ATP/WTA em nomes iguais). Cacheado por tour.
 let _scoutTour = null, _scoutTourCache = null;
@@ -1230,7 +1258,7 @@ function renderLive(pre) {
         </div>
         ${orCard}
         <div class="capture-bar">
-          <span class="field-hint">${capturas} ${capturas === 1 ? 'observação gravada' : 'observações gravadas'} neste aparelho</span>
+          <span class="field-hint">${capturaResumo(capturas)}</span>
           <span class="cap-actions">
             <button class="btn btn-ghost" id="btn-commission">comissão ${comPct}%</button>
             ${capturas ? `<button class="btn btn-ghost" id="btn-export-cap">Exportar CSV</button>` : ''}

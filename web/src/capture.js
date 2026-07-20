@@ -69,6 +69,19 @@ export function loadCaptures(storage) {
 }
 
 /**
+ * Regrava a lista inteira. Usado quando o desfecho é carimbado nas linhas já gravadas
+ * (ver outcome.js) — a captura em si nunca reescreve o passado.
+ */
+export function saveCaptures(storage, rows) {
+  try {
+    storage?.setItem(CAPTURE_KEY, JSON.stringify(rows));
+    return true;
+  } catch {
+    return false; // cota estourada: seguir sem persistir é melhor que quebrar a tela
+  }
+}
+
+/**
  * Grava a observação se ela for nova (não repete a última). Aplica o teto, descartando as
  * mais antigas. Retorna o total de capturas após a operação (ou o total atual, se ignorada).
  */
@@ -87,7 +100,7 @@ export function addCapture(storage, snap) {
   return trimmed.length;
 }
 
-const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'oa', 'ob', 'pre', 'src', 'side', 'act', 'ev', 'com'];
+const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'oa', 'ob', 'pre', 'src', 'side', 'act', 'ev', 'com', 'won'];
 
 /** Exporta as capturas em CSV (cabeçalho + linhas), pronto pro backtest futuro. */
 export function toCSV(rows) {

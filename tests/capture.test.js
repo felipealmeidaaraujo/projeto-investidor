@@ -131,8 +131,9 @@ test('sem veredito os campos ficam nulos (observação antiga continua válida)'
 test('CSV traz as colunas do veredito', () => {
   const csv = toCSV([buildSnapshot({ ...BASE, src: 'op', side: 'a', act: 'back', ev: 0.05, com: 0.065 })]);
   const [head, row] = csv.split('\n');
-  assert.ok(head.endsWith('pre,src,side,act,ev,com'));
-  assert.ok(row.endsWith('op,a,back,0.05,0.065'));
+  assert.ok(head.endsWith('pre,src,side,act,ev,com,won'));
+  // `won` sai vazio até o desfecho ser colado por outcome.js — a captura nunca o inventa.
+  assert.ok(row.endsWith('op,a,back,0.05,0.065,'));
 });
 
 test('chave de identidade distingue placares', () => {
