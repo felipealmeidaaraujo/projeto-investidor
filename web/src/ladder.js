@@ -40,6 +40,15 @@ export function ticksBetween(from, to) {
 const setsToWin = (bestOf) => (bestOf === 5 ? 3 : 2);
 const setDone = (x, y) => (x >= 6 && x - y >= 2) || x === 7;
 
+/**
+ * Este placar de games já teria ENCERRADO o set? Se sim, ele não pode existir como estado
+ * "em andamento" — e se for aceito, o motor conta o set duas vezes e devolve 100%/odd 1.00.
+ * Em andamento valem: até 5-5, 6-5, 5-6 e 6-6. 6-4, 6-0, 7-x e 7-7 já são set fechado.
+ */
+export function gamesEndSet(a, b) {
+  return setDone(a, b) || setDone(b, a);
+}
+
 /** A partida já acabou neste placar de sets? */
 export function matchOver(state, bestOf = 3) {
   const w = setsToWin(bestOf);

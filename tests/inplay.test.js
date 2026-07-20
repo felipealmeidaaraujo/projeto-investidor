@@ -121,7 +121,8 @@ test('mercado abaixo do layMax: lay passa a ter EV positivo', () => {
   const bom = netEdge(2.0, 1.85, 0.065);
   assert.equal(bom.back, false);
   assert.equal(bom.covers, true);
-  approx(bom.ev, 0.5 * 0.935 - 0.5 * 0.85, 1e-6);
+  // o ev do lay é por unidade de RESPONSABILIDADE (0,85 aqui), não do stake do apostador
+  approx(bom.ev, (0.5 * 0.935 - 0.5 * 0.85) / 0.85, 1e-6);
 });
 
 test('a comissão come a divergência: 17% bruto vira bem menos líquido', () => {
@@ -150,4 +151,34 @@ test('devigPair: precisa das DUAS odds válidas', () => {
   assert.equal(devigPair(null, 2.0), null);
   assert.equal(devigPair(1.0, 2.0), null);
   assert.equal(devigPair(NaN, 2.0), null);
+});
+
+test('INVARIANTE: bancar A é o mesmo trade que lançar B — mesmo ev', () => {
+  // Par devigado: A justa 5.00 (p=0,2) ⇒ B justa 1.25. Mercado paga 6.00 em A ⇒ 1.20 em B.
+  const back = netEdge(5.0, 6.0, 0.065);
+  const lay = netEdge(1.25, 1.2, 0.065);
+  assert.equal(back.back, true);
+  assert.equal(lay.back, false);
+  approx(lay.ev, back.ev, 1e-9);
+});
+
+test('o ev do lay é sobre a responsabilidade, não sobre o stake do apostador', () => {
+  const r = netEdge(4.0, 3.0, 0.065);
+  assert.equal(r.back, false);
+  assert.equal(r.liability, 2);
+  const semDividir = (1 - 1 / 4) * 0.935 - (1 / 4) * 2;
+  approx(r.ev, semDividir / 2, 1e-9);
+  assert.ok(r.ev < semDividir, 'lay longo: dividir pela liability REDUZ o retorno aparente');
+});
+
+test('lay curto: dividir pela responsabilidade AUMENTA o retorno (liability < 1)', () => {
+  const r = netEdge(1.25, 1.2, 0.065);
+  const semDividir = (1 - 1 / 1.25) * 0.935 - (1 / 1.25) * 0.2;
+  approx(r.ev, semDividir / 0.2, 1e-9);
+  assert.ok(r.ev > semDividir);
+});
+
+test('o veredito de valor não muda com o denominador (só a magnitude)', () => {
+  assert.equal(netEdge(2.0, 1.85, 0.065).covers, true);
+  assert.equal(netEdge(2.0, 1.98, 0.065).covers, false);
 });

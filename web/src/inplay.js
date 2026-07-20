@@ -154,21 +154,31 @@ export function commissionZone(fairOdd, commission = 0.065) {
 }
 
 /**
- * EV LÍQUIDO (fração do que se arrisca) do lado que a divergência indica, já com a comissão.
- * back = true quando o mercado paga ACIMA do justo (valor em bancar); false = lançar.
- * `covers` diz se sobra alguma coisa depois da comissão. Positivo = vale; ≤0 = zona morta.
+ * EV LÍQUIDO do lado que a divergência indica, já com a comissão, SEMPRE por unidade de
+ * CAPITAL EM RISCO — pra back e lay significarem a mesma coisa e poderem ser comparados.
+ *
+ * Bancando, o que se arrisca é o stake (1). Lançando, é a RESPONSABILIDADE (odd−1): quem
+ * lança a 5.00 arrisca 4 pra ganhar 1. Dividir os dois pelo mesmo denominador era o erro —
+ * inflava/desinflava o lay e estragava o dimensionamento de posição.
+ *
+ * Invariante que os testes travam: bancar A é o mesmo trade que lançar B no par devigado,
+ * então os dois têm que devolver o MESMO ev.
+ *
+ * `covers` diz se sobra algo depois da comissão (o sinal não muda com o denominador).
  */
 export function netEdge(fairOdd, marketOdd, commission = 0.065) {
   const zone = commissionZone(fairOdd, commission);
   if (!zone || !Number.isFinite(marketOdd) || marketOdd <= 1) return null;
   const p = 1 / fairOdd; // prob justa de o jogador vencer
   const back = marketOdd > fairOdd;
-  // Bancando: ganha (odd−1) com prob p, já descontada a comissão sobre o lucro; perde 1 com (1−p).
-  // Lançando: ganha 1 (a aposta do outro) com (1−p), menos comissão; paga (odd−1) com prob p.
+  const liability = marketOdd - 1;
   const ev = back
-    ? p * (marketOdd - 1) * (1 - commission) - (1 - p)
-    : (1 - p) * (1 - commission) - p * (marketOdd - 1);
-  return { back, ev, covers: ev > 0, ...zone };
+    // Bancando 1: ganha (odd−1) com prob p, já sem a comissão sobre o lucro; perde 1 com (1−p).
+    ? p * liability * (1 - commission) - (1 - p)
+    // Lançando: ganha 1 (o stake do outro) com (1−p), menos comissão; paga a liability com p.
+    // Dividido pela liability = retorno sobre o que você de fato coloca em risco.
+    : ((1 - p) * (1 - commission) - p * liability) / liability;
+  return { back, ev, covers: ev > 0, liability, ...zone };
 }
 
 /** Odd justa ao vivo de A e B, dado a prob pré-jogo de A (target) e o placar. */

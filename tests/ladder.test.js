@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tickSize, ticksBetween, stepGame, nextGameStates, matchOver, isTiebreak } from '../web/src/ladder.js';
+import { tickSize, ticksBetween, stepGame, nextGameStates, matchOver, isTiebreak, gamesEndSet } from '../web/src/ladder.js';
 
 const S = (sa, sb, ga, gb, serverIsA = true) => ({ setsA: sa, setsB: sb, gamesA: ga, gamesB: gb, serverIsA });
 
@@ -96,4 +96,20 @@ test('partida encerrada não tem próximo game', () => {
 
 test('estado inválido não quebra', () => {
   assert.equal(nextGameStates(null, 3), null);
+});
+
+// --- validação de placar de games (o bug do 100%/odd 1.00) ---
+test('placar de games que já fecharia o set é recusado', () => {
+  assert.equal(gamesEndSet(6, 4), true, '6-4 é set fechado, não estado em andamento');
+  assert.equal(gamesEndSet(6, 0), true);
+  assert.equal(gamesEndSet(0, 6), true);
+  assert.equal(gamesEndSet(7, 5), true);
+  assert.equal(gamesEndSet(7, 6), true);
+  assert.equal(gamesEndSet(7, 7), true, '7-7 não existe: o set teria acabado no tie-break');
+});
+
+test('placares legítimos de set em andamento passam', () => {
+  for (const [a, b] of [[0, 0], [3, 2], [5, 5], [6, 5], [5, 6], [6, 6], [4, 5]]) {
+    assert.equal(gamesEndSet(a, b), false, `${a}-${b} deveria ser válido`);
+  }
 });

@@ -6,7 +6,7 @@ import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction, netEdge, devigPair } from './src/inplay.js';
 import { correctFavProb } from './src/live-correction.js';
 import { gridStatus, isLiveMatch, humanAge } from './src/freshness.js';
-import { nextGameStates, ticksBetween } from './src/ladder.js';
+import { nextGameStates, ticksBetween, gamesEndSet } from './src/ladder.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -615,22 +615,71 @@ function openReading() {
     root.querySelectorAll('[data-live]').forEach((b) =>
       b.addEventListener('click', () => {
         const f = b.dataset.live;
-        const max = f.startsWith('sets') ? (anal.live.bestOf === 5 ? 3 : 2) : 7;
-        anal.live[f] = Math.min(max, Math.max(0, anal.live[f] + Number(b.dataset.d)));
+        const L = anal.live;
+        const max = f.startsWith('sets') ? (L.bestOf === 5 ? 3 : 2) : 7;
+        const novo = Math.min(max, Math.max(0, L[f] + Number(b.dataset.d)));
+        if (novo === L[f]) return;
+        if (f.startsWith('sets')) {
+          // Somar um set com os games do set anterior ainda na tela fazia o motor contar o
+          // set DUAS vezes e devolver 100% / odd 1.00, com o card de valor sumindo calado.
+          L[f] = novo;
+          L.gamesA = 0;
+          L.gamesB = 0;
+        } else {
+          // Placar de games que já encerraria o set (6-4, 7-5, 7-7…) não é estado em
+          // andamento: seria o mesmo set contado de novo. Recusa e explica.
+          const ga = f === 'gamesA' ? novo : L.gamesA;
+          const gb = f === 'gamesB' ? novo : L.gamesB;
+          if (gamesEndSet(ga, gb)) {
+            toast(`${ga}-${gb} fecharia o set — some 1 set, os games zeram sozinhos.`);
+            return;
+          }
+          L[f] = novo;
+        }
+        invalidarPreco('o placar mudou');
         drawLive();
       })
     );
     root.querySelectorAll('[data-server]').forEach((b) =>
-      b.addEventListener('click', () => { anal.live.serverIsA = b.dataset.server === 'A'; drawLive(); })
+      b.addEventListener('click', () => {
+        if (anal.live.serverIsA === (b.dataset.server === 'A')) return;
+        anal.live.serverIsA = b.dataset.server === 'A';
+        invalidarPreco('o sacador mudou');
+        drawLive();
+      })
     );
     root.querySelectorAll('[data-bestof]').forEach((b) =>
-      b.addEventListener('click', () => { anal.live.bestOf = Number(b.dataset.bestof); drawLive(); })
+      b.addEventListener('click', () => {
+        if (anal.live.bestOf === Number(b.dataset.bestof)) return;
+        anal.live.bestOf = Number(b.dataset.bestof);
+        invalidarPreco('o formato mudou');
+        drawLive();
+      })
     );
     root.querySelectorAll('[data-mkt]').forEach((b) =>
       b.addEventListener('click', () => {
         const side = b.dataset.mkt;
         // O teclado ocupa o #modal-root (some com a leitura); onClose redesenha a leitura de volta.
-        openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; }, onClose: draw });
+        // Guarda de plausibilidade: digitar 18 no lugar de 1.8 passava liso e virava um
+        // "edge" de milhares por cento — e ainda era gravado na captura. Agora avisa.
+        const justaDoLado = () => {
+          const r = currentR();
+          const f = liveFairOdds(devigPair(anal.live.preA, anal.live.preB) ?? r.probA, anal.live, { base: anal.tour === 'WTA' ? 0.56 : 0.64, bestOf: anal.live.bestOf });
+          return side === 'A' ? 1 / f.probA : 1 / f.probB;
+        };
+        openKeypad({
+          title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`,
+          value: side === 'A' ? anal.live.mktA : anal.live.mktB,
+          mode: 'odd',
+          onConfirm: (v) => {
+            const justa = justaDoLado();
+            if (Number.isFinite(justa) && justa > 1 && Math.abs(v / justa - 1) > 0.4) {
+              toast(`⚠️ ${v.toFixed(2)} está muito longe da justa (${justa.toFixed(2)}). Confira se digitou certo.`);
+            }
+            if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v;
+          },
+          onClose: draw,
+        });
       })
     );
     root.querySelectorAll('[data-pre]').forEach((b) =>
@@ -640,7 +689,10 @@ function openReading() {
           title: `Odd de ABERTURA · ${side === 'A' ? anal.a.name : anal.b.name}`,
           value: side === 'A' ? anal.live.preA : anal.live.preB,
           mode: 'odd',
-          onConfirm: (v) => { if (side === 'A') anal.live.preA = v; else anal.live.preB = v; },
+          onConfirm: (v) => {
+            if (side === 'A') anal.live.preA = v; else anal.live.preB = v;
+            invalidarPreco('a âncora mudou'); // a justa inteira se desloca — o preço antigo não serve
+          },
           onClose: draw,
         });
       })
@@ -922,6 +974,17 @@ function readingCardHTML(r) {
     </div>`;
 }
 
+// A odd da Betfair é uma FOTO do preço num instante. Quando o placar anda, o preço real anda
+// junto — mas o número digitado fica parado. Comparar justa NOVA com preço MORTO fabrica um
+// edge enorme exatamente depois de uma quebra. Então o preço é descartado e você redigita.
+function invalidarPreco(motivo) {
+  const L = anal.live;
+  if (L.mktA == null && L.mktB == null) return;
+  L.mktA = null;
+  L.mktB = null;
+  toast(`Odd da Betfair descartada: ${motivo}. Digite o preço de agora.`);
+}
+
 function renderLive(pre) {
   const base = anal.tour === 'WTA' ? 0.56 : 0.64;
   const L = anal.live;
@@ -976,6 +1039,7 @@ function renderLive(pre) {
     <div class="steps-bar">
       <div class="steps">${passo(1, 'Ancorar')}${passo(2, 'Placar')}${passo(3, 'Odd atual')}</div>
       <div class="steps-hint">${instrucao}</div>
+      <div class="between-games">⚠️ A nossa justa é a do <strong>intervalo entre games</strong> — ela não conhece 15-40. O preço da Betfair conhece. <strong>Só compare entre um game e outro</strong>; no meio do game, a diferença que aparecer é artefato nosso, não oportunidade.</div>
     </div>`;
   const preInput = (side, v) => `<button class="value-input" data-pre="${side}">${v != null ? v.toFixed(2) : 'informar'}</button>`;
   const ancoraBox = `
@@ -1016,8 +1080,13 @@ function renderLive(pre) {
     const ticksA = ticksBetween(hold.oddA, brk.oddA);
     const ticksB = ticksBetween(hold.oddB, brk.oddB);
     const alavanca = amplitudePp >= 10;
-    const cel = (r) => `<div class="lad-line"><span>${aN}</span><strong>${r.oddA.toFixed(2)}</strong></div>
-        <div class="lad-line"><span>${bN}</span><strong>${r.oddB.toFixed(2)}</strong></div>`;
+    // Quando o próximo game FECHA a partida, a odd do perdedor vira Infinity — e
+    // "(Infinity).toFixed(2)" imprimia literalmente "Infinity" na tela.
+    const fmtOdd = (o) => (Number.isFinite(o) ? o.toFixed(2) : '—');
+    const decide = (r) => !Number.isFinite(r.oddA) || !Number.isFinite(r.oddB);
+    const cel = (r) => `<div class="lad-line"><span>${aN}</span><strong>${fmtOdd(r.oddA)}</strong></div>
+        <div class="lad-line"><span>${bN}</span><strong>${fmtOdd(r.oddB)}</strong></div>
+        ${decide(r) ? '<div class="lad-decide">fecha a partida</div>' : ''}`;
     escada = `
       <div class="ladder${alavanca ? ' leverage' : ''}">
         <div class="ladder-head">⛓ Próximo ${prox.tiebreak ? 'tie-break' : 'game'} — ${prox.tiebreak ? 'saca' : 'saca'} ${sacador}</div>
@@ -1086,9 +1155,12 @@ function renderLive(pre) {
       const res = (saida) => (melhor.net.back ? melhor.mkt / saida - 1 : 1 - melhor.mkt / saida);
       const sacador = L.serverIsA ? aN : bN;
       const linha = (rot, r) => {
-        const pct = res(oddNo(r)) * 100;
-        const bom = pct >= 0;
-        return `<div class="tgt-line"><span>${rot}</span><span class="tgt-odd">justa ${oddNo(r).toFixed(2)}</span><strong class="${bom ? 'tgt-green' : 'tgt-red'}">${formatSignedPct(pct)}</strong></div>`;
+        const o = oddNo(r);
+        if (!Number.isFinite(o)) {
+          return `<div class="tgt-line"><span>${rot}</span><span class="tgt-odd">fecha a partida</span><strong>liquidação</strong></div>`;
+        }
+        const pct = res(o) * 100;
+        return `<div class="tgt-line"><span>${rot}</span><span class="tgt-odd">justa ${o.toFixed(2)}</span><strong class="${pct >= 0 ? 'tgt-green' : 'tgt-red'}">${formatSignedPct(pct)}</strong></div>`;
       };
       alvos = `<div class="targets">
           <div class="tgt-head">Planeje a saída — entrando a ${melhor.mkt.toFixed(2)}, quanto vale sair em cada nível do próximo ${prox.tiebreak ? 'tie-break' : 'game'} (saca ${sacador}):</div>
