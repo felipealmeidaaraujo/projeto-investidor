@@ -1112,6 +1112,19 @@ function renderLive(pre) {
   const corrNota = corr.applied
     ? `<div class="corr-note">✔ <strong>Corrigido pelo histórico.</strong> Neste placar, favoritos de ${corr.band} vencem <strong>${formatPctFrac(corr.real)}</strong> na vida real, contra ${formatPctFrac(corr.model)} que o modelo projeta — medido em ${corr.n.toLocaleString('pt-BR')} jogos.</div>`
     : `<div class="corr-note off">Sem correção histórica neste estado (${corr.reason}) — o número é o do modelo puro.</div>`;
+  // Quem decide é o EV LÍQUIDO (já com comissão), não a divergência bruta: a comissão
+  // incide sobre o lucro e cria uma zona morta em volta da justa onde nada é operável.
+  const comissao = getCommission();
+  const comPct = (comissao * 100).toFixed(1).replace('.', ',');
+  const signals = [
+    { n: aN, fair: fairA, mkt: L.mktA },
+    { n: bN, fair: fairB, mkt: L.mktB },
+  ]
+    // `bruto` = o MESMO lado, sem comissão. Assim "bruto → líquido" fala do mesmo trade
+    // (usar a divergência crua aqui invertia o sinal no lay e confundia).
+    .map((s) => ({ ...s, or: overreaction(s.fair, s.mkt), net: netEdge(s.fair, s.mkt, comissao), bruto: netEdge(s.fair, s.mkt, 0) }))
+    .filter((s) => s.or && s.net && s.bruto);
+  const melhor = signals.slice().sort((a, b) => b.net.ev - a.net.ev)[0];
   // Grava a observação ao vivo (só conta quando há odd da Betfair informada). A repetição
   // do mesmo estado é ignorada pelo próprio módulo, então chamar a cada render é seguro.
   const capturas = addCapture(
@@ -1126,21 +1139,13 @@ function renderLive(pre) {
       live: L,
       fair: { fairOddA: fairA, fairOddB: fairB },
       preProbA: probPreA, // a âncora REALMENTE usada (mercado quando informado, senão Elo)
+      src: 'painel',
+      side: melhor ? (melhor.n === aN ? 'a' : 'b') : null,
+      act: melhor ? (melhor.net.covers ? (melhor.net.back ? 'back' : 'lay') : 'morta') : null,
+      ev: melhor ? melhor.net.ev : null,
+      com: comissao,
     })
   );
-  // Quem decide é o EV LÍQUIDO (já com comissão), não a divergência bruta: a comissão
-  // incide sobre o lucro e cria uma zona morta em volta da justa onde nada é operável.
-  const comissao = getCommission();
-  const comPct = (comissao * 100).toFixed(1).replace('.', ',');
-  const signals = [
-    { n: aN, fair: fairA, mkt: L.mktA },
-    { n: bN, fair: fairB, mkt: L.mktB },
-  ]
-    // `bruto` = o MESMO lado, sem comissão. Assim "bruto → líquido" fala do mesmo trade
-    // (usar a divergência crua aqui invertia o sinal no lay e confundia).
-    .map((s) => ({ ...s, or: overreaction(s.fair, s.mkt), net: netEdge(s.fair, s.mkt, comissao), bruto: netEdge(s.fair, s.mkt, 0) }))
-    .filter((s) => s.or && s.net && s.bruto);
-  const melhor = signals.slice().sort((a, b) => b.net.ev - a.net.ev)[0];
   let orCard = '';
   if (melhor) {
     const zona = `Com ${comPct}% de comissão, só há valor <strong>lançando abaixo de ${melhor.net.layMax.toFixed(2)}</strong> ou <strong>bancando acima de ${melhor.net.backMin.toFixed(2)}</strong>.`;
@@ -1299,6 +1304,30 @@ function openOperar() {
     const net = fairLado != null && mkt != null ? netEdge(fairLado, mkt, comissao) : null;
     const nomeLado = lado === 'A' ? aN : lado === 'B' ? bN : null;
 
+    // GRAVA A OBSERVAÇÃO AO VIVO. É aqui que o jogo inteiro acontece — se a captura não
+    // rodasse neste laço, o dado da operação real se perderia pra sempre (não existe base
+    // pública de odds in-play). Só vira registro quando há odd da Betfair informada, e o
+    // módulo ignora a repetição do mesmo estado, então chamar a cada desenho é seguro.
+    const capturas = addCapture(
+      localStorage,
+      buildSnapshot({
+        at: new Date().toISOString(),
+        tour: anal.tour,
+        surface: anal.surface,
+        level: anal.level,
+        a: aN,
+        b: bN,
+        live: L,
+        fair: { fairOddA: c.agora.oddA, fairOddB: c.agora.oddB },
+        preProbA: c.probPreA, // a âncora REALMENTE usada (mercado quando informado, senão Elo)
+        src: 'op',
+        side: lado ? lado.toLowerCase() : null,
+        act: net ? (net.covers ? (net.back ? 'back' : 'lay') : 'morta') : null,
+        ev: net ? net.ev : null,
+        com: comissao,
+      })
+    );
+
     // A FAIXA DE VEREDITO — é o que você bate o olho. Sempre no topo, sempre grande.
     let veredito;
     if (c.fim) veredito = `<div class="op-verd neutra"><span class="op-verd-txt">Partida encerrada</span></div>`;
@@ -1373,7 +1402,7 @@ function openOperar() {
 
           <div class="op-rodape">
             <button class="op-link" id="op-ancora">⚓ ${c.ancorado ? `${(L.preA ?? 0).toFixed(2)} / ${(L.preB ?? 0).toFixed(2)}` : 'definir abertura'}</button>
-            <span class="op-regra">só compare entre games</span>
+            <span class="op-regra">${capturas ? `<strong class="op-rec">${capturas} ${capturas === 1 ? 'gravada' : 'gravadas'}</strong> · ` : ''}só compare entre games</span>
           </div>
         </div>
       </div>`;

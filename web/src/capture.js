@@ -16,7 +16,7 @@ const num = (v) => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : null);
  * Monta o registro de uma observação ao vivo.
  * Retorna null quando não há NENHUMA odd de mercado — sem preço, a observação não tem valor.
  */
-export function buildSnapshot({ at, tour, surface, level, a, b, live, fair, preProbA }) {
+export function buildSnapshot({ at, tour, surface, level, a, b, live, fair, preProbA, src, side, act, ev, com }) {
   if (!a || !b || !live || !fair) return null;
   const ma = num(live.mktA);
   const mb = num(live.mktB);
@@ -41,6 +41,13 @@ export function buildSnapshot({ at, tour, surface, level, a, b, live, fair, preP
     oa: num(live.preA), // odd de abertura informada (a âncora), quando houver
     ob: num(live.preB),
     pre: num(preProbA), // prob de A que a conta REALMENTE usou (mercado se ancorado, senão Elo)
+    // O que a TELA disse naquele instante. Sem isto o CSV registra o preço mas não a
+    // recomendação — e o que a gente precisa validar um dia é justamente a recomendação.
+    src: src ?? null, // 'op' (modo operação) ou 'painel'
+    side: side ?? null, // lado operado: 'a' | 'b' (no painel, o lado do melhor EV)
+    act: act ?? null, // veredito exibido: 'back' | 'lay' | 'morta' (não cobre a comissão)
+    ev: num(ev), // EV líquido desse veredito, na comissão vigente
+    com: num(com), // comissão usada na conta (muda o veredito, então entra no registro)
   };
 }
 
@@ -80,7 +87,7 @@ export function addCapture(storage, snap) {
   return trimmed.length;
 }
 
-const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'oa', 'ob', 'pre'];
+const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'oa', 'ob', 'pre', 'src', 'side', 'act', 'ev', 'com'];
 
 /** Exporta as capturas em CSV (cabeçalho + linhas), pronto pro backtest futuro. */
 export function toCSV(rows) {

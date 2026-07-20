@@ -112,6 +112,29 @@ test('CSV escapa nome com vírgula', () => {
   assert.ok(csv.includes('"Silva, J."'));
 });
 
+test('registra o veredito exibido, não só o preço', () => {
+  const s = buildSnapshot({ ...BASE, src: 'op', side: 'b', act: 'lay', ev: 0.0812, com: 0.065 });
+  assert.equal(s.src, 'op');
+  assert.equal(s.side, 'b');
+  assert.equal(s.act, 'lay');
+  assert.equal(s.ev, 0.081);
+  assert.equal(s.com, 0.065);
+});
+
+test('sem veredito os campos ficam nulos (observação antiga continua válida)', () => {
+  const s = buildSnapshot(BASE);
+  assert.equal(s.src, null);
+  assert.equal(s.act, null);
+  assert.equal(s.ev, null);
+});
+
+test('CSV traz as colunas do veredito', () => {
+  const csv = toCSV([buildSnapshot({ ...BASE, src: 'op', side: 'a', act: 'back', ev: 0.05, com: 0.065 })]);
+  const [head, row] = csv.split('\n');
+  assert.ok(head.endsWith('pre,src,side,act,ev,com'));
+  assert.ok(row.endsWith('op,a,back,0.05,0.065'));
+});
+
 test('chave de identidade distingue placares', () => {
   const s1 = buildSnapshot(BASE);
   const s2 = buildSnapshot({ ...BASE, live: { ...LIVE, setsA: 1 } });
