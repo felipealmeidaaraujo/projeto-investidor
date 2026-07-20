@@ -39,6 +39,11 @@ export async function signUp(email, senha) {
   return data.session;
 }
 
+export async function resetPassword(email) {
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if (error) throw error;
+}
+
 export async function signOut() {
   try { await sb.auth.signOut(); } catch { /* sair local já basta */ }
 }

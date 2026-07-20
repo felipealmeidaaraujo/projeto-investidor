@@ -140,14 +140,6 @@ async function carregarCloud() {
   }
   return cloudMod;
 }
-async function iniciarNuvem() {
-  const c = await carregarCloud();
-  if (!c) return;
-  nuvem.sessao = await c.getSession();
-  nuvem.email = nuvem.sessao?.user?.email ?? null;
-  if (nuvem.sessao) sincronizar();
-  else pintarStatusNuvem();
-}
 let syncTimer = null;
 function agendarSync() {
   if (!nuvem.sessao) return;
@@ -193,26 +185,6 @@ async function sincronizar({ baixar = false } = {}) {
     pintarStatusNuvem();
   }
 }
-// A entrada da nuvem fica na PRIMEIRA tela, não escondida dentro do painel ao vivo:
-// proteger o dado não pode depender de achar um botão no fim de um fluxo. Diz o estado
-// em uma linha e leva pro mesmo lugar.
-function nuvemChipHTML() {
-  const total = loadCaptures(localStorage).length;
-  const dentro = !!nuvem.sessao;
-  const texto = dentro
-    ? `<strong>Observações na nuvem</strong> · ${nuvem.email ?? 'conectado'}`
-    : total
-      ? `<strong>${total} ${total === 1 ? 'observação ao vivo' : 'observações ao vivo'}</strong> só neste aparelho`
-      : `<strong>Observações ao vivo</strong> ficam só neste aparelho`;
-  return `<button class="nuvem-chip js-nuvem${dentro ? ' on' : ''}" type="button">
-      <span class="nuvem-ico" aria-hidden="true">☁</span>
-      <span class="nuvem-txt">${texto}</span>
-      <span class="nuvem-acao">${dentro ? 'ver' : 'guardar'}</span>
-    </button>`;
-}
-function wireNuvem(escopo) {
-  (escopo || document).querySelectorAll('.js-nuvem').forEach((b) => b.addEventListener('click', openNuvem));
-}
 // Status da nuvem em texto honesto — inclusive quando NÃO está guardado em lugar nenhum.
 function statusNuvem() {
   if (nuvem.erro) return `⚠️ ${nuvem.erro} — o dado segue salvo no aparelho`;
@@ -223,85 +195,132 @@ function statusNuvem() {
 function pintarStatusNuvem() {
   const el = document.querySelector('#cap-sync');
   if (el) el.textContent = statusNuvem();
-  const bt = document.querySelector('#btn-nuvem');
-  if (bt) bt.textContent = nuvem.sessao ? '☁ nuvem' : '☁ guardar na nuvem';
-  const host = document.querySelector('#nuvem-host');
-  if (host) { host.innerHTML = nuvemChipHTML(); wireNuvem(host); }
 }
 
+/* ---- Porta de entrada ----
+ * O app fica atrás do login, e entrar já sincroniza. Assim não existe estado "meu dado
+ * está solto neste navegador" pra explicar na tela: quem está dentro, está guardado.
+ *
+ * O login é uma PORTA, não um cofre: quem protege o dado de verdade é o RLS no servidor.
+ * Por isso, se a rede falhar e ele já tiver entrado neste aparelho alguma vez, o app
+ * abre assim mesmo — ficar trancado pra fora da própria ferramenta no meio de um jogo
+ * seria pior do que qualquer coisa que o portão evita.
+ */
+const JA_ENTROU = 'investidor.entrou';
+function jaEntrouAqui() {
+  try { return localStorage.getItem(JA_ENTROU) === '1'; } catch { return false; }
+}
+function marcarEntrada() {
+  try { localStorage.setItem(JA_ENTROU, '1'); } catch { /* segue sem a marca */ }
+}
+
+function traduzErroAuth(e) {
+  const m = (e?.message || '').toLowerCase();
+  if (m.includes('invalid login')) return 'E-mail ou senha incorretos.';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'Esse e-mail já tem conta. É só entrar.';
+  if (m.includes('password')) return 'Senha muito curta (mínimo 6 caracteres).';
+  if (m.includes('email')) return 'E-mail inválido.';
+  if (m.includes('fetch') || m.includes('network')) return 'Sem conexão com o servidor.';
+  return 'Não deu certo. Confira os dados e a conexão.';
+}
+
+function renderAuth() {
+  const authRoot = document.getElementById('auth-root');
+  let mode = 'login';
+  function draw() {
+    authRoot.innerHTML = `
+      <div class="auth-overlay"><div class="auth-card">
+        <h1>${mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
+        <p class="sub">Projeto Investidor</p>
+        <input class="auth-input" id="auth-email" type="email" inputmode="email" placeholder="E-mail" autocomplete="email">
+        <input class="auth-input" id="auth-pass" type="password" placeholder="Senha" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
+        <div class="auth-error" id="auth-error"></div>
+        <button class="btn btn-primary" id="auth-submit">${mode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+        ${mode === 'login' ? '<div style="text-align:center;margin-top:10px"><button class="auth-forgot" id="auth-forgot">Esqueci a senha</button></div>' : ''}
+        <div class="auth-switch">
+          ${mode === 'login' ? 'Não tem conta?' : 'Já tem conta?'}
+          <button id="auth-switch">${mode === 'login' ? 'Criar conta' : 'Entrar'}</button>
+        </div>
+      </div></div>`;
+    const err = authRoot.querySelector('#auth-error');
+    const email = () => authRoot.querySelector('#auth-email').value.trim();
+    const pass = () => authRoot.querySelector('#auth-pass').value;
+    const falha = (msg) => { err.style.color = 'var(--red)'; err.textContent = msg; };
+
+    authRoot.querySelector('#auth-switch').addEventListener('click', () => { mode = mode === 'login' ? 'signup' : 'login'; draw(); });
+    const enviar = async () => {
+      err.style.color = 'var(--text-2)';
+      err.textContent = 'conectando…';
+      const c = await carregarCloud();
+      if (!c) { falha('Sem conexão pra entrar agora.'); return; }
+      try {
+        const sessao = mode === 'login' ? await c.signIn(email(), pass()) : await c.signUp(email(), pass());
+        if (!sessao) { err.style.color = 'var(--green)'; err.textContent = 'Conta criada! Confirme o e-mail e entre.'; return; }
+        nuvem.sessao = sessao;
+        nuvem.email = sessao.user?.email ?? email();
+        marcarEntrada();
+        authRoot.innerHTML = '';
+        abrirApp();
+        sincronizar({ baixar: true }); // entrar JÁ traz tudo de volta
+      } catch (e) {
+        falha(traduzErroAuth(e));
+      }
+    };
+    authRoot.querySelector('#auth-submit').addEventListener('click', enviar);
+    authRoot.querySelector('#auth-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(); });
+    authRoot.querySelector('#auth-forgot')?.addEventListener('click', async () => {
+      if (!email()) { falha('Digite seu e-mail primeiro.'); return; }
+      const c = await carregarCloud();
+      if (!c) { falha('Sem conexão agora.'); return; }
+      try {
+        await c.resetPassword(email());
+        err.style.color = 'var(--green)';
+        err.textContent = 'Enviei um link de redefinição pro seu e-mail.';
+      } catch (e) { falha(traduzErroAuth(e)); }
+    });
+  }
+  draw();
+}
+
+async function sairDaConta() {
+  const c = await carregarCloud();
+  await c?.signOut();
+  nuvem.sessao = null;
+  nuvem.email = null;
+  try { localStorage.removeItem(JA_ENTROU); } catch { /* idem */ }
+  // Esconde de volta: a folha do login cobre a tela, mas deixar o app montado atrás dela
+  // é deixar dado à mostra por qualquer brecha de transparência.
+  document.querySelector('.shell')?.setAttribute('hidden', '');
+  document.querySelector('.tabbar')?.setAttribute('hidden', '');
+  renderAuth();
+}
+
+// Painel da conta. Só o que é AÇÃO — o app já entra sincronizado, então não há nada
+// pra explicar aqui: quem está dentro, está guardado.
 function openNuvem() {
   const root = document.getElementById('modal-root');
   const fechar = () => { root.innerHTML = ''; };
   const draw = () => {
-    const dentro = !!nuvem.sessao;
     const pend = pendentesNuvem();
-    const total = loadCaptures(localStorage).length;
     root.innerHTML = `
       <div class="modal-overlay" id="nv-overlay">
         <div class="modal-sheet">
           <button class="modal-x" id="nv-x" aria-label="Fechar">✕</button>
-          <div class="modal-title">☁ Observações na nuvem</div>
-          <p class="field-hint" style="margin-bottom:12px">
-            ${total === 1 ? 'Sua única observação ao vivo mora' : `Suas ${total} observações ao vivo moram`} <strong>só neste navegador</strong>. Limpar os dados do site ${total === 1 ? 'a apagaria' : 'apagaria todas'} — e não existe como recuperar, porque não há base pública de odds ao vivo. Guardar na nuvem protege isso e faz o dado aparecer em qualquer aparelho onde você entrar.
-          </p>
-          ${
-            dentro
-              ? `<div class="nv-status">
-                   <div><strong>${nuvem.email ?? 'conectado'}</strong></div>
-                   <div class="field-hint">${statusNuvem()}</div>
-                 </div>
-                 <button class="btn btn-primary" id="nv-sync" ${nuvem.ocupado ? 'disabled' : ''}>${pend ? `Enviar ${pend} agora` : 'Verificar agora'}</button>
-                 <button class="btn" id="nv-pull" ${nuvem.ocupado ? 'disabled' : ''}>Baixar da nuvem (recuperar neste aparelho)</button>
-                 <button class="btn btn-ghost" id="nv-out">Sair desta conta</button>`
-              : `<input class="auth-input" id="nv-mail" type="email" placeholder="seu e-mail" autocomplete="username">
-                 <input class="auth-input" id="nv-pass" type="password" placeholder="sua senha" autocomplete="current-password">
-                 <div class="nv-erro" id="nv-erro"></div>
-                 <button class="btn btn-primary" id="nv-in">Entrar e sincronizar</button>
-                 <button class="btn btn-ghost" id="nv-up">Criar conta com este e-mail</button>
-                 <p class="field-hint">O login vale só pra guardar as observações — o app continua abrindo sem conta, como sempre.</p>`
-          }
+          <div class="modal-title">Conta</div>
+          <div class="nv-status">
+            <div><strong>${nuvem.email ?? 'conectado'}</strong></div>
+            <div class="field-hint">${statusNuvem()}</div>
+          </div>
+          <button class="btn btn-primary" id="nv-sync" ${nuvem.ocupado ? 'disabled' : ''}>${pend ? `Enviar ${pend} agora` : 'Verificar agora'}</button>
+          <button class="btn" id="nv-pull" ${nuvem.ocupado ? 'disabled' : ''}>Baixar tudo da nuvem</button>
+          <button class="btn btn-ghost" id="nv-out">Sair</button>
         </div>
       </div>`;
     root.querySelector('#nv-x').addEventListener('click', fechar);
     root.querySelector('#nv-overlay').addEventListener('click', (e) => { if (e.target.id === 'nv-overlay') fechar(); });
-
-    if (dentro) {
-      root.querySelector('#nv-sync').addEventListener('click', async () => { await sincronizar(); draw(); });
-      root.querySelector('#nv-pull').addEventListener('click', async () => { await sincronizar({ baixar: true }); draw(); });
-      root.querySelector('#nv-out').addEventListener('click', async () => {
-        const c = await carregarCloud();
-        await c?.signOut();
-        nuvem.sessao = null;
-        nuvem.email = null;
-        toast('Você saiu. As observações continuam salvas neste aparelho.');
-        draw();
-        pintarStatusNuvem();
-      });
-      return;
-    }
-    const entrar = async (criar) => {
-      const mail = root.querySelector('#nv-mail').value.trim();
-      const senha = root.querySelector('#nv-pass').value;
-      const erro = root.querySelector('#nv-erro');
-      if (!mail || !senha) { erro.textContent = 'Preencha e-mail e senha.'; return; }
-      erro.textContent = 'conectando…';
-      const c = await carregarCloud();
-      if (!c) { erro.textContent = nuvem.erro; return; }
-      try {
-        nuvem.sessao = criar ? await c.signUp(mail, senha) : await c.signIn(mail, senha);
-        nuvem.email = nuvem.sessao?.user?.email ?? mail;
-        if (!nuvem.sessao) { erro.textContent = 'Conta criada — confirme o e-mail e entre.'; return; }
-        draw();
-        // Aparelho novo começa baixando: o que está na nuvem tem que reaparecer aqui.
-        await sincronizar({ baixar: true });
-        draw();
-      } catch (e) {
-        erro.textContent = e?.message === 'Invalid login credentials' ? 'E-mail ou senha não conferem.' : e?.message || 'não deu pra entrar';
-      }
-    };
-    root.querySelector('#nv-in').addEventListener('click', () => entrar(false));
-    root.querySelector('#nv-up').addEventListener('click', () => entrar(true));
-    root.querySelector('#nv-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(false); });
+    root.querySelector('#nv-sync').addEventListener('click', async () => { await sincronizar(); draw(); });
+    root.querySelector('#nv-pull').addEventListener('click', async () => { await sincronizar({ baixar: true }); draw(); });
+    root.querySelector('#nv-out').addEventListener('click', async () => { fechar(); await sairDaConta(); });
   };
   draw();
 }
@@ -659,12 +678,10 @@ function renderAnalise() {
     return;
   }
   analiseEl.innerHTML = `<h1 class="screen-title">Análise</h1>`
-    + `<div id="nuvem-host">${nuvemChipHTML()}</div>`
     + `<div id="controls-host">${controlsHTML()}</div>`
     + `<div id="fx-host">${renderFixtures()}</div>`;
   wireControls();
   wireFixtures();
-  wireNuvem(analiseEl);
 }
 
 /* ================= Dossiê do jogador ================= */
@@ -1481,7 +1498,7 @@ function renderLive(pre) {
         </div>
         <div class="capture-bar sync-bar">
           <span class="field-hint" id="cap-sync">${statusNuvem()}</span>
-          <button class="btn btn-ghost" id="btn-nuvem">${nuvem.sessao ? '☁ nuvem' : '☁ guardar na nuvem'}</button>
+          <button class="btn btn-ghost" id="btn-nuvem">☁ conta</button>
         </div>
       </div>
     </div>`;
@@ -1977,12 +1994,35 @@ function renderJogadores() {
   observeJogPhotos(model);
 }
 
-function bootApp() {
+function abrirApp() {
+  document.querySelector('.shell')?.removeAttribute('hidden');
+  document.querySelector('.tabbar')?.removeAttribute('hidden');
   renderScreen(currentScreen);
-  // Retoma a sessão da nuvem (se houver) e sobe o que ficou na fila do último jogo.
-  // Em segundo plano: a tela não espera por isso.
-  iniciarNuvem();
 }
+
+// Boot: o app só abre com sessão. Entrar já traz e manda tudo — não existe estado
+// "solto neste navegador" pra explicar em lugar nenhum da interface.
+async function bootApp() {
+  const c = await carregarCloud();
+  if (!c) {
+    // Sem rede pra carregar o cliente: se ele já entrou neste aparelho antes, abre assim
+    // mesmo e sincroniza quando a conexão voltar. Trancar aqui só o atrapalharia.
+    if (jaEntrouAqui()) abrirApp();
+    else renderAuth();
+    return;
+  }
+  nuvem.sessao = await c.getSession();
+  nuvem.email = nuvem.sessao?.user?.email ?? null;
+  if (!nuvem.sessao && !jaEntrouAqui()) {
+    renderAuth();
+    return;
+  }
+  if (nuvem.sessao) marcarEntrada();
+  abrirApp();
+  sincronizar();
+}
+
+document.getElementById('conta-btn')?.addEventListener('click', openNuvem);
 
 // Tema (claro é o padrão; escolha salva)
 document.getElementById('theme-toggle')?.addEventListener('click', () => {
@@ -1991,7 +2031,7 @@ document.getElementById('theme-toggle')?.addEventListener('click', () => {
   try { localStorage.setItem('investidor.theme', next); } catch {}
 });
 
-// Boot: plataforma aberta, sem login.
+// Boot: o app abre atrás do login, e entrar já sincroniza.
 bootApp();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

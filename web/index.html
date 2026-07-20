@@ -26,7 +26,8 @@
   </script>
 </head>
 <body>
-  <div class="shell">
+  <!-- Escondidos até a sessão ser confirmada: o app não pisca antes do login. -->
+  <div class="shell" hidden>
     <aside class="sidebar" aria-label="Navegação">
       <div class="side-brand">
         <span class="brand-mark" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.4" stroke="#fff" stroke-width="1.7"/><path d="M3.2 5.4c4 2 4 7.2 0 9.2M16.8 5.4c-4 2-4 7.2 0 9.2" stroke="#fff" stroke-width="1.7"/></svg></span>
@@ -42,6 +43,7 @@
       </nav>
       <div class="side-foot">
         <button id="theme-toggle" class="theme-btn" type="button"><span class="theme-ico" aria-hidden="true">◐</span><span>Tema</span></button>
+        <button id="conta-btn" class="theme-btn" type="button"><span class="theme-ico" aria-hidden="true">☁</span><span>Conta</span></button>
       </div>
     </aside>
 
@@ -53,7 +55,7 @@
     </div>
   </div>
 
-  <nav class="tabbar" aria-label="Navegação principal">
+  <nav class="tabbar" aria-label="Navegação principal" hidden>
     <button class="tab active" data-target="analise" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19V5m0 14h16M8 15l3-4 3 3 4-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Análise</span>
     </button>
@@ -63,6 +65,7 @@
   </nav>
 
   <div id="modal-root"></div>
+  <div id="auth-root"></div>
 
   <script type="module" src="app.js"></script>
 </body>
