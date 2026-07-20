@@ -713,12 +713,17 @@ body {
 .op-verd.falta { background: color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber); border-color: color-mix(in srgb, var(--amber) 38%, transparent); }
 .op-verd.neutra { background: var(--hover); color: var(--text-3); }
 
-.op-placar { display: flex; gap: 10px; }
-.op-placar > div { flex: 1; background: var(--card); border: 1px solid var(--border-subtle); border-radius: 14px;
-  padding: 10px; text-align: center; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.op-placar span { color: var(--text-3); margin: 0 6px; }
-.op-placar em { display: block; font-style: normal; font-size: 10.5px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-top: 3px; }
+.op-placar { display: flex; gap: 8px; }
+.op-score { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 2px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 8px 3px; }
+.op-score-side { display: flex; align-items: center; gap: 2px; }
+.op-score-v { min-width: 15px; text-align: center; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.op-score-dash { color: var(--text-3); font-size: 17px; font-weight: 800; margin: 0; }
+.op-sstep { width: 24px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-1); font-size: 16px; font-weight: 700; line-height: 1; cursor: pointer; flex-shrink: 0; padding: 0; }
+.op-sstep:hover { border-color: var(--accent); color: var(--accent); }
+.op-score-lbl { flex-basis: 100%; text-align: center; font-style: normal; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-top: 2px; }
 /* "saca Fulano" é um BOTÃO: se o sacador estiver errado, a justa e a escada inteiras
    estão erradas — ele precisa poder corrigir sem sair da tela de operação. */
 .op-saca { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; text-align: center; font: inherit; font-size: 13px; color: var(--text-2); background: none; border: none; margin-top: -4px; padding: 4px 0; cursor: pointer; }

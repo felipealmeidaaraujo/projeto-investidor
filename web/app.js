@@ -1635,6 +1635,26 @@ function openOperar() {
            </div>`
         : '';
 
+    // Placar editável: o jogo pode já estar em andamento quando você abre (2-1, 40 min
+    // rodados), ou o placar dessincronizar. Sem poder digitar, o SEGUROU/QUEBROU não
+    // alcança — teria que "fingir" games que não houve. Mesma trava do painel: um passo
+    // que fecharia o set é recusado (senão o motor conta o set duas vezes → 100%/1.00).
+    const placarBloco = (cls, fA, fB, vA, vB) => `
+      <div class="op-score op-${cls}">
+        <div class="op-score-side">
+          <button class="op-sstep" data-score="${fA}" data-d="-1" aria-label="menos">−</button>
+          <span class="op-score-v">${vA}</span>
+          <button class="op-sstep" data-score="${fA}" data-d="1" aria-label="mais">+</button>
+        </div>
+        <span class="op-score-dash">–</span>
+        <div class="op-score-side">
+          <button class="op-sstep" data-score="${fB}" data-d="-1" aria-label="menos">−</button>
+          <span class="op-score-v">${vB}</span>
+          <button class="op-sstep" data-score="${fB}" data-d="1" aria-label="mais">+</button>
+        </div>
+        <em class="op-score-lbl">${cls}</em>
+      </div>`;
+
     const sacador = L.serverIsA ? aN : bN;
     root.innerHTML = `
       <div class="modal-overlay op-overlay" id="op-overlay">
@@ -1650,8 +1670,8 @@ function openOperar() {
           ${veredito}
 
           <div class="op-placar">
-            <div class="op-sets">${L.setsA} <span>–</span> ${L.setsB}<em>sets</em></div>
-            <div class="op-games">${L.gamesA} <span>–</span> ${L.gamesB}<em>games</em></div>
+            ${placarBloco('sets', 'setsA', 'setsB', L.setsA, L.setsB)}
+            ${placarBloco('games', 'gamesA', 'gamesB', L.gamesA, L.gamesB)}
           </div>
           <button class="op-saca" id="op-saca" type="button">saca <strong>${sacador}</strong>${c.tiebreak ? ' · tie-break' : ''}<span class="op-saca-troca">trocar</span></button>
 
@@ -1690,6 +1710,37 @@ function openOperar() {
         );
         Object.assign(anal.live, st);
         // O preço morre junto com o game: era a foto de um instante que passou.
+        anal.live.mktA = null;
+        anal.live.mktB = null;
+        persistir();
+        draw();
+      })
+    );
+    // Ajuste manual do placar (mesma regra do painel antigo, agora aqui). Corrigir o
+    // placar é passagem de tempo real: o preço da Betfair de antes envelheceu, então cai.
+    root.querySelectorAll('[data-score]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const f = b.dataset.score;
+        const max = f.startsWith('sets') ? (L.bestOf === 5 ? 3 : 2) : 7;
+        const novo = Math.min(max, Math.max(0, L[f] + Number(b.dataset.d)));
+        if (novo === L[f]) return;
+        historico.push({ ...anal.live });
+        if (f.startsWith('sets')) {
+          // Somar um set com os games do set anterior ainda na tela contaria o set duas
+          // vezes (100%/odd 1.00) — os games zeram junto.
+          L[f] = novo;
+          L.gamesA = 0;
+          L.gamesB = 0;
+        } else {
+          const ga = f === 'gamesA' ? novo : L.gamesA;
+          const gb = f === 'gamesB' ? novo : L.gamesB;
+          if (gamesEndSet(ga, gb)) {
+            toast(`${ga}-${gb} fecharia o set — some 1 set, os games zeram sozinhos.`);
+            historico.pop(); // nada mudou, não deixa um passo vazio no desfazer
+            return;
+          }
+          L[f] = novo;
+        }
         anal.live.mktA = null;
         anal.live.mktB = null;
         persistir();
