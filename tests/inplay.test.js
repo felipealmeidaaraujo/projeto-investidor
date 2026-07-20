@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction, commissionZone, netEdge } from '../web/src/inplay.js';
+import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction, commissionZone, netEdge, devigPair } from '../web/src/inplay.js';
 
 const approx = (a, b, eps = 1e-3) =>
   assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
@@ -130,4 +130,24 @@ test('a comissão come a divergência: 17% bruto vira bem menos líquido', () =>
   assert.ok(r.ev > 0 && r.ev < bruto, 'o líquido tem que ser positivo mas menor que o bruto');
   approx(bruto, 0.1707, 1e-3);
   approx(r.ev, 0.1264, 1e-3);
+});
+
+// --- de-vig do par de odds (âncora de mercado) ---
+test('devigPair: par simétrico dá 50/50', () => {
+  approx(devigPair(2.0, 2.0), 0.5);
+});
+test('devigPair: tira a margem embutida (soma das probs volta a 1)', () => {
+  const p = devigPair(1.5, 2.5); // 66,7% + 40% = 106,7% de margem
+  approx(p, (1 / 1.5) / (1 / 1.5 + 1 / 2.5), 1e-9);
+  approx(p, 0.625, 1e-3);
+});
+test('devigPair: favorito curto vira prob alta', () => {
+  const p = devigPair(1.25, 4.5);
+  assert.ok(p > 0.75 && p < 0.82, `veio ${p}`);
+});
+test('devigPair: precisa das DUAS odds válidas', () => {
+  assert.equal(devigPair(2.0, null), null);
+  assert.equal(devigPair(null, 2.0), null);
+  assert.equal(devigPair(1.0, 2.0), null);
+  assert.equal(devigPair(NaN, 2.0), null);
 });

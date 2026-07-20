@@ -38,7 +38,9 @@ export function buildSnapshot({ at, tour, surface, level, a, b, live, fair, preP
     fb: num(fair.fairOddB),
     ma,
     mb,
-    pre: num(preProbA),
+    oa: num(live.preA), // odd de abertura informada (a âncora), quando houver
+    ob: num(live.preB),
+    pre: num(preProbA), // prob de A que a conta REALMENTE usou (mercado se ancorado, senão Elo)
   };
 }
 
@@ -78,7 +80,7 @@ export function addCapture(storage, snap) {
   return trimmed.length;
 }
 
-const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'pre'];
+const COLS = ['at', 'tour', 'surface', 'level', 'a', 'b', 'sa', 'sb', 'ga', 'gb', 'srv', 'bo', 'fa', 'fb', 'ma', 'mb', 'oa', 'ob', 'pre'];
 
 /** Exporta as capturas em CSV (cabeçalho + linhas), pronto pro backtest futuro. */
 export function toCSV(rows) {

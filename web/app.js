@@ -3,7 +3,8 @@ import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
 import { tacticalSuggestion } from './src/tactics.js';
 import { searchPlayers } from './src/player-search.js';
 import { whatToWatch } from './src/watch.js';
-import { liveFairOdds, overreaction, netEdge } from './src/inplay.js';
+import { liveFairOdds, overreaction, netEdge, devigPair } from './src/inplay.js';
+import { correctFavProb } from './src/live-correction.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -98,11 +99,11 @@ const analiseEl = document.getElementById('screen-analise');
 const anal = {
   tour: 'ATP', models: {}, model: null, loadingTour: null, a: null, b: null, surface: 'hard', level: null,
   explainOpen: false, moreOpen: false, fxFilter: 'todos',
-  live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null },
+  live: { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null, preA: null, preB: null },
 };
 // Zera o painel ao vivo (placar + odds de mercado) — chamado ao trocar de confronto.
 function resetLive() {
-  anal.live = { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null };
+  anal.live = { active: false, setsA: 0, setsB: 0, gamesA: 0, gamesB: 0, serverIsA: true, bestOf: 3, mktA: null, mktB: null, preA: null, preB: null };
 }
 
 // Histórico de partidas (scouting) — carregado sob demanda ao abrir a Análise.
@@ -620,6 +621,18 @@ function openReading() {
         openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; }, onClose: draw });
       })
     );
+    root.querySelectorAll('[data-pre]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const side = b.dataset.pre;
+        openKeypad({
+          title: `Odd de ABERTURA · ${side === 'A' ? anal.a.name : anal.b.name}`,
+          value: side === 'A' ? anal.live.preA : anal.live.preB,
+          mode: 'odd',
+          onConfirm: (v) => { if (side === 'A') anal.live.preA = v; else anal.live.preB = v; },
+          onClose: draw,
+        });
+      })
+    );
     root.querySelector('#btn-export-cap')?.addEventListener('click', exportCaptures);
     root.querySelector('#btn-commission')?.addEventListener('click', () =>
       openKeypad({
@@ -900,13 +913,52 @@ function readingCardHTML(r) {
 function renderLive(pre) {
   const base = anal.tour === 'WTA' ? 0.56 : 0.64;
   const L = anal.live;
-  const { probA, probB } = liveFairOdds(pre.probA, { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, { base, bestOf: L.bestOf });
-  const favA = probA >= 0.5;
   const aN = anal.a.name;
   const bN = anal.b.name;
+
+  // PASSO 1 — DE ONDE PARTE. O nosso Elo fica em média 8pp longe do mercado e erra mais
+  // que ele (medido em 19k jogos). Então, com as odds de abertura informadas, o mercado manda.
+  const ancora = devigPair(L.preA, L.preB);
+  const ancorado = ancora != null;
+  const probPreA = ancorado ? ancora : pre.probA;
+
+  // PASSO 2 — O QUE O PLACAR MUDA. Markov cru a partir da âncora.
+  const cru = liveFairOdds(probPreA, { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, { base, bestOf: L.bestOf });
+
+  // PASSO 3 — CORREÇÃO. O Markov comprime o impacto do set; aplica o viés medido em ~59k
+  // partidas, sempre pela ótica do favorito PRÉ-JOGO (foi assim que a tabela foi construída).
+  const favIsA = probPreA >= 0.5;
+  const corr = correctFavProb({
+    tour: anal.tour,
+    favPreProb: favIsA ? probPreA : 1 - probPreA,
+    favSets: favIsA ? L.setsA : L.setsB,
+    dogSets: favIsA ? L.setsB : L.setsA,
+    bestOf: L.bestOf,
+    modelProbFav: favIsA ? cru.probA : cru.probB,
+  });
+  const probA = favIsA ? corr.prob : 1 - corr.prob;
+  const probB = 1 - probA;
+  const favA = probA >= 0.5;
   const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
 
   const fairA = 1 / probA, fairB = 1 / probB;
+  const preInput = (side, v) => `<button class="value-input" data-pre="${side}">${v != null ? v.toFixed(2) : 'informar'}</button>`;
+  const ancoraBox = `
+    <div class="anchor-box${ancorado ? ' on' : ''}">
+      <div class="anchor-head">${ancorado ? '⚓ Ancorado no mercado' : '⚓ Âncora — odd de abertura na Betfair'}</div>
+      <div class="or-inputs">
+        <div class="or-in"><span class="live-lbl">${aN}</span>${preInput('A', L.preA)}</div>
+        <div class="or-in"><span class="live-lbl">${bN}</span>${preInput('B', L.preB)}</div>
+      </div>
+      <div class="anchor-note">${
+        ancorado
+          ? `A conta parte de <strong>${pct(probPreA)}</strong> pro ${aN}, que é o preço do mercado. <span class="field-hint">(nosso Elo dizia ${pct(pre.probA)} — descartado, o mercado é mais preciso)</span>`
+          : `Sem as <strong>duas</strong> odds, a conta parte do <strong>nosso Elo</strong> — que fica 8pp longe do mercado em média e erra mais. Informe as duas pra ancorar.`
+      }</div>
+    </div>`;
+  const corrNota = corr.applied
+    ? `<div class="corr-note">✔ <strong>Corrigido pelo histórico.</strong> Neste placar, favoritos de ${corr.band} vencem <strong>${formatPctFrac(corr.real)}</strong> na vida real, contra ${formatPctFrac(corr.model)} que o modelo projeta — medido em ${corr.n.toLocaleString('pt-BR')} jogos.</div>`
+    : `<div class="corr-note off">Sem correção histórica neste estado (${corr.reason}) — o número é o do modelo puro.</div>`;
   // Grava a observação ao vivo (só conta quando há odd da Betfair informada). A repetição
   // do mesmo estado é ignorada pelo próprio módulo, então chamar a cada render é seguro.
   const capturas = addCapture(
@@ -920,7 +972,7 @@ function renderLive(pre) {
       b: bN,
       live: L,
       fair: { fairOddA: fairA, fairOddB: fairB },
-      preProbA: pre.probA,
+      preProbA: probPreA, // a âncora REALMENTE usada (mercado quando informado, senão Elo)
     })
   );
   // Quem decide é o EV LÍQUIDO (já com comissão), não a divergência bruta: a comissão
@@ -962,6 +1014,7 @@ function renderLive(pre) {
 
   return `
     <div class="live-panel">
+      ${ancoraBox}
       <div class="live-grid">
         <div class="live-cell"><span class="live-lbl">Sets · ${aN}</span>${step('setsA', L.setsA)}</div>
         <div class="live-cell"><span class="live-lbl">Sets · ${bN}</span>${step('setsB', L.setsB)}</div>
@@ -984,7 +1037,8 @@ function renderLive(pre) {
           <div class="pl-row ${favA ? 'fav' : ''}"><div class="pl-top"><span class="pl-name">${aN}</span><span class="pl-prob">${pct(probA)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probA).toFixed(2)}</strong></div></div>
           <div class="pl-row ${favA ? '' : 'fav'}"><div class="pl-top"><span class="pl-name">${bN}</span><span class="pl-prob">${pct(probB)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probB).toFixed(2)}</strong></div></div>
         </div>
-        <div class="reading-note field-hint">No início era ${pct(pre.probA)} pra ${aN}. Informe a odd da Betfair pra medir a sobre-reação.</div>
+        ${corrNota}
+        <div class="reading-note field-hint">No início era ${pct(probPreA)} pra ${aN}. Informe a odd da Betfair pra medir a sobre-reação.</div>
         <div class="or-inputs">
           <div class="or-in"><span class="live-lbl">Betfair · ${aN}</span>${mktInput('A', L.mktA)}</div>
           <div class="or-in"><span class="live-lbl">Betfair · ${bN}</span>${mktInput('B', L.mktB)}</div>

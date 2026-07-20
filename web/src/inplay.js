@@ -127,6 +127,17 @@ export function overreaction(fairOdd, marketOdd) {
 }
 
 /**
+ * Probabilidade "limpa" do 1º jogador a partir do PAR de odds do mercado, tirando a margem.
+ * Precisa das duas: com uma só não dá pra separar a probabilidade da margem embutida.
+ */
+export function devigPair(oddA, oddB) {
+  if (!Number.isFinite(oddA) || !Number.isFinite(oddB) || oddA <= 1 || oddB <= 1) return null;
+  const a = 1 / oddA;
+  const b = 1 / oddB;
+  return a / (a + b);
+}
+
+/**
  * A comissão da Betfair incide sobre o LUCRO, então ela cria uma "zona morta" em torno da
  * odd justa onde nenhum lado dá lucro. Retorna os limites dessa zona:
  *   layMax  = maior odd em que ainda vale LANÇAR (lay) — acima disso o lay perde;

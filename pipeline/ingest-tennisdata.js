@@ -48,9 +48,18 @@ export async function fetchTennisDataYear(year, tour = 'ATP') {
       loser: String(loser).trim(),
       winnerRank: num(get('WRank')),
       loserRank: num(get('LRank')),
-      // placar do 1º set (games do vencedor/perdedor da partida) — pro backtest de métodos ao vivo
+      // placar set a set (games do vencedor/perdedor da partida) — permite reconstruir o
+      // estado do jogo em cada fronteira de set, pros métodos e pra calibração ao vivo.
       w1: num(get('W1')),
       l1: num(get('L1')),
+      w2: num(get('W2')),
+      l2: num(get('L2')),
+      w3: num(get('W3')),
+      l3: num(get('L3')),
+      w4: num(get('W4')),
+      l4: num(get('L4')),
+      w5: num(get('W5')),
+      l5: num(get('L5')),
       // odds de fechamento: Betfair Exchange (mercado do Felipe), média do mercado, Pinnacle, Max, B365
       bfew: num(get('BFEW')),
       bfel: num(get('BFEL')),
