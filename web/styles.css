@@ -758,6 +758,16 @@ body {
 /* Contador de captura: prova na tela de que a observação está sendo gravada. */
 .op-rec { color: var(--accent); font-weight: 600; }
 
+/* Nuvem: a entrada fica na primeira tela, discreta mas achável. */
+.nuvem-chip { display: flex; align-items: center; gap: 9px; width: 100%; margin-bottom: 14px; padding: 10px 13px; font: inherit; font-size: 12.5px; text-align: left; color: var(--text-2); background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--r-md); cursor: pointer; }
+.nuvem-chip:hover { border-color: var(--accent); color: var(--text-1); }
+.nuvem-chip.on { border-style: solid; }
+.nuvem-chip.on .nuvem-ico { color: var(--green); }
+.nuvem-ico { font-size: 15px; }
+.nuvem-txt { flex: 1; min-width: 0; }
+.nuvem-txt strong { color: var(--text-1); font-weight: 600; }
+.nuvem-acao { flex-shrink: 0; font-weight: 600; color: var(--accent); }
+
 /* Nuvem: estado da sincronização e a folha de login. */
 .sync-bar { margin-top: 2px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .nv-status { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; margin-bottom: 10px; }

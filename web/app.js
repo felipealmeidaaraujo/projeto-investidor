@@ -193,6 +193,26 @@ async function sincronizar({ baixar = false } = {}) {
     pintarStatusNuvem();
   }
 }
+// A entrada da nuvem fica na PRIMEIRA tela, não escondida dentro do painel ao vivo:
+// proteger o dado não pode depender de achar um botão no fim de um fluxo. Diz o estado
+// em uma linha e leva pro mesmo lugar.
+function nuvemChipHTML() {
+  const total = loadCaptures(localStorage).length;
+  const dentro = !!nuvem.sessao;
+  const texto = dentro
+    ? `<strong>Observações na nuvem</strong> · ${nuvem.email ?? 'conectado'}`
+    : total
+      ? `<strong>${total} ${total === 1 ? 'observação ao vivo' : 'observações ao vivo'}</strong> só neste aparelho`
+      : `<strong>Observações ao vivo</strong> ficam só neste aparelho`;
+  return `<button class="nuvem-chip js-nuvem${dentro ? ' on' : ''}" type="button">
+      <span class="nuvem-ico" aria-hidden="true">☁</span>
+      <span class="nuvem-txt">${texto}</span>
+      <span class="nuvem-acao">${dentro ? 'ver' : 'guardar'}</span>
+    </button>`;
+}
+function wireNuvem(escopo) {
+  (escopo || document).querySelectorAll('.js-nuvem').forEach((b) => b.addEventListener('click', openNuvem));
+}
 // Status da nuvem em texto honesto — inclusive quando NÃO está guardado em lugar nenhum.
 function statusNuvem() {
   if (nuvem.erro) return `⚠️ ${nuvem.erro} — o dado segue salvo no aparelho`;
@@ -205,6 +225,8 @@ function pintarStatusNuvem() {
   if (el) el.textContent = statusNuvem();
   const bt = document.querySelector('#btn-nuvem');
   if (bt) bt.textContent = nuvem.sessao ? '☁ nuvem' : '☁ guardar na nuvem';
+  const host = document.querySelector('#nuvem-host');
+  if (host) { host.innerHTML = nuvemChipHTML(); wireNuvem(host); }
 }
 
 function openNuvem() {
@@ -637,10 +659,12 @@ function renderAnalise() {
     return;
   }
   analiseEl.innerHTML = `<h1 class="screen-title">Análise</h1>`
+    + `<div id="nuvem-host">${nuvemChipHTML()}</div>`
     + `<div id="controls-host">${controlsHTML()}</div>`
     + `<div id="fx-host">${renderFixtures()}</div>`;
   wireControls();
   wireFixtures();
+  wireNuvem(analiseEl);
 }
 
 /* ================= Dossiê do jogador ================= */
