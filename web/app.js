@@ -6,6 +6,7 @@ import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction, netEdge, devigPair } from './src/inplay.js';
 import { correctFavProb } from './src/live-correction.js';
 import { gridStatus, isLiveMatch, humanAge } from './src/freshness.js';
+import { nextGameStates, ticksBetween } from './src/ladder.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -933,22 +934,29 @@ function renderLive(pre) {
   const ancorado = ancora != null;
   const probPreA = ancorado ? ancora : pre.probA;
 
-  // PASSO 2 — O QUE O PLACAR MUDA. Markov cru a partir da âncora.
-  const cru = liveFairOdds(probPreA, { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA }, { base, bestOf: L.bestOf });
-
-  // PASSO 3 — CORREÇÃO. O Markov comprime o impacto do set; aplica o viés medido em ~59k
-  // partidas, sempre pela ótica do favorito PRÉ-JOGO (foi assim que a tabela foi construída).
   const favIsA = probPreA >= 0.5;
-  const corr = correctFavProb({
-    tour: anal.tour,
-    favPreProb: favIsA ? probPreA : 1 - probPreA,
-    favSets: favIsA ? L.setsA : L.setsB,
-    dogSets: favIsA ? L.setsB : L.setsA,
-    bestOf: L.bestOf,
-    modelProbFav: favIsA ? cru.probA : cru.probB,
-  });
-  const probA = favIsA ? corr.prob : 1 - corr.prob;
-  const probB = 1 - probA;
+  // PASSOS 2 e 3 juntos, num só lugar: Markov ancorado + correção medida. A escada usa
+  // ESTA mesma função nos estados seguintes — senão ela mostraria número cru com cara de
+  // precisão, propagando justamente o viés que a gente acabou de corrigir.
+  const fairAt = (st) => {
+    const cru = liveFairOdds(probPreA, st, { base, bestOf: L.bestOf });
+    const corr = correctFavProb({
+      tour: anal.tour,
+      favPreProb: favIsA ? probPreA : 1 - probPreA,
+      favSets: favIsA ? st.setsA : st.setsB,
+      dogSets: favIsA ? st.setsB : st.setsA,
+      bestOf: L.bestOf,
+      modelProbFav: favIsA ? cru.probA : cru.probB,
+    });
+    const pa = favIsA ? corr.prob : 1 - corr.prob;
+    return { probA: pa, probB: 1 - pa, oddA: 1 / pa, oddB: 1 / (1 - pa), corr };
+  };
+
+  const estadoAgora = { setsA: L.setsA, setsB: L.setsB, gamesA: L.gamesA, gamesB: L.gamesB, serverIsA: L.serverIsA };
+  const agora = fairAt(estadoAgora);
+  const corr = agora.corr;
+  const probA = agora.probA;
+  const probB = agora.probB;
   const favA = probA >= 0.5;
   const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
 
@@ -974,6 +982,43 @@ function renderLive(pre) {
           : ''
       }
     </div>`;
+  // ESCADA DO PRÓXIMO GAME: pra onde a justa vai em cada desfecho. Não é previsão de quem
+  // ganha o game — é a aritmética do movimento, que é o que define tamanho de posição.
+  const prox = nextGameStates(estadoAgora, L.bestOf);
+  let escada = '';
+  if (prox) {
+    const sacador = L.serverIsA ? aN : bN;
+    const hold = fairAt(prox.hold);
+    const brk = fairAt(prox.broken);
+    // Alavancagem se mede em PROBABILIDADE, não em ticks: em odd curta (1.07) os degraus
+    // comprimem e um game decisivo pareceria "pequeno". O swing em pontos percentuais é
+    // igual pros dois lados e não depende da faixa de odd. Os ticks vêm depois, por lado,
+    // porque é neles que se executa — e eles diferem MUITO entre favorito e azarão.
+    const amplitudePp = Math.abs(hold.probA - brk.probA) * 100;
+    const ticksA = ticksBetween(hold.oddA, brk.oddA);
+    const ticksB = ticksBetween(hold.oddB, brk.oddB);
+    const alavanca = amplitudePp >= 10;
+    const cel = (r) => `<div class="lad-line"><span>${aN}</span><strong>${r.oddA.toFixed(2)}</strong></div>
+        <div class="lad-line"><span>${bN}</span><strong>${r.oddB.toFixed(2)}</strong></div>`;
+    escada = `
+      <div class="ladder${alavanca ? ' leverage' : ''}">
+        <div class="ladder-head">⛓ Próximo ${prox.tiebreak ? 'tie-break' : 'game'} — ${prox.tiebreak ? 'saca' : 'saca'} ${sacador}</div>
+        <div class="ladder-grid">
+          <div class="lad-col">
+            <div class="lad-cap">${prox.tiebreak ? 'SE VENCER O TIE-BREAK' : 'SE SEGURAR'}</div>
+            ${cel(hold)}
+          </div>
+          <div class="lad-col">
+            <div class="lad-cap">${prox.tiebreak ? 'SE PERDER O TIE-BREAK' : 'SE FOR QUEBRADO'}</div>
+            ${cel(brk)}
+          </div>
+        </div>
+        <div class="lad-foot">
+          ${alavanca ? '⚡ <strong>Game de alavanca.</strong> ' : ''}<strong>${amplitudePp.toFixed(1).replace('.', ',')} pontos</strong> de probabilidade em jogo${alavanca ? '' : ' — pouco, operar aqui é pagar spread'}.
+          ${ticksA != null && ticksB != null ? `<br><span class="field-hint">Na escada: ${aN} anda ${Math.abs(ticksA)} degraus · ${bN} anda ${Math.abs(ticksB)}.</span>` : ''}
+        </div>
+      </div>`;
+  }
   const corrNota = corr.applied
     ? `<div class="corr-note">✔ <strong>Corrigido pelo histórico.</strong> Neste placar, favoritos de ${corr.band} vencem <strong>${formatPctFrac(corr.real)}</strong> na vida real, contra ${formatPctFrac(corr.model)} que o modelo projeta — medido em ${corr.n.toLocaleString('pt-BR')} jogos.</div>`
     : `<div class="corr-note off">Sem correção histórica neste estado (${corr.reason}) — o número é o do modelo puro.</div>`;
@@ -1056,6 +1101,7 @@ function renderLive(pre) {
           <div class="pl-row ${favA ? '' : 'fav'}"><div class="pl-top"><span class="pl-name">${bN}</span><span class="pl-prob">${pct(probB)}</span></div><div class="pl-sub">odd justa <strong>${(1 / probB).toFixed(2)}</strong></div></div>
         </div>
         ${corrNota}
+        ${escada}
         <div class="reading-note field-hint">No início era ${pct(probPreA)} pra ${aN}. Informe a odd da Betfair pra medir a sobre-reação.</div>
         <div class="or-inputs">
           <div class="or-in"><span class="live-lbl">Betfair · ${aN}</span>${mktInput('A', L.mktA)}</div>

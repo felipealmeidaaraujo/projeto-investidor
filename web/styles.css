@@ -276,6 +276,18 @@ body {
 /* Nota da correção histórica aplicada (ou do porquê de não haver). */
 .corr-note { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-top: 10px; padding: 9px 11px; border-radius: 10px; background: var(--hover); }
 .corr-note.off { color: var(--text-3); }
+/* Escada do próximo game: pra onde a justa vai em cada desfecho. */
+.ladder { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--hover); border: 1px solid var(--border-subtle); }
+.ladder.leverage { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.ladder-head { font-size: 13px; font-weight: 800; margin-bottom: 10px; }
+.ladder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lad-col { background: var(--card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 9px 11px; }
+.lad-cap { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; color: var(--text-3); margin-bottom: 7px; }
+.lad-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; }
+.lad-line + .lad-line { margin-top: 3px; }
+.lad-line span { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lad-line strong { font-variant-numeric: tabular-nums; font-size: 15px; }
+.lad-foot { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-top: 10px; }
 /* Linha do líquido: o número que realmente sobra depois da comissão. */
 .or-net { font-size: 13px; color: var(--text-1); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
 .watch { margin-top: 12px; padding: 12px 14px; background: var(--hover); border-radius: 12px; }
