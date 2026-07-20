@@ -272,7 +272,7 @@ function renderFixtures() {
   const idadeTxt = idade == null ? 'sem carimbo de atualização' : `atualizada ${humanAge(idade)}`;
   const ageBar = `<div class="grid-age${alerta ? ' warn' : ''}">${
     velha
-      ? `⚠️ Grade <strong>${idadeTxt}</strong> — velha demais pra afirmar quem está ao vivo. Os selos "AO VIVO" foram suspensos; confira na Betfair antes de operar.`
+      ? `⚠️ Grade <strong>${idadeTxt}</strong> — velha demais pra afirmar quem está ao vivo. Os selos "AO VIVO" foram suspensos; confira na Betfair antes de operar.<br><span class="field-hint">O robô atualiza sozinho a cada 30 min, mas o agendador do GitHub às vezes atrasa. Pra forçar agora: <a href="https://github.com/felipealmeidaaraujo/projeto-investidor/actions/workflows/update-fixtures.yml" target="_blank" rel="noopener">abra o robô da grade</a> e toque em "Run workflow".</span>`
       : `Grade <strong>${idadeTxt}</strong>.${alerta ? ' Já passou do ciclo normal de 1h — confira antes de confiar no status.' : ''}`
   }</div>`;
   return `<div class="section-title">Jogos de hoje</div>
@@ -961,6 +961,22 @@ function renderLive(pre) {
   const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
 
   const fairA = 1 / probA, fairB = 1 / probB;
+  // GUIA: o painel diz em que passo você está e qual é a próxima ação. Sem isso, a tela
+  // é um monte de campo e o operador não sabe por onde começar (aconteceu na prática).
+  const temMercado = L.mktA != null || L.mktB != null;
+  const passoAtual = !ancorado ? 1 : !temMercado ? 3 : 0;
+  const passo = (n, txt) =>
+    `<span class="step${passoAtual === n ? ' now' : n < (passoAtual || 4) ? ' done' : ''}">${passoAtual > n || passoAtual === 0 ? '✔' : n} ${txt}</span>`;
+  const instrucao = {
+    1: 'Comece aqui: informe as <strong>duas odds de abertura</strong> da Betfair, abaixo.',
+    3: 'Agora registre o <strong>placar</strong> e informe a <strong>odd atual</strong> da Betfair (mais abaixo).',
+    0: 'Tudo informado — a leitura de valor está no card laranja abaixo.',
+  }[passoAtual];
+  const guia = `
+    <div class="steps-bar">
+      <div class="steps">${passo(1, 'Ancorar')}${passo(2, 'Placar')}${passo(3, 'Odd atual')}</div>
+      <div class="steps-hint">${instrucao}</div>
+    </div>`;
   const preInput = (side, v) => `<button class="value-input" data-pre="${side}">${v != null ? v.toFixed(2) : 'informar'}</button>`;
   const ancoraBox = `
     <div class="anchor-box${ancorado ? ' on' : ''}">
@@ -985,11 +1001,13 @@ function renderLive(pre) {
   // ESCADA DO PRÓXIMO GAME: pra onde a justa vai em cada desfecho. Não é previsão de quem
   // ganha o game — é a aritmética do movimento, que é o que define tamanho de posição.
   const prox = nextGameStates(estadoAgora, L.bestOf);
+  // Fora do bloco: o card de entrada também usa estes dois estados pra mostrar onde ficam
+  // o green e o risco da posição.
+  const hold = prox ? fairAt(prox.hold) : null;
+  const brk = prox ? fairAt(prox.broken) : null;
   let escada = '';
   if (prox) {
     const sacador = L.serverIsA ? aN : bN;
-    const hold = fairAt(prox.hold);
-    const brk = fairAt(prox.broken);
     // Alavancagem se mede em PROBABILIDADE, não em ticks: em odd curta (1.07) os degraus
     // comprimem e um game decisivo pareceria "pequeno". O swing em pontos percentuais é
     // igual pros dois lados e não depende da faixa de odd. Os ticks vêm depois, por lado,
@@ -1058,12 +1076,34 @@ function renderLive(pre) {
         <div class="or-odd"><span class="or-odd-lbl">Betfair paga</span><span class="or-odd-val">${melhor.mkt.toFixed(2)}</span></div>
         <div class="or-odd"><span class="or-odd-lbl">Âncora justa</span><span class="or-odd-val">${melhor.fair.toFixed(2)}</span></div>
       </div>`;
+    // Onde ficam o green e o risco, se você entrar agora. A referência de saída é a justa
+    // do próximo game (a escada) — é estimativa da JUSTA, não promessa do preço da Betfair.
+    let alvos = '';
+    if (melhor.net.covers && hold && brk) {
+      const ehA = melhor.n === aN;
+      const oddNo = (r) => (ehA ? r.oddA : r.oddB);
+      // Back: sai lançando mais barato. Lay: sai bancando mais caro. Fórmula espelhada.
+      const res = (saida) => (melhor.net.back ? melhor.mkt / saida - 1 : 1 - melhor.mkt / saida);
+      const sacador = L.serverIsA ? aN : bN;
+      const linha = (rot, r) => {
+        const pct = res(oddNo(r)) * 100;
+        const bom = pct >= 0;
+        return `<div class="tgt-line"><span>${rot}</span><span class="tgt-odd">justa ${oddNo(r).toFixed(2)}</span><strong class="${bom ? 'tgt-green' : 'tgt-red'}">${formatSignedPct(pct)}</strong></div>`;
+      };
+      alvos = `<div class="targets">
+          <div class="tgt-head">Planeje a saída — entrando a ${melhor.mkt.toFixed(2)}, quanto vale sair em cada nível do próximo ${prox.tiebreak ? 'tie-break' : 'game'} (saca ${sacador}):</div>
+          ${linha(prox.tiebreak ? 'Se vencer o tie-break' : 'Se segurar', hold)}
+          ${linha(prox.tiebreak ? 'Se perder o tie-break' : 'Se for quebrado', brk)}
+          <div class="tgt-foot">⚠️ São níveis da <strong>nossa</strong> justa, não promessa do mercado: a Betfair tem spread e pode não chegar lá. E o risco de verdade não é o próximo game — é a <strong>nossa justa estar errada</strong>, o que a gente ainda não consegue medir ao vivo. Defina a saída <strong>antes</strong> de entrar.</div>
+        </div>`;
+    }
     if (melhor.net.covers) {
       orCard = `<div class="or-card">
         <div class="or-top"><span class="or-title">${melhor.net.back ? 'BACK' : 'LAY'} no ${melhor.n}</span><span class="or-mag">${formatSignedPct(melhor.net.ev * 100)} líquido</span></div>
         ${odds}
         <div class="or-net">Bruto ${formatSignedPct(melhor.bruto.ev * 100)} → <strong>líquido ${formatSignedPct(melhor.net.ev * 100)}</strong>, depois da comissão de ${comPct}%.</div>
         <div class="or-note">${zona} Confira o motivo (lesão? cansaço?) antes de entrar. Você decide.</div>
+        ${alvos}
       </div>`;
     } else {
       orCard = `<div class="or-card or-neutral">
@@ -1077,6 +1117,7 @@ function renderLive(pre) {
 
   return `
     <div class="live-panel">
+      ${guia}
       ${ancoraBox}
       <div class="live-grid">
         <div class="live-cell"><span class="live-lbl">Sets · ${aN}</span>${step('setsA', L.setsA)}</div>

@@ -276,6 +276,24 @@ body {
 /* Nota da correção histórica aplicada (ou do porquê de não haver). */
 .corr-note { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-top: 10px; padding: 9px 11px; border-radius: 10px; background: var(--hover); }
 .corr-note.off { color: var(--text-3); }
+/* Guia de passos: onde você está e o que fazer em seguida. */
+.steps-bar { margin-bottom: 14px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 999px;
+  background: var(--hover); color: var(--text-3); border: 1px solid transparent; }
+.step.done { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.step.now { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.steps-hint { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-top: 8px; }
+/* Alvos: onde ficam o green e o risco se entrar agora. */
+.targets { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.tgt-head { font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
+.tgt-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; margin-top: 4px; }
+.tgt-line > span:first-child { color: var(--text-2); }
+.tgt-odd { color: var(--text-3); font-size: 12px; margin-left: auto; margin-right: 10px; font-variant-numeric: tabular-nums; }
+.tgt-line strong { font-variant-numeric: tabular-nums; }
+.tgt-green { color: var(--green); }
+.tgt-red { color: var(--red); }
+.tgt-foot { font-size: 11.5px; color: var(--text-3); margin-top: 8px; line-height: 1.45; }
 /* Escada do próximo game: pra onde a justa vai em cada desfecho. */
 .ladder { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--hover); border: 1px solid var(--border-subtle); }
 .ladder.leverage { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
