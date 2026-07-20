@@ -719,7 +719,12 @@ body {
 .op-placar span { color: var(--text-3); margin: 0 6px; }
 .op-placar em { display: block; font-style: normal; font-size: 10.5px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); margin-top: 3px; }
-.op-saca { text-align: center; font-size: 13px; color: var(--text-2); margin-top: -4px; }
+/* "saca Fulano" é um BOTÃO: se o sacador estiver errado, a justa e a escada inteiras
+   estão erradas — ele precisa poder corrigir sem sair da tela de operação. */
+.op-saca { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; text-align: center; font: inherit; font-size: 13px; color: var(--text-2); background: none; border: none; margin-top: -4px; padding: 4px 0; cursor: pointer; }
+.op-saca strong { color: var(--text-1); }
+.op-saca-troca { font-size: 11px; font-weight: 600; color: var(--accent); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.op-saca:hover .op-saca-troca { border-color: var(--accent); }
 
 .op-cols { display: flex; gap: 10px; }
 .op-col { flex: 1; background: var(--card); border: 1.5px solid var(--border-subtle); border-radius: 14px;

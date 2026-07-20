@@ -258,3 +258,30 @@ test('game point convertido leva ao mesmo estado que o game já ganho', () => {
   const jaGanho = winProbFromState({ setsA: 0, setsB: 0, gamesA: 3, gamesB: 2, serverIsA: false }, 0.64, 0.62, 3);
   approx(emJogo, jaGanho, 1e-12);
 });
+
+// ---- Quem saca: par vs ímpar ----
+// Isto NÃO é bug, por mais que pareça. Em placar de games PAR os games que faltam se
+// emparelham (um saque de cada), e quem saca primeiro se anula — conferido contra uma
+// implementação independente e contra simulação Monte Carlo (0,8728 vs 0,8720 em 400 mil
+// sets). Em placar ÍMPAR sobra um game desemparelhado e o sacador pesa. Já cheguei a
+// chamar a simetria de bug uma vez; o teste existe pra ninguém "consertá-la".
+test('em placar PAR, trocar o sacador não muda a probabilidade', () => {
+  for (const [ga, gb] of [[0, 0], [2, 2], [4, 4], [5, 5], [3, 1]]) {
+    const st = { setsA: 0, setsB: 0, gamesA: ga, gamesB: gb };
+    const comA = winProbFromState({ ...st, serverIsA: true }, 0.70, 0.55, 3);
+    const comB = winProbFromState({ ...st, serverIsA: false }, 0.70, 0.55, 3);
+    approx(comA, comB, 1e-12);
+  }
+});
+
+test('em placar ÍMPAR, o sacador muda a probabilidade de forma material', () => {
+  for (const [ga, gb] of [[1, 0], [3, 2], [4, 3], [5, 4]]) {
+    const st = { setsA: 0, setsB: 0, gamesA: ga, gamesB: gb };
+    const comA = winProbFromState({ ...st, serverIsA: true }, 0.70, 0.55, 3);
+    const comB = winProbFromState({ ...st, serverIsA: false }, 0.70, 0.55, 3);
+    // O efeito cresce conforme o set avança (0,9pp no 1-0, ~2,1pp no 5-4): quanto menos
+    // games faltam, mais pesa o game desemparelhado.
+    assert.ok(comA > comB, `sacar tem que ajudar A em ${ga}-${gb}`);
+    assert.ok(comA - comB > 0.005, `o efeito tem que ser material em ${ga}-${gb}, veio ${(comA - comB).toFixed(4)}`);
+  }
+});

@@ -1653,7 +1653,7 @@ function openOperar() {
             <div class="op-sets">${L.setsA} <span>–</span> ${L.setsB}<em>sets</em></div>
             <div class="op-games">${L.gamesA} <span>–</span> ${L.gamesB}<em>games</em></div>
           </div>
-          <div class="op-saca">saca <strong>${sacador}</strong>${c.tiebreak ? ' · tie-break' : ''}</div>
+          <button class="op-saca" id="op-saca" type="button">saca <strong>${sacador}</strong>${c.tiebreak ? ' · tie-break' : ''}<span class="op-saca-troca">trocar</span></button>
 
           <div class="op-cols">${col('A', aN, c.agora.oddA)}${col('B', bN, c.agora.oddB)}</div>
           ${campoOdd}
@@ -1722,6 +1722,17 @@ function openOperar() {
       });
     });
 
+    // Trocar o sacador é CORREÇÃO, não passagem de tempo: o app pode ter começado
+    // supondo o lado errado, e sem isso a justa e a escada inteiras ficam erradas sem
+    // ele ter como arrumar aqui. Por isso o preço da Betfair NÃO é descartado — ele
+    // continua sendo a leitura válida daquele instante (diferente de SEGUROU/QUEBROU,
+    // onde o game acabou de verdade e o preço envelheceu).
+    root.querySelector('#op-saca').addEventListener('click', () => {
+      historico.push({ ...anal.live });
+      anal.live.serverIsA = !anal.live.serverIsA;
+      persistir();
+      draw();
+    });
     root.querySelector('#op-ancora').addEventListener('click', () => abrirAncora());
     root.querySelector('#op-reset').addEventListener('click', () => {
       resetLive();
