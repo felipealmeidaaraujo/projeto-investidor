@@ -5,6 +5,7 @@ import { searchPlayers } from './src/player-search.js';
 import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction, netEdge, devigPair } from './src/inplay.js';
 import { correctFavProb } from './src/live-correction.js';
+import { gridStatus, isLiveMatch, humanAge } from './src/freshness.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -198,12 +199,12 @@ function switchTour(t) {
 // ~4h30 certamente já acabou — não mostramos "AO VIVO" mesmo se o dado ainda disser,
 // cobrindo a defasagem residual entre atualizações da grade. (Date.now e commence
 // são ambos UTC → a comparação é honesta em qualquer fuso.)
-const LIVE_MAX_MS = 4.5 * 60 * 60 * 1000;
+/** Frescor da grade agora (a lógica vive em src/freshness.js, testada). */
+function gridState() {
+  return gridStatus(todayData?.generatedAt ?? todayData?.updatedAt);
+}
 function isLive(g) {
-  if (g.status !== 'IN_PROGRESS') return false;
-  const started = g.commence ? Date.parse(g.commence) : NaN;
-  if (Number.isNaN(started)) return true; // sem horário confiável: confia no status
-  return Date.now() - started < LIVE_MAX_MS;
+  return isLiveMatch(g, { gridStale: gridState().stale });
 }
 
 // Um botão de jogo. `i` é o índice na lista COMPLETA (todayData.matches) —
@@ -264,7 +265,17 @@ function renderFixtures() {
   const c = fxCounts(list);
   const f = anal.fxFilter || 'todos';
   const chip = (val, label, n) => `<button class="chip fxf${f === val ? ' selected' : ''}" data-fxf="${val}">${label}${n != null ? ` <span class="fxf-n">${n}</span>` : ''}</button>`;
+  // A idade do dado SEMPRE na tela: o app não pode apresentar um retrato de 3 horas
+  // com a mesma confiança de um de 2 minutos. Sem isso, não há como você julgar.
+  const { ageMs: idade, warn: alerta, stale: velha } = gridState();
+  const idadeTxt = idade == null ? 'sem carimbo de atualização' : `atualizada ${humanAge(idade)}`;
+  const ageBar = `<div class="grid-age${alerta ? ' warn' : ''}">${
+    velha
+      ? `⚠️ Grade <strong>${idadeTxt}</strong> — velha demais pra afirmar quem está ao vivo. Os selos "AO VIVO" foram suspensos; confira na Betfair antes de operar.`
+      : `Grade <strong>${idadeTxt}</strong>.${alerta ? ' Já passou do ciclo normal de 1h — confira antes de confiar no status.' : ''}`
+  }</div>`;
   return `<div class="section-title">Jogos de hoje</div>
+    ${ageBar}
     <div class="chips fx-filter">
       ${chip('todos', 'Todos', c.todos)}
       ${c.live ? chip('live', '● Ao vivo', c.live) : ''}

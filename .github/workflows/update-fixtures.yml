@@ -20,7 +20,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages # mesmo grupo do deploy/update-model — serializa as publicações
+  # Grupo PRÓPRIO, de propósito. Antes isto compartilhava o grupo "pages" com o deploy e o
+  # update-model: uma rajada de pushes ocupava a fila e o GitHub CANCELAVA a execução
+  # agendada que estava esperando. Aconteceu em 20/07 — a grade ficou 3h parada e o app
+  # exibiu "AO VIVO" num jogo já encerrado. Atualizar o DADO é mais importante que publicar:
+  # o dado nunca pode ser cancelado por causa de um push nosso.
+  group: fixtures
   cancel-in-progress: false
 
 jobs:
@@ -52,9 +57,15 @@ jobs:
             git pull --rebase --autostash origin main || true
             git push
           fi
+      # A publicação é o "melhor esforço": como agora rodamos fora do grupo "pages", duas
+      # publicações podem se cruzar e uma falhar. Se isso acontecer, o dado JÁ foi commitado
+      # acima e a próxima execução publica — não faz sentido marcar a atualização como falha.
       - uses: actions/configure-pages@v5
+        continue-on-error: true
       - uses: actions/upload-pages-artifact@v3
+        continue-on-error: true
         with:
           path: web
       - id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
