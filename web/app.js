@@ -4,6 +4,7 @@ import { tacticalSuggestion } from './src/tactics.js';
 import { searchPlayers } from './src/player-search.js';
 import { whatToWatch } from './src/watch.js';
 import { liveFairOdds, overreaction } from './src/inplay.js';
+import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 import { careerText } from './src/career.js';
@@ -58,6 +59,22 @@ function toast(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2400);
+}
+// Baixa as observações ao vivo já capturadas (placar + odd justa + odd da Betfair).
+// É a matéria-prima pra um dia validar método AO VIVO — não existe base pública disso.
+function exportCaptures() {
+  const rows = loadCaptures(localStorage);
+  if (!rows.length) {
+    toast('Nada capturado ainda.');
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `investidor-observacoes-${todayLocal()}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast(`${rows.length} observações exportadas.`);
 }
 /* ================= Tela: Análise ================= */
 const analiseEl = document.getElementById('screen-analise');
@@ -586,6 +603,7 @@ function openReading() {
         openKeypad({ title: `Odd Betfair · ${side === 'A' ? anal.a.name : anal.b.name}`, value: side === 'A' ? anal.live.mktA : anal.live.mktB, mode: 'odd', onConfirm: (v) => { if (side === 'A') anal.live.mktA = v; else anal.live.mktB = v; }, onClose: draw });
       })
     );
+    root.querySelector('#btn-export-cap')?.addEventListener('click', exportCaptures);
   }
   // Só a faixa "O que significam esses números".
   function drawExplain() {
@@ -863,6 +881,22 @@ function renderLive(pre) {
   const step = (f, v) => `<div class="livestep"><button class="lstep" data-live="${f}" data-d="-1">−</button><span class="lstep-v">${v}</span><button class="lstep" data-live="${f}" data-d="1">+</button></div>`;
 
   const fairA = 1 / probA, fairB = 1 / probB;
+  // Grava a observação ao vivo (só conta quando há odd da Betfair informada). A repetição
+  // do mesmo estado é ignorada pelo próprio módulo, então chamar a cada render é seguro.
+  const capturas = addCapture(
+    localStorage,
+    buildSnapshot({
+      at: new Date().toISOString(),
+      tour: anal.tour,
+      surface: anal.surface,
+      level: anal.level,
+      a: aN,
+      b: bN,
+      live: L,
+      fair: { fairOddA: fairA, fairOddB: fairB },
+      preProbA: pre.probA,
+    })
+  );
   const signals = [
     { n: aN, fair: fairA, mkt: L.mktA, or: overreaction(fairA, L.mktA) },
     { n: bN, fair: fairB, mkt: L.mktB, or: overreaction(fairB, L.mktB) },
@@ -917,6 +951,10 @@ function renderLive(pre) {
           <div class="or-in"><span class="live-lbl">Betfair · ${bN}</span>${mktInput('B', L.mktB)}</div>
         </div>
         ${orCard}
+        <div class="capture-bar">
+          <span class="field-hint">${capturas} ${capturas === 1 ? 'observação gravada' : 'observações gravadas'} neste aparelho</span>
+          ${capturas ? `<button class="btn btn-ghost" id="btn-export-cap">Exportar CSV</button>` : ''}
+        </div>
       </div>
     </div>`;
 }
