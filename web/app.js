@@ -10,6 +10,7 @@ import { nextGameStates, ticksBetween, gamesEndSet, stepGame, matchOver } from '
 import { oddTick, opKey, saveOp, loadOp, clearOp } from './src/operar.js';
 import { buildSnapshot, addCapture, loadCaptures, saveCaptures, toCSV } from './src/capture.js';
 import { resolveCaptures, outcomeStats } from './src/outcome.js';
+import { rowsToPush, rowStamp, mergeRemote, syncResumo } from './src/sync.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
 import { careerText } from './src/career.js';
@@ -99,6 +100,190 @@ function exportCaptures() {
   const com = rows.filter((r) => r.won).length;
   toast(`${rows.length} observações exportadas — ${com} já com o desfecho.`);
 }
+/* ================= NUVEM =================
+ * As observações só existem dentro deste navegador — limpar os dados apagaria a única
+ * base de odds ao vivo que este projeto tem. A nuvem é a cópia durável (e o caminho de
+ * volta num aparelho novo).
+ *
+ * Regra que não se quebra: a nuvem NUNCA atrapalha a operação. O laço do jogo continua
+ * gravando no aparelho, síncrono, funcione ou não a internet da arena; o que faltou
+ * subir sobe depois sozinho. Por isso tudo aqui é sob demanda, tolerante a erro e
+ * silencioso.
+ */
+const SYNC_KEY = 'investidor.sync'; // impressões digitais do que já subiu
+let cloudMod = null;
+const nuvem = { sessao: null, email: null, ultimaEm: null, erro: null, ocupado: false };
+
+function enviadasSet() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(SYNC_KEY) || '[]');
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+function salvarEnviadas(set) {
+  try { localStorage.setItem(SYNC_KEY, JSON.stringify([...set])); } catch { /* sem espaço: reenvia depois, é idempotente */ }
+}
+function pendentesNuvem() {
+  return rowsToPush(loadCaptures(localStorage), enviadasSet()).length;
+}
+// O cliente vem de CDN e só é baixado quando alguém realmente vai usar a nuvem — se
+// falhar, o app inteiro continua funcionando offline.
+async function carregarCloud() {
+  if (cloudMod) return cloudMod;
+  try {
+    cloudMod = await import('./src/cloud.js');
+  } catch {
+    nuvem.erro = 'não deu pra carregar a nuvem (sem internet?)';
+    return null;
+  }
+  return cloudMod;
+}
+async function iniciarNuvem() {
+  const c = await carregarCloud();
+  if (!c) return;
+  nuvem.sessao = await c.getSession();
+  nuvem.email = nuvem.sessao?.user?.email ?? null;
+  if (nuvem.sessao) sincronizar();
+  else pintarStatusNuvem();
+}
+let syncTimer = null;
+function agendarSync() {
+  if (!nuvem.sessao) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => sincronizar(), 5000); // deixa o laço do jogo respirar
+}
+async function sincronizar({ baixar = false } = {}) {
+  if (!nuvem.sessao) return;
+  // Pedido que chega no meio de outro não se perde: volta pra fila. Perder um pedido aqui
+  // é invisível — o app diria "tudo na nuvem" com linha parada no aparelho.
+  if (nuvem.ocupado) { agendarSync(); return; }
+  const c = await carregarCloud();
+  if (!c) return;
+  nuvem.ocupado = true;
+  nuvem.erro = null;
+  pintarStatusNuvem();
+  try {
+    if (baixar) {
+      const remotas = await c.pullRows();
+      const juntas = mergeRemote(loadCaptures(localStorage), remotas);
+      if (juntas.novas || juntas.desfechos) {
+        saveCaptures(localStorage, juntas.rows);
+        capStats = outcomeStats(juntas.rows);
+      }
+      toast(
+        juntas.novas || juntas.desfechos
+          ? `Recuperado da nuvem: ${juntas.novas} observações e ${juntas.desfechos} desfechos.`
+          : 'A nuvem não tinha nada além do que já está aqui.'
+      );
+    }
+    const set = enviadasSet();
+    const fila = rowsToPush(loadCaptures(localStorage), set);
+    if (fila.length) {
+      await c.pushRows(fila);
+      fila.forEach((r) => set.add(rowStamp(r)));
+      salvarEnviadas(set);
+    }
+    nuvem.ultimaEm = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    nuvem.erro = e?.message || 'a sincronização falhou';
+  } finally {
+    nuvem.ocupado = false;
+    pintarStatusNuvem();
+  }
+}
+// Status da nuvem em texto honesto — inclusive quando NÃO está guardado em lugar nenhum.
+function statusNuvem() {
+  if (nuvem.erro) return `⚠️ ${nuvem.erro} — o dado segue salvo no aparelho`;
+  if (nuvem.ocupado) return 'sincronizando…';
+  return syncResumo({ conectado: !!nuvem.sessao, pendentes: pendentesNuvem(), ultimaEm: nuvem.ultimaEm });
+}
+// Repinta só o pedaço de status, sem redesenhar o painel (que roda durante o jogo).
+function pintarStatusNuvem() {
+  const el = document.querySelector('#cap-sync');
+  if (el) el.textContent = statusNuvem();
+  const bt = document.querySelector('#btn-nuvem');
+  if (bt) bt.textContent = nuvem.sessao ? '☁ nuvem' : '☁ guardar na nuvem';
+}
+
+function openNuvem() {
+  const root = document.getElementById('modal-root');
+  const fechar = () => { root.innerHTML = ''; };
+  const draw = () => {
+    const dentro = !!nuvem.sessao;
+    const pend = pendentesNuvem();
+    const total = loadCaptures(localStorage).length;
+    root.innerHTML = `
+      <div class="modal-overlay" id="nv-overlay">
+        <div class="modal-sheet">
+          <button class="modal-x" id="nv-x" aria-label="Fechar">✕</button>
+          <div class="modal-title">☁ Observações na nuvem</div>
+          <p class="field-hint" style="margin-bottom:12px">
+            ${total === 1 ? 'Sua única observação ao vivo mora' : `Suas ${total} observações ao vivo moram`} <strong>só neste navegador</strong>. Limpar os dados do site ${total === 1 ? 'a apagaria' : 'apagaria todas'} — e não existe como recuperar, porque não há base pública de odds ao vivo. Guardar na nuvem protege isso e faz o dado aparecer em qualquer aparelho onde você entrar.
+          </p>
+          ${
+            dentro
+              ? `<div class="nv-status">
+                   <div><strong>${nuvem.email ?? 'conectado'}</strong></div>
+                   <div class="field-hint">${statusNuvem()}</div>
+                 </div>
+                 <button class="btn btn-primary" id="nv-sync" ${nuvem.ocupado ? 'disabled' : ''}>${pend ? `Enviar ${pend} agora` : 'Verificar agora'}</button>
+                 <button class="btn" id="nv-pull" ${nuvem.ocupado ? 'disabled' : ''}>Baixar da nuvem (recuperar neste aparelho)</button>
+                 <button class="btn btn-ghost" id="nv-out">Sair desta conta</button>`
+              : `<input class="auth-input" id="nv-mail" type="email" placeholder="seu e-mail" autocomplete="username">
+                 <input class="auth-input" id="nv-pass" type="password" placeholder="sua senha" autocomplete="current-password">
+                 <div class="nv-erro" id="nv-erro"></div>
+                 <button class="btn btn-primary" id="nv-in">Entrar e sincronizar</button>
+                 <button class="btn btn-ghost" id="nv-up">Criar conta com este e-mail</button>
+                 <p class="field-hint">O login vale só pra guardar as observações — o app continua abrindo sem conta, como sempre.</p>`
+          }
+        </div>
+      </div>`;
+    root.querySelector('#nv-x').addEventListener('click', fechar);
+    root.querySelector('#nv-overlay').addEventListener('click', (e) => { if (e.target.id === 'nv-overlay') fechar(); });
+
+    if (dentro) {
+      root.querySelector('#nv-sync').addEventListener('click', async () => { await sincronizar(); draw(); });
+      root.querySelector('#nv-pull').addEventListener('click', async () => { await sincronizar({ baixar: true }); draw(); });
+      root.querySelector('#nv-out').addEventListener('click', async () => {
+        const c = await carregarCloud();
+        await c?.signOut();
+        nuvem.sessao = null;
+        nuvem.email = null;
+        toast('Você saiu. As observações continuam salvas neste aparelho.');
+        draw();
+        pintarStatusNuvem();
+      });
+      return;
+    }
+    const entrar = async (criar) => {
+      const mail = root.querySelector('#nv-mail').value.trim();
+      const senha = root.querySelector('#nv-pass').value;
+      const erro = root.querySelector('#nv-erro');
+      if (!mail || !senha) { erro.textContent = 'Preencha e-mail e senha.'; return; }
+      erro.textContent = 'conectando…';
+      const c = await carregarCloud();
+      if (!c) { erro.textContent = nuvem.erro; return; }
+      try {
+        nuvem.sessao = criar ? await c.signUp(mail, senha) : await c.signIn(mail, senha);
+        nuvem.email = nuvem.sessao?.user?.email ?? mail;
+        if (!nuvem.sessao) { erro.textContent = 'Conta criada — confirme o e-mail e entre.'; return; }
+        draw();
+        // Aparelho novo começa baixando: o que está na nuvem tem que reaparecer aqui.
+        await sincronizar({ baixar: true });
+        draw();
+      } catch (e) {
+        erro.textContent = e?.message === 'Invalid login credentials' ? 'E-mail ou senha não conferem.' : e?.message || 'não deu pra entrar';
+      }
+    };
+    root.querySelector('#nv-in').addEventListener('click', () => entrar(false));
+    root.querySelector('#nv-up').addEventListener('click', () => entrar(true));
+    root.querySelector('#nv-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(false); });
+  };
+  draw();
+}
+
 // Frase do contador de captura. Diz o total e quantas já sabem quem venceu; quando
 // nenhuma sabe ainda, explica o motivo em vez de deixar o zero no ar.
 function capturaResumo(total) {
@@ -161,6 +346,10 @@ function resolverDesfechos() {
   if (n) {
     saveCaptures(localStorage, rows);
     capStats = outcomeStats(rows);
+    // O desfecho chega DEPOIS da observação já ter subido, e o scouting carrega DEPOIS
+    // da sincronia do boot — sem este empurrão, o `won` ficava só no aparelho e a nuvem
+    // guardava a foto pra sempre sem legenda, sem ninguém perceber.
+    agendarSync();
   }
 }
 // Partidas só do circuito atual (evita misturar ATP/WTA em nomes iguais). Cacheado por tour.
@@ -727,6 +916,7 @@ function openReading() {
       })
     );
     root.querySelector('#btn-export-cap')?.addEventListener('click', exportCaptures);
+    root.querySelector('#btn-nuvem')?.addEventListener('click', openNuvem);
     root.querySelector('#btn-commission')?.addEventListener('click', () =>
       openKeypad({
         title: 'Sua comissão na Betfair (%)',
@@ -1174,6 +1364,7 @@ function renderLive(pre) {
       com: comissao,
     })
   );
+  agendarSync();
   let orCard = '';
   if (melhor) {
     const zona = `Com ${comPct}% de comissão, só há valor <strong>lançando abaixo de ${melhor.net.layMax.toFixed(2)}</strong> ou <strong>bancando acima de ${melhor.net.backMin.toFixed(2)}</strong>.`;
@@ -1263,6 +1454,10 @@ function renderLive(pre) {
             <button class="btn btn-ghost" id="btn-commission">comissão ${comPct}%</button>
             ${capturas ? `<button class="btn btn-ghost" id="btn-export-cap">Exportar CSV</button>` : ''}
           </span>
+        </div>
+        <div class="capture-bar sync-bar">
+          <span class="field-hint" id="cap-sync">${statusNuvem()}</span>
+          <button class="btn btn-ghost" id="btn-nuvem">${nuvem.sessao ? '☁ nuvem' : '☁ guardar na nuvem'}</button>
         </div>
       </div>
     </div>`;
@@ -1355,6 +1550,7 @@ function openOperar() {
         com: comissao,
       })
     );
+    agendarSync(); // sobe depois, fora do laço — nunca antes de desenhar o veredito
 
     // A FAIXA DE VEREDITO — é o que você bate o olho. Sempre no topo, sempre grande.
     let veredito;
@@ -1759,6 +1955,9 @@ function renderJogadores() {
 
 function bootApp() {
   renderScreen(currentScreen);
+  // Retoma a sessão da nuvem (se houver) e sobe o que ficou na fila do último jogo.
+  // Em segundo plano: a tela não espera por isso.
+  iniciarNuvem();
 }
 
 // Tema (claro é o padrão; escolha salva)

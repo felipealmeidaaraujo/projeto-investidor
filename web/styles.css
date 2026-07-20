@@ -757,4 +757,11 @@ body {
 .op-regra { font-size: 11.5px; color: var(--text-3); }
 /* Contador de captura: prova na tela de que a observação está sendo gravada. */
 .op-rec { color: var(--accent); font-weight: 600; }
+
+/* Nuvem: estado da sincronização e a folha de login. */
+.sync-bar { margin-top: 2px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.nv-status { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; margin-bottom: 10px; }
+.nv-status > div:first-child { font-size: 14px; margin-bottom: 2px; }
+.nv-erro { min-height: 18px; font-size: 12.5px; color: var(--red); margin-bottom: 6px; }
+#nv-overlay .btn { width: 100%; margin-bottom: 8px; }
 .op-entrar { margin-bottom: 14px; }

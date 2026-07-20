@@ -1,6 +1,6 @@
 // Service worker mínimo — estratégia "network-first" (durante o dev, sempre
 // pega a versão mais nova; se estiver offline, cai no cache).
-const CACHE = 'investidor-v3';
+const CACHE = 'investidor-v4';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -17,6 +17,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Só o que é nosso passa pelo cache. Chamada de API (Supabase) NÃO pode ser servida do
+  // cache: o fallback devolveria o index.html no lugar do JSON e a sincronização veria
+  // uma resposta sem sentido em vez de um erro de rede limpo. Fotos e CDN idem — vão
+  // direto pra rede.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     fetch(event.request, { cache: 'no-cache' })
       .then((res) => {
