@@ -313,6 +313,10 @@ body {
 .modal-x:hover { background: var(--border); color: var(--text-1); }
 .modal-title { text-align: center; font-size: 14px; color: var(--text-2); font-weight: 600; margin-bottom: 10px; }
 .keypad-display { text-align: center; font-size: 34px; font-weight: 800; padding: 8px 0 16px; font-variant-numeric: tabular-nums; }
+/* Valor herdado: aparece "selecionado" porque o próximo dígito o substitui. */
+.keypad-display.fresh { padding-bottom: 6px; }
+.keypad-display.fresh > span, .keypad-display.fresh { color: var(--accent); }
+.keypad-hint { text-align: center; font-size: 12px; color: var(--text-3); padding-bottom: 12px; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .key { min-height: 58px; font-size: 22px; font-weight: 700; font-family: inherit;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); color: var(--text-1); cursor: pointer; -webkit-tap-highlight-color: transparent; }

@@ -1110,6 +1110,10 @@ function openKeypad({ title, value = 0, onConfirm, onClose, mode = 'money' }) {
   const root = document.getElementById('modal-root');
   const isOdd = mode === 'odd';
   let buf = value ? (isOdd ? String(value) : String(Math.round(value))) : '';
+  // O valor atual aparece no visor, mas o PRIMEIRO dígito digitado SUBSTITUI em vez de
+  // emendar: trocar 2.80 por 5.00 no meio de um jogo não pode exigir 4 toques no apagador.
+  // O apagador cancela esse estado (aí você edita o número existente normalmente).
+  let fresh = buf !== '';
 
   function draw() {
     const display = isOdd ? (buf || '—') : formatBRL(buf ? Number(buf) : 0);
@@ -1120,7 +1124,8 @@ function openKeypad({ title, value = 0, onConfirm, onClose, mode = 'money' }) {
       <div class="modal-overlay" id="kp-overlay">
         <div class="modal-sheet" id="kp-sheet">
           <div class="modal-title">${title}</div>
-          <div class="keypad-display">${display}</div>
+          <div class="keypad-display${fresh ? ' fresh' : ''}">${display}</div>
+          ${fresh ? '<div class="keypad-hint">digite pra substituir · ⌫ pra editar</div>' : ''}
           <div class="keypad">${keys.map((k) => `<button class="key" data-k="${k}">${k}</button>`).join('')}</div>
           <div class="modal-actions">${isOdd ? `<button class="btn btn-primary" id="kp-ok">OK</button>` : ''}<button class="btn btn-ghost" id="kp-cancel">Cancelar</button></div>
         </div>
@@ -1128,10 +1133,16 @@ function openKeypad({ title, value = 0, onConfirm, onClose, mode = 'money' }) {
     root.querySelectorAll('.key').forEach((btn) =>
       btn.addEventListener('click', () => {
         const k = btn.dataset.k;
-        if (k === '⌫') buf = buf.slice(0, -1);
-        else if (k === 'OK') return close(Number(buf || 0));
-        else if (k === '.') { if (!buf.includes('.')) buf += buf ? '.' : '0.'; }
-        else if (buf.length < 9) buf += k;
+        if (k === '⌫') {
+          buf = buf.slice(0, -1);
+          fresh = false; // apagou = quer editar o que está aí
+        } else if (k === 'OK') {
+          return close(Number(buf || 0));
+        } else {
+          if (fresh) { buf = ''; fresh = false; } // primeiro toque começa do zero
+          if (k === '.') { if (!buf.includes('.')) buf += buf ? '.' : '0.'; }
+          else if (buf.length < 9) buf += k;
+        }
         draw();
       })
     );
