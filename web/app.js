@@ -955,6 +955,13 @@ function renderLive(pre) {
           ? `A conta parte de <strong>${pct(probPreA)}</strong> pro ${aN}, que é o preço do mercado. <span class="field-hint">(nosso Elo dizia ${pct(pre.probA)} — descartado, o mercado é mais preciso)</span>`
           : `Sem as <strong>duas</strong> odds, a conta parte do <strong>nosso Elo</strong> — que fica 8pp longe do mercado em média e erra mais. Informe as duas pra ancorar.`
       }</div>
+      ${
+        // Mercado e Elo discordando de QUEM é o favorito quase sempre é odd no campo errado.
+        // Acontece: é fácil trocar os dois valores de lugar. Avisa em vez de calcular calado.
+        ancorado && favIsA !== pre.probA >= 0.5
+          ? `<div class="anchor-warn">⚠️ O mercado e o nosso Elo discordam sobre <strong>quem é o favorito</strong>. Confira se as odds não estão trocadas de campo — a de <strong>${aN}</strong> vai no primeiro, a de <strong>${bN}</strong> no segundo. Se estiverem certas, é uma divergência real e vale entender por quê.</div>`
+          : ''
+      }
     </div>`;
   const corrNota = corr.applied
     ? `<div class="corr-note">✔ <strong>Corrigido pelo histórico.</strong> Neste placar, favoritos de ${corr.band} vencem <strong>${formatPctFrac(corr.real)}</strong> na vida real, contra ${formatPctFrac(corr.model)} que o modelo projeta — medido em ${corr.n.toLocaleString('pt-BR')} jogos.</div>`
