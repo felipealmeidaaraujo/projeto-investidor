@@ -11,10 +11,15 @@ name: Atualizar jogos do dia (grade)
 
 on:
   schedule:
-    # A cada 30 min. O agendador do GitHub é BEST-EFFORT: atrasa 40min com frequência e às
-    # vezes pula a janela (visto em 19-20/07: 20:01, 21:40, 22:40, 23:45, e nada às 00:xx).
-    # Rodar 2x por hora dá duas chances de a grade não envelhecer além do aceitável.
-    - cron: '*/30 * * * *'
+    # O agendador do GitHub é BEST-EFFORT e descarta primeiro os jobs marcados nos minutos
+    # de PICO — :00 e :30, onde todo mundo agenda. O cron antigo (*/30) caía justo neles e
+    # por isso ficava horas parado (medido em 20/07: intervalos de 137, 161, 205 min e um
+    # buraco de 7h de madrugada, com o cron marcando 30 min).
+    #
+    # Correção: 4 tentativas por hora em minutos QUEBRADOS (7,22,37,52), longe do pico. Não
+    # existe garantia — o GitHub não dá SLA pra cron — mas dá 4 chances/hora de a grade não
+    # envelhecer, e cada tentativa evita a janela mais concorrida. É de graça (repo público).
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch: # botão "Run workflow" pra rodar na hora
 
 permissions:
