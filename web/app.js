@@ -3,7 +3,7 @@ import { styleLines, pressureLines, bioText } from './src/patterns-view.js';
 import { tacticalSuggestion } from './src/tactics.js';
 import { searchPlayers } from './src/player-search.js';
 import { whatToWatch } from './src/watch.js';
-import { liveFairOdds, overreaction } from './src/inplay.js';
+import { liveFairOdds, overreaction, netEdge } from './src/inplay.js';
 import { buildSnapshot, addCapture, loadCaptures, toCSV } from './src/capture.js';
 import { recentForm, restDays, headToHead } from './src/scouting.js';
 import { formatBRL, formatSignedPct, formatPctFrac } from './src/format.js';
@@ -59,6 +59,23 @@ function toast(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2400);
+}
+// Comissão da Betfair (fração do LUCRO). Fica no aparelho pra você poder ajustar —
+// ela mexe direto no que sobra de cada entrada, então nunca é suposição escondida.
+const COMMISSION_KEY = 'investidor.commission';
+const DEFAULT_COMMISSION = 0.065;
+function getCommission() {
+  try {
+    const v = Number(localStorage.getItem(COMMISSION_KEY));
+    return Number.isFinite(v) && v > 0 && v < 1 ? v : DEFAULT_COMMISSION;
+  } catch {
+    return DEFAULT_COMMISSION;
+  }
+}
+function setCommission(pct) {
+  try {
+    localStorage.setItem(COMMISSION_KEY, String(pct / 100));
+  } catch { /* sem storage: segue com o padrão */ }
 }
 // Baixa as observações ao vivo já capturadas (placar + odd justa + odd da Betfair).
 // É a matéria-prima pra um dia validar método AO VIVO — não existe base pública disso.
@@ -604,6 +621,15 @@ function openReading() {
       })
     );
     root.querySelector('#btn-export-cap')?.addEventListener('click', exportCaptures);
+    root.querySelector('#btn-commission')?.addEventListener('click', () =>
+      openKeypad({
+        title: 'Sua comissão na Betfair (%)',
+        value: getCommission() * 100,
+        mode: 'odd',
+        onConfirm: (v) => setCommission(v),
+        onClose: draw,
+      })
+    );
   }
   // Só a faixa "O que significam esses números".
   function drawExplain() {
@@ -897,27 +923,40 @@ function renderLive(pre) {
       preProbA: pre.probA,
     })
   );
+  // Quem decide é o EV LÍQUIDO (já com comissão), não a divergência bruta: a comissão
+  // incide sobre o lucro e cria uma zona morta em volta da justa onde nada é operável.
+  const comissao = getCommission();
+  const comPct = (comissao * 100).toFixed(1).replace('.', ',');
   const signals = [
-    { n: aN, fair: fairA, mkt: L.mktA, or: overreaction(fairA, L.mktA) },
-    { n: bN, fair: fairB, mkt: L.mktB, or: overreaction(fairB, L.mktB) },
-  ].filter((s) => s.or);
-  const withLevel = signals.filter((s) => s.or.level).sort((a, b) => Math.abs(b.or.divPct) - Math.abs(a.or.divPct));
-  let orCard;
-  if (withLevel.length) {
-    const s = withLevel[0];
-    const titulo = s.or.divPct > 0 ? `Mercado esticado no ${s.n}` : `Mercado curto no ${s.n}`;
-    orCard = `<div class="or-card">
-      <div class="or-top"><span class="or-title">${titulo}</span><span class="or-mag">${formatSignedPct(s.or.divPct)}</span></div>
-      <div class="or-odds">
-        <div class="or-odd"><span class="or-odd-lbl">Betfair paga</span><span class="or-odd-val">${s.mkt.toFixed(2)}</span></div>
-        <div class="or-odd"><span class="or-odd-lbl">Âncora justa</span><span class="or-odd-val">${s.fair.toFixed(2)}</span></div>
-      </div>
-      <div class="or-note">Pode ser exagero — confira o motivo (lesão? cansaço?). Você decide.</div>
-    </div>`;
-  } else if (signals.length) {
-    orCard = `<div class="or-card or-neutral"><div class="or-title">Odd em linha com a âncora</div><div class="or-note">Sem esticão relevante do mercado neste placar.</div></div>`;
-  } else {
-    orCard = '';
+    { n: aN, fair: fairA, mkt: L.mktA },
+    { n: bN, fair: fairB, mkt: L.mktB },
+  ]
+    // `bruto` = o MESMO lado, sem comissão. Assim "bruto → líquido" fala do mesmo trade
+    // (usar a divergência crua aqui invertia o sinal no lay e confundia).
+    .map((s) => ({ ...s, or: overreaction(s.fair, s.mkt), net: netEdge(s.fair, s.mkt, comissao), bruto: netEdge(s.fair, s.mkt, 0) }))
+    .filter((s) => s.or && s.net && s.bruto);
+  const melhor = signals.slice().sort((a, b) => b.net.ev - a.net.ev)[0];
+  let orCard = '';
+  if (melhor) {
+    const zona = `Com ${comPct}% de comissão, só há valor <strong>lançando abaixo de ${melhor.net.layMax.toFixed(2)}</strong> ou <strong>bancando acima de ${melhor.net.backMin.toFixed(2)}</strong>.`;
+    const odds = `<div class="or-odds">
+        <div class="or-odd"><span class="or-odd-lbl">Betfair paga</span><span class="or-odd-val">${melhor.mkt.toFixed(2)}</span></div>
+        <div class="or-odd"><span class="or-odd-lbl">Âncora justa</span><span class="or-odd-val">${melhor.fair.toFixed(2)}</span></div>
+      </div>`;
+    if (melhor.net.covers) {
+      orCard = `<div class="or-card">
+        <div class="or-top"><span class="or-title">${melhor.net.back ? 'BACK' : 'LAY'} no ${melhor.n}</span><span class="or-mag">${formatSignedPct(melhor.net.ev * 100)} líquido</span></div>
+        ${odds}
+        <div class="or-net">Bruto ${formatSignedPct(melhor.bruto.ev * 100)} → <strong>líquido ${formatSignedPct(melhor.net.ev * 100)}</strong>, depois da comissão de ${comPct}%.</div>
+        <div class="or-note">${zona} Confira o motivo (lesão? cansaço?) antes de entrar. Você decide.</div>
+      </div>`;
+    } else {
+      orCard = `<div class="or-card or-neutral">
+        <div class="or-top"><span class="or-title">Zona morta — não cobre a comissão</span><span class="or-mag">${formatSignedPct(melhor.net.ev * 100)}</span></div>
+        ${odds}
+        <div class="or-note">${zona} A diferença de hoje some na comissão — não é entrada.</div>
+      </div>`;
+    }
   }
   const mktInput = (side, v) => `<button class="value-input" data-mkt="${side}">${v != null ? v.toFixed(2) : 'informar'}</button>`;
 
@@ -953,7 +992,10 @@ function renderLive(pre) {
         ${orCard}
         <div class="capture-bar">
           <span class="field-hint">${capturas} ${capturas === 1 ? 'observação gravada' : 'observações gravadas'} neste aparelho</span>
-          ${capturas ? `<button class="btn btn-ghost" id="btn-export-cap">Exportar CSV</button>` : ''}
+          <span class="cap-actions">
+            <button class="btn btn-ghost" id="btn-commission">comissão ${comPct}%</button>
+            ${capturas ? `<button class="btn btn-ghost" id="btn-export-cap">Exportar CSV</button>` : ''}
+          </span>
         </div>
       </div>
     </div>`;

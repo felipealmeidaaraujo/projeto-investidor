@@ -259,6 +259,9 @@ body {
 .capture-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
 .capture-bar .btn { padding: 6px 12px; font-size: 12.5px; width: auto; }
+.cap-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Linha do líquido: o número que realmente sobra depois da comissão. */
+.or-net { font-size: 13px; color: var(--text-1); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
 .watch { margin-top: 12px; padding: 12px 14px; background: var(--hover); border-radius: 12px; }
 .watch-head { font-size: 13.5px; font-weight: 800; margin-bottom: 6px; }
 .watch-line { font-size: 13px; color: var(--text-1); line-height: 1.5; margin-top: 6px; }

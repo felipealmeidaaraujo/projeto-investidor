@@ -126,6 +126,40 @@ export function overreaction(fairOdd, marketOdd) {
   return { divPct, level: band ? band.level : null, back: divPct > 0 };
 }
 
+/**
+ * A comissão da Betfair incide sobre o LUCRO, então ela cria uma "zona morta" em torno da
+ * odd justa onde nenhum lado dá lucro. Retorna os limites dessa zona:
+ *   layMax  = maior odd em que ainda vale LANÇAR (lay) — acima disso o lay perde;
+ *   backMin = menor odd em que ainda vale BANCAR (back) — abaixo disso o back perde.
+ * Entre os dois, qualquer divergência é ilusão: a comissão come inteira.
+ */
+export function commissionZone(fairOdd, commission = 0.065) {
+  if (!Number.isFinite(fairOdd) || fairOdd <= 1) return null;
+  if (!Number.isFinite(commission) || commission < 0 || commission >= 1) return null;
+  return {
+    layMax: 1 + (fairOdd - 1) * (1 - commission),
+    backMin: 1 + (fairOdd - 1) / (1 - commission),
+  };
+}
+
+/**
+ * EV LÍQUIDO (fração do que se arrisca) do lado que a divergência indica, já com a comissão.
+ * back = true quando o mercado paga ACIMA do justo (valor em bancar); false = lançar.
+ * `covers` diz se sobra alguma coisa depois da comissão. Positivo = vale; ≤0 = zona morta.
+ */
+export function netEdge(fairOdd, marketOdd, commission = 0.065) {
+  const zone = commissionZone(fairOdd, commission);
+  if (!zone || !Number.isFinite(marketOdd) || marketOdd <= 1) return null;
+  const p = 1 / fairOdd; // prob justa de o jogador vencer
+  const back = marketOdd > fairOdd;
+  // Bancando: ganha (odd−1) com prob p, já descontada a comissão sobre o lucro; perde 1 com (1−p).
+  // Lançando: ganha 1 (a aposta do outro) com (1−p), menos comissão; paga (odd−1) com prob p.
+  const ev = back
+    ? p * (marketOdd - 1) * (1 - commission) - (1 - p)
+    : (1 - p) * (1 - commission) - p * (marketOdd - 1);
+  return { back, ev, covers: ev > 0, ...zone };
+}
+
 /** Odd justa ao vivo de A e B, dado a prob pré-jogo de A (target) e o placar. */
 export function liveFairOdds(preProbA, state, { base = 0.64, bestOf = 3 } = {}) {
   const { pA, pB } = impliedServeProbs(preProbA, { base, bestOf });

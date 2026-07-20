@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction } from '../web/src/inplay.js';
+import { holdProb, winProbFromState, impliedServeProbs, liveFairOdds, overreaction, commissionZone, netEdge } from '../web/src/inplay.js';
 
 const approx = (a, b, eps = 1e-3) =>
   assert.ok(Math.abs(a - b) < eps, `esperado ~${b}, veio ${a}`);
@@ -74,4 +74,60 @@ test('overreaction: entradas inválidas → null', () => {
   assert.equal(overreaction(2.0, null), null);
   assert.equal(overreaction(2.0, 0.9), null);
   assert.equal(overreaction(Infinity, 2.0), null);
+});
+
+// --- comissão: zona morta e EV líquido ---
+test('zona morta cresce com a odd (comissão 6,5%)', () => {
+  const z2 = commissionZone(2.0, 0.065);
+  approx(z2.layMax, 1.935);
+  approx(z2.backMin, 2.0695, 1e-3);
+  const z5 = commissionZone(5.0, 0.065);
+  approx(z5.layMax, 4.74);
+  approx(z5.backMin, 5.2781, 1e-3);
+  // quanto maior a odd, mais larga a zona morta em termos relativos
+  assert.ok((z5.backMin / 5 - 1) > (z2.backMin / 2 - 1));
+});
+
+test('sem comissão, a zona morta some (os dois limites viram a justa)', () => {
+  const z = commissionZone(2.0, 0);
+  approx(z.layMax, 2.0);
+  approx(z.backMin, 2.0);
+});
+
+test('odd justa inválida ou comissão absurda → null', () => {
+  assert.equal(commissionZone(1, 0.065), null);
+  assert.equal(commissionZone(2, 1), null);
+  assert.equal(commissionZone(2, -0.1), null);
+  assert.equal(netEdge(2, 0.5, 0.065), null);
+});
+
+test('mercado dentro da zona morta: nenhum lado cobre a comissão', () => {
+  const dentro = netEdge(2.0, 2.0, 0.065); // exatamente no justo
+  assert.equal(dentro.covers, false);
+  assert.ok(dentro.ev < 0);
+  const quase = netEdge(2.0, 2.05, 0.065); // abaixo do backMin de 2.07
+  assert.equal(quase.back, true);
+  assert.equal(quase.covers, false, 'a 2.05 o back ainda não paga a comissão');
+});
+
+test('mercado acima do backMin: back passa a ter EV positivo', () => {
+  const bom = netEdge(2.0, 2.2, 0.065);
+  assert.equal(bom.back, true);
+  assert.equal(bom.covers, true);
+  approx(bom.ev, 0.5 * 1.2 * 0.935 - 0.5, 1e-6);
+});
+
+test('mercado abaixo do layMax: lay passa a ter EV positivo', () => {
+  const bom = netEdge(2.0, 1.85, 0.065);
+  assert.equal(bom.back, false);
+  assert.equal(bom.covers, true);
+  approx(bom.ev, 0.5 * 0.935 - 0.5 * 0.85, 1e-6);
+});
+
+test('a comissão come a divergência: 17% bruto vira bem menos líquido', () => {
+  const r = netEdge(2.05, 2.4, 0.065);
+  const bruto = (1 / 2.05) * 2.4 - 1; // EV sem comissão
+  assert.ok(r.ev > 0 && r.ev < bruto, 'o líquido tem que ser positivo mas menor que o bruto');
+  approx(bruto, 0.1707, 1e-3);
+  approx(r.ev, 0.1264, 1e-3);
 });
